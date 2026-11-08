@@ -79,7 +79,7 @@ Renderer Graph 支持 Forward、Forward+、Stencil Deferred 与 Clustered Deferr
 - **图与材质扩展**：`JobGraphProcessor` 当前使用同步后备实现；高级 Shader Graph Target 和 VFX 集成仍有隔离项。项目自定义节点需要按 [IL2CPP 指南](Packages/FraxinusRP/Documentation~/IL2CPP.md)配置反射保留。
 - **平台与纹理**：SVT 属于 Unity 实验性功能，XR、硬件动态分辨率和子 Context 等路径不收集反馈。其他功能也有各自的相机与平台范围，请以功能文档为准。
 
-配置检查与各模块的测试入口见[验证说明](docs/Validation.md)。具体功能的测试环境和支持范围以对应包文档为准。
+各功能的测试环境与覆盖范围见 [UltraRP 验证](Packages/FraxinusRP/Documentation~/Validation.md)、[Core APV 测试](Packages/Fraxinus-RPCore/Tests~/Unity2022APV/README.md)和 [Light Transport 烟测](Packages/Fraxinus-Light-Transport/Tests~/GpuSmoke/README.md)。
 
 ## 来源与许可证
 

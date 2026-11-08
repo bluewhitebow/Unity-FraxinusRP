@@ -79,7 +79,7 @@ This repository contains packages and documentation. Open a consuming Unity proj
 - **Graph and material extensions:** `JobGraphProcessor` currently uses a synchronous fallback. Advanced Shader Graph targets and VFX integration still have isolated components. Project-defined nodes need reflection-preservation rules from the [IL2CPP guide](Packages/FraxinusRP/Documentation~/IL2CPP.md).
 - **Platforms and textures:** Unity labels SVT experimental. XR, hardware dynamic resolution and child contexts are among the paths that do not collect feedback. Other features have their own camera and platform limits, documented individually.
 
-See the [validation guide](docs/Validation.md) for configuration checks and module test references. Individual package documents describe each feature's tested environments and support scope.
+Tested environments and feature coverage are documented in [UltraRP validation](Packages/FraxinusRP/Documentation~/Validation.md), [Core APV tests](Packages/Fraxinus-RPCore/Tests~/Unity2022APV/README.md), and [Light Transport smoke tests](Packages/Fraxinus-Light-Transport/Tests~/GpuSmoke/README.md).
 
 ## Source and licensing
 
