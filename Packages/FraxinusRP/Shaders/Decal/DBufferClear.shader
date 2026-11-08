@@ -2,7 +2,7 @@ Shader "Hidden/UltraRP/DBufferClear"
 {
     SubShader
     {
-        Tags { "RenderType" = "Opaque" "RenderPipeline" = "UltraRenderPipeline"}
+        Tags { "RenderType" = "Opaque" "RenderPipeline" = "UltraPipeline"}
         LOD 100
 
         Pass

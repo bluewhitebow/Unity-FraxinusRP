@@ -285,6 +285,10 @@ namespace FraxinusEngine.Rendering.Ultra
             if (reasonWarning == null && !cameraData.renderer.SupportsMotionVectors())
                 reasonWarning = "because the renderer does not implement motion vectors. Motion vectors are required.";
 
+            if (reasonWarning == null &&
+                (!(cameraData.renderer is UltraRenderer ultraRenderer) || !ultraRenderer.SupportsTemporalAA()))
+                reasonWarning = "because the renderer has no enabled TAA pass in its main post-processing path.";
+
             const int warningThrottleFrames = 60 * 1; // 60 FPS * 1 sec
             if (s_warnCounter % warningThrottleFrames == 0)
                 Debug.LogWarning("Disabling TAA " + (isSTPRequested ? "and STP " : "") + reasonWarning);

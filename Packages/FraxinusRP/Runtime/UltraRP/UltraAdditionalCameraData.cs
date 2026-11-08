@@ -342,6 +342,8 @@ namespace FraxinusEngine.Rendering.Ultra
         }
 
 
+        public int rendererIndex => _rendererIndex;
+
         public void SetRenderer(int index)
         {
             _rendererIndex = index;

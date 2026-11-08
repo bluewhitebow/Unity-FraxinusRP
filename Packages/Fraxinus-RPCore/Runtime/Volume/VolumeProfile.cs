@@ -22,18 +22,10 @@ namespace UnityEngine.Rendering
         /// A dirty check used to redraw the profile inspector when something has changed. This is
         /// currently only used in the editor.
         /// </summary>
-        [Obsolete("This field was only public for editor access. #from(6000.0)")]
-        public bool isDirty
-        {
-            get => dirtyState != DirtyState.None;
-            set
-            {
-                if (value)
-                    dirtyState |= DirtyState.Other;
-                else
-                    dirtyState &= ~DirtyState.Other;
-            }
-        }
+        // Recovered URP 14 plugins, including Cinemachine, access this member with
+        // ldfld/stfld. A property with the same name does not preserve that ABI.
+        [NonSerialized]
+        public bool isDirty;
 
         [Flags] internal enum DirtyState
         {
@@ -43,7 +35,20 @@ namespace UnityEngine.Rendering
             Other = 4
         }
 
-        internal DirtyState dirtyState;
+        // Keep the specific change reasons independently from the legacy flag.
+        // Clearing isDirty must only clear Other, not a pending component change
+        // or profile reset. Clearing dirtyState after an inspector refresh must
+        // also clear the legacy flag so it cannot trigger repeated refreshes.
+        DirtyState m_DirtyState;
+        internal DirtyState dirtyState
+        {
+            get => m_DirtyState | (isDirty ? DirtyState.Other : DirtyState.None);
+            set
+            {
+                m_DirtyState = value & ~DirtyState.Other;
+                isDirty = value != DirtyState.None;
+            }
+        }
 
         void OnEnable()
         {

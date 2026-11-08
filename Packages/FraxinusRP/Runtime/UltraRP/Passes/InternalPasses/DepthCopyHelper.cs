@@ -22,7 +22,7 @@ namespace FraxinusEngine.Rendering.Ultra
         internal class PassData
         {
             internal TextureHandle source;
-            internal TextureHandle destination;
+            internal bool destinationYFlipped;
             internal CameraType cameraType;
             internal Rect? viewport;
             internal Material copyDepthMaterial;
@@ -80,7 +80,14 @@ namespace FraxinusEngine.Rendering.Ultra
                 // A resolved source is sampled as Texture2D even when its attachment has MSAA.
                 passData.msaaSamples = sourceInfo.bindMS && SystemInfo.supportsMultisampledTextures != 0
                     ? sourceInfo.msaaSamples : 1;
-                passData.destination = destination;
+                // Native render passes may keep an attachment memoryless, without
+                // allocating an RTHandle. Determine its orientation while recording
+                // instead of resolving that attachment in the execution callback.
+                bool destinationIsBackbuffer = cameraData.targetTexture == null &&
+                    (RenderGraphUtils.TextureHandlesEqual(destination, resourceData.backBufferColor) ||
+                     RenderGraphUtils.TextureHandlesEqual(destination, resourceData.backBufferDepth));
+                passData.destinationYFlipped = !SystemInfo.graphicsUVStartsAtTop ||
+                    cameraData.isSceneViewCamera || cameraData.isPreviewCamera || !destinationIsBackbuffer;
                 passData.cameraType = cameraData.cameraType;
                 passData.viewport = viewport;
                 passData.copyToDepth = copyToDepth;
@@ -112,12 +119,12 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 builder.SetRenderFunc(static (PassData data, RasterGraphContext context) =>
                 {
-                    ExecutePass(context.cmd, data, data.source, data.destination);
+                    ExecutePass(context.cmd, data, data.source);
                 });
             }
         }
 
-        private static void ExecutePass(RasterCommandBuffer cmd, PassData passData, RTHandle source, RTHandle destination)
+        private static void ExecutePass(RasterCommandBuffer cmd, PassData passData, RTHandle source)
         {
             var copyDepthMaterial = passData.copyDepthMaterial;
             var msaaSamples = passData.msaaSamples;
@@ -162,7 +169,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 cmd.SetKeyword(ShaderGlobalKeywords._OUTPUT_DEPTH, copyToDepth);
 
                 bool yflip = CameraData.IsHandleYFlipped(source, passData.cameraType) !=
-                    CameraData.IsHandleYFlipped(destination, passData.cameraType);
+                    passData.destinationYFlipped;
 
                 Vector2 viewportScale = source.useScaling ? new Vector2(source.rtHandleProperties.rtHandleScale.x, source.rtHandleProperties.rtHandleScale.y) : Vector2.one;
                 Vector4 scaleBias = yflip ? new Vector4(viewportScale.x, -viewportScale.y, 0, viewportScale.y) : new Vector4(viewportScale.x, viewportScale.y, 0, 0);

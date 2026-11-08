@@ -72,8 +72,9 @@ namespace FraxinusEngine.Rendering.Ultra
 
             bool hasFullPrepass = isDepthOnlyPrepass || (isDepthNormalPrepass && !allowPartialDepthNormals);
 
-            deferredLights.useFramebufferFetch = renderGraph.nativeRenderPassesEnabled && !renderingData.hasDeferredCluster &&
-                !renderingData.renderPassInputs.disableFramebufferFetch;
+            deferredLights.ConfigureLightingPath(renderGraph.nativeRenderPassesEnabled,
+                renderingData.hasDeferredCluster, renderingData.clusterLightingMode,
+                renderingData.renderPassInputs.disableFramebufferFetch);
             TextureCopySchedules copySchedules = CalculateTextureCopySchedules(renderer, cameraData, renderingData.renderPassInputs,
                 renderingData.hasDeferred, requiresDepthPrepass, hasFullPrepass, deferredLights.useFramebufferFetch);
 

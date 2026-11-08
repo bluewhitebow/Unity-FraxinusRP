@@ -278,7 +278,6 @@ namespace FraxinusEngine.Rendering.Ultra
             return true;
         }
 
-        // Todo: Add taa condication
         internal bool IsTemporalAARequested()
         {
             return antialiasing == AntialiasingMode.TemporalAntiAliasing;
@@ -287,6 +286,10 @@ namespace FraxinusEngine.Rendering.Ultra
 
         internal bool IsTemporalAAEnabled()
         {
+            var debugSettings = UltraRenderPipelineDebugDisplaySettings.Instance;
+            if (debugSettings.AreAnySettingsActive && !isPreviewCamera && !debugSettings.IsPostProcessingAllowed)
+                return false;
+
             UltraAdditionalCameraData additionalCameraData;
             camera.TryGetComponent(out additionalCameraData);
 
@@ -298,7 +301,7 @@ namespace FraxinusEngine.Rendering.Ultra
                    && !camera.allowDynamicResolution                                                                                  // No Dynamic Resolution
                    && !isSubContext                                                                                                   // History belongs to the main camera
                    && !UltraRenderer.IsOffscreenDepthTexture(this)                                                                     // Depth-only targets do not accumulate color
-                   && renderer != null && renderer.SupportsMotionVectors();
+                   && renderer is UltraRenderer ultraRenderer && ultraRenderer.SupportsTemporalAA();                                 // Renderer opt-in, before jitter/history setup
         }
 
         internal bool IsSTPRequested()

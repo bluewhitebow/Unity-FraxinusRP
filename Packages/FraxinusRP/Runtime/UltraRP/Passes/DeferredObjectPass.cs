@@ -6,6 +6,13 @@ using UnityEngine.Rendering.RenderGraphModule;
 
 namespace FraxinusEngine.Rendering.Ultra
 {
+    public enum ClusterLightingMode
+    {
+        Auto = 0,
+        Compute = 1,
+        Raster = 2
+    }
+
     [Serializable, NodeMenuItem("UltraRP/DeferredObjectPass")]
     public class DeferredObjectPass : ScriptableRenderPassNode
     {
@@ -42,6 +49,14 @@ namespace FraxinusEngine.Rendering.Ultra
             {
                 _cluster = value;
             }
+        }
+
+        [SerializeField, Tooltip("Auto uses raster clustered lighting when framebuffer fetch is available. Raster also supports ordinary GBuffer sampling; Compute keeps the classified compute path.")]
+        private ClusterLightingMode _clusterLightingMode;
+        public ClusterLightingMode clusterLightingMode
+        {
+            get => _clusterLightingMode;
+            set => _clusterLightingMode = value;
         }
 
         public override LayerMask GetOpaqueLayerMask()
@@ -106,6 +121,27 @@ namespace FraxinusEngine.Rendering.Ultra
             TextureHandle additionalShadowsTexture = additionalShadowMap.value;
 
             deferredPass.Render(renderGraph, frameData, activeColorTexture, activeDepthTexture, gbuffer, mainShadowsTexture, additionalShadowsTexture, cluster);
+
+#if UNITY_2022_1_OR_NEWER && !UNITY_2023_1_OR_NEWER
+            if ((!cluster || deferredLights.useClusterRaster) && renderGraph.nativeRenderPassesEnabled && SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D11)
+            {
+                // Separate deferred lighting from the following forward draws
+                // on the legacy D3D11 native-pass backend. The read dependencies
+                // preserve color and depth across the submission boundary.
+                using (var builder = renderGraph.AddUnsafePass<DeferredSubmissionBoundary>(
+                    "Deferred D3D11 Submission Boundary", out _))
+                {
+                    builder.UseTexture(activeColorTexture, AccessFlags.Read);
+                    builder.UseTexture(activeDepthTexture, AccessFlags.Read);
+                    builder.AllowPassCulling(false);
+                    builder.SetRenderFunc((DeferredSubmissionBoundary _, UnsafeGraphContext context) => { });
+                }
+            }
+#endif
         }
+
+#if UNITY_2022_1_OR_NEWER && !UNITY_2023_1_OR_NEWER
+        sealed class DeferredSubmissionBoundary { }
+#endif
     }
 }

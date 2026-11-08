@@ -8,7 +8,7 @@ namespace FraxinusEngine.Rendering.Ultra
 {
     partial class DeferredLights
     {
-        /// <summary>CPU 侧零数据，用于每帧在 classify 前重置间接派发参数（InterlockedAdd 依赖初值为 0）。</summary>
+        // Initial indirect dispatch arguments. Classification appends the X group count.
         static readonly uint[] s_clearDispatchIndirectBuffer =
         {
             0u, 1u, 1u, // model 0: threadGroupCountX/Y/Z
@@ -30,26 +30,26 @@ namespace FraxinusEngine.Rendering.Ultra
             public BufferHandle dispatchIndirectBuffer;
             public BufferHandle tileListBuffer;
 
-            // PreIntergratedFGD
+            // Lighting lookup textures
             public TextureHandle fgdGGXAndDisneyDiffuse;
             public TextureHandle areaLightLtc;
             public int areaLightCount;
             public bool areaLightingReady;
 
-            // Sky Ambient
-            public BufferHandle ambientProbe;
-
-            // Sky Reflect
-            public TextureHandle reflectProbe;
-
-            // Lighting Buffers (SSAO, SSR, SSGI, SSShadow)
-            public TextureHandle ssrLightingTexture;
-            public bool rayTracingShadowsEnabled;
-
-            public TextureHandle ssShadowsTexture;
+            // Screen-space AO and light cookies consumed by the lighting kernels.
             public TextureHandle ambientOcclusionTexture;
             public bool ambientOcclusionEnabled;
             public float ambientOcclusionDirectStrength;
+            public TextureHandle mainLightCookieTexture;
+            public TextureHandle additionalLightsCookieAtlasTexture;
+        }
+
+        internal void GetCookieTextures(RenderGraph renderGraph, out TextureHandle mainCookie, out TextureHandle additionalCookieAtlas)
+        {
+            mainCookie = _lightCookieManager != null
+                ? _lightCookieManager.mainLightCookieTextureHandle : renderGraph.defaultResources.whiteTexture;
+            additionalCookieAtlas = _lightCookieManager != null
+                ? _lightCookieManager.additionalLightsCookieAtlasTextureHandle : renderGraph.defaultResources.whiteTexture;
         }
 
         public void RenderClusterLights(RenderGraph renderGraph, ContextContainer frameData)
@@ -76,7 +76,6 @@ namespace FraxinusEngine.Rendering.Ultra
             _gpuLights.RenderSetGlobalSync(renderGraph, frameData);
         }
 
-
         internal void RenderContextLightGrid(RenderGraph graph, ContextContainer frameData)
         {
             // A ContextBegin changes resolution only. Light bounds and light data
@@ -90,14 +89,16 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             EnsureDeferredLightingKernels();
             cmd.SetComputeIntParam(_deferredLightingCS, "_ClusterMainLightIndex", lightData.mainLightIndex);
+            // Stencil's PrecomputeLights skips all visible lights when both
+            // pipeline lighting modes are disabled. The GPU list can still
+            // contain directional lights, so pass the effective count explicitly.
+            int directionalLightCount = lightData.additionalLightsCount != 0 || lightData.mainLightIndex >= 0
+                ? lightData.directionalLightsCount : 0;
+            cmd.SetComputeIntParam(_deferredLightingCS, "_ClusterDirectionalLightCount", directionalLightCount);
             cmd.SetComputeIntParam(_deferredLightingCS, "_FraxinusAreaLightCount", data.areaLightCount);
             cmd.SetComputeIntParam(_deferredLightingCS, "_FraxinusLightingLutsReady", data.areaLightingReady ? 1 : 0);
             cmd.SetComputeIntParam(_deferredLightingCS, "_FraxinusAmbientOcclusionEnabled", data.ambientOcclusionEnabled ? 1 : 0);
             cmd.SetComputeFloatParam(_deferredLightingCS, "_FraxinusAmbientOcclusionDirectStrength", data.ambientOcclusionDirectStrength);
-
-            // Due to async compute, we set global keywords here.
-            //cmd.SetKeyword(ShaderGlobalKeywords.screenSpaceReflection, data.SSRLightingTexture.IsValid());
-            //cmd.SetKeyword(ShaderGlobalKeywords.rayTracingShadows, data.rayTracingShadowsEnabled);
 
             // BuildIndirect
             {
@@ -133,17 +134,14 @@ namespace FraxinusEngine.Rendering.Ultra
                         PreIntegratedFGD.ShaderConstants._PreIntegratedFGD_GGXDisneyDiffuse, data.fgdGGXAndDisneyDiffuse);
                     cmd.SetComputeTextureParam(_deferredLightingCS, kernelIndex, "_LtcData", data.areaLightLtc);
                     cmd.SetComputeTextureParam(_deferredLightingCS, kernelIndex, "_ScreenSpaceOcclusionTexture", data.ambientOcclusionTexture);
+                    cmd.SetComputeTextureParam(_deferredLightingCS, kernelIndex, "_MainLightCookieTexture", data.mainLightCookieTexture, 0, RenderTextureSubElement.Color);
+                    cmd.SetComputeTextureParam(_deferredLightingCS, kernelIndex, "_AdditionalLightsCookieAtlasTexture", data.additionalLightsCookieAtlasTexture);
                     // Parent GBuffer production can precede an entire child scope.
                     // Bind the captured inputs to each kernel rather than sampling
                     // the globals most recently published by another scope.
                     for (int i = 0; i < data.gbuffer.Length; ++i)
                         if (i != gBufferLightingIndex && data.gbuffer[i].IsValid())
                             cmd.SetComputeTextureParam(_deferredLightingCS, kernelIndex, gbufferShaderPropertyIDs[i], data.gbuffer[i]);
-
-                    //cmd.SetComputeBufferParam(_deferredLightingCS, kernelIndex, "_AmbientProbeData", data.ambientProbe);
-                    //cmd.SetComputeTextureParam(_deferredLightingCS, kernelIndex, "_SkyTexture", data.reflectProbe);
-
-                    // cmd.SetComputeTextureParam(_deferredLightingCS, kernelIndex, "_ScreenSpaceShadowmapTexture", datas.ssShadowsTexture);
 
                     cmd.DispatchCompute(_deferredLightingCS, kernelIndex, data.dispatchIndirectBuffer, (uint)modelIndex * 3 * sizeof(uint));
                 }

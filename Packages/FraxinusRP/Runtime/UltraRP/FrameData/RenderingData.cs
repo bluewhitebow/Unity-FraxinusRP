@@ -36,6 +36,7 @@ namespace FraxinusEngine.Rendering.Ultra
         public bool hasForwardPlus;
         public bool hasDeferred;
         public bool hasDeferredCluster;
+        public ClusterLightingMode clusterLightingMode;
         public bool needsOccluderUpdate;
 
 
@@ -51,6 +52,7 @@ namespace FraxinusEngine.Rendering.Ultra
             hasForwardPlus = false;
             hasDeferred = false;
             hasDeferredCluster = false;
+            clusterLightingMode = ClusterLightingMode.Auto;
             needsOccluderUpdate = false;
         }
     }

@@ -164,7 +164,24 @@ namespace FraxinusEngine.Rendering.Ultra
         internal bool useShadowMask { get { return this.mixedLightingSetup != MixedLightingSetup.None; } }
         internal bool useRenderingLayers { get { return useLightLayers || useDecalLayers; } }
         internal RenderingLayerUtils.MaskSize renderingLayerMaskSize { get; set; }
-        internal bool useFramebufferFetch { get; set; }
+        private bool _useFramebufferFetch;
+        internal bool useFramebufferFetch
+        {
+            get => _useFramebufferFetch;
+            set
+            {
+#if UNITY_2022_1_OR_NEWER && !UNITY_2023_1_OR_NEWER
+                // Unity 2022/D3D11 loses deferred lighting when the native pass
+                // consumes transient GBuffer input attachments. Sampling graph-
+                // declared textures preserves their storage and keeps Native
+                // RenderGraph enabled. Gate both setup callers here so attachment
+                // layout, shader keywords and depth-copy scheduling agree.
+                _useFramebufferFetch = value && SystemInfo.graphicsDeviceType != GraphicsDeviceType.Direct3D11;
+#else
+                _useFramebufferFetch = value;
+#endif
+            }
+        }
         internal bool hasDepthPrepass { get; set; }
         internal bool hasNormalPrepass { get; set; }
         internal bool hasRenderingLayerPrepass { get; set; }
@@ -258,6 +275,7 @@ namespace FraxinusEngine.Rendering.Ultra
             _gpuLights = new GPULights(gpuInitParams);
 
             _deferredLightingCS = gpuInitParams.runtimeShaders.deferredLightingCS;
+            _runtimeShaders = initParams.runtimeShaders;
         }
 
         private void EnsureDeferredLightingKernels()
@@ -282,6 +300,7 @@ namespace FraxinusEngine.Rendering.Ultra
         protected override void OnCameraCleanup(CommandBuffer cmd)
         {
             cluster = false;
+            useClusterRaster = false;
 
             // Disable any global keywords setup in SetupLights().
             cmd.SetKeyword(ShaderGlobalKeywords._GBUFFER_NORMALS_OCT, false);
@@ -299,6 +318,8 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             CoreUtils.Destroy(_stencilDeferredMaterial);
             _stencilDeferredMaterial = null;
+            CoreUtils.Destroy(_clusterDeferredMaterial);
+            _clusterDeferredMaterial = null;
             _gpuLights.Dispose();
             _gpuLights = null;
         }

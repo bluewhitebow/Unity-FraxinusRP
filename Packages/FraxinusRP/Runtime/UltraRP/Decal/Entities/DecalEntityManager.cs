@@ -249,6 +249,10 @@ namespace FraxinusEngine.Rendering.Ultra
                 DecalCulledChunk culledChunk = culledChunks[chunkIndex];
                 DecalDrawCallChunk drawCallChunk = drawCallChunks[chunkIndex];
 
+                // Projectors can be created between camera renders, including
+                // after an interrupted graph left draw-call jobs outstanding.
+                CompleteChunkJobs(chunkIndex);
+
                 // Make sure we have space to add new entity
                 if (entityChunks[chunkIndex].capacity == entityChunks[chunkIndex].count)
                 {
@@ -337,6 +341,11 @@ namespace FraxinusEngine.Rendering.Ultra
 
             DecalCachedChunk cachedChunk = cachedChunks[chunkIndex];
 
+            // Property setters invoke this from OnValidate/OnEnable, outside
+            // the renderer's normal update/draw sequence. Finish readers before
+            // changing their cached NativeArrays on the main thread.
+            cachedChunk.currentJobHandle.Complete();
+
             cachedChunk.sizeOffsets[arrayIndex] = Matrix4x4.Translate(decalProjector.decalOffset) * Matrix4x4.Scale(decalProjector.decalSize);
 
             float drawDistance = decalProjector.drawDistance;
@@ -395,6 +404,8 @@ namespace FraxinusEngine.Rendering.Ultra
             DecalCulledChunk culledChunk = culledChunks[chunkIndex];
             DecalDrawCallChunk drawCallChunk = drawCallChunks[chunkIndex];
 
+            CompleteChunkJobs(chunkIndex);
+
             int lastArrayIndex = entityChunk.count - 1;
             if (arrayIndex != lastArrayIndex)
                 _decalEntityIndexer.UpdateIndex(entityChunk.decalEntities[lastArrayIndex], arrayIndex);
@@ -403,6 +414,14 @@ namespace FraxinusEngine.Rendering.Ultra
             cachedChunk.RemoveAtSwapBack(arrayIndex);
             culledChunk.RemoveAtSwapBack(arrayIndex);
             drawCallChunk.RemoveAtSwapBack(arrayIndex);
+        }
+
+        private void CompleteChunkJobs(int chunkIndex)
+        {
+            entityChunks[chunkIndex].currentJobHandle.Complete();
+            cachedChunks[chunkIndex].currentJobHandle.Complete();
+            culledChunks[chunkIndex].currentJobHandle.Complete();
+            drawCallChunks[chunkIndex].currentJobHandle.Complete();
         }
 
         public void Update()

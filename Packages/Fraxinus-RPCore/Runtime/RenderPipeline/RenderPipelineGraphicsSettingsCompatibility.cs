@@ -510,6 +510,8 @@ namespace UnityEngine.Rendering
                 {
                     "Packages/Fraxinus-RPCore",
                     "Packages/com.unity.render-pipelines.core",
+                    "Packages/FraxinusRP",
+                    "Packages/com.bluewhitebow.fraxinus-rp",
                     "Packages/Fraxinus-URPExtensions",
                     "Packages/com.unity.render-pipelines.universal",
                 };

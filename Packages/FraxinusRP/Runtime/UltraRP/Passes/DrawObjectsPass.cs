@@ -68,6 +68,7 @@ namespace FraxinusEngine.Rendering.Ultra
         [SerializeField] private LayerMask _layerMask;
         [SerializeField] private bool _isForwardPlus;
         [SerializeField] private bool _isOpaque;
+        [SerializeField] private bool _forwardOnlyInDeferred;
         [SerializeField] private RenderQueueType _renderQueueType;
         [SerializeField] private OverrideMaterialMode _overrideMode = OverrideMaterialMode.None;
         [SerializeField] [VisibleIf(nameof(_overrideMode), OverrideMaterialMode.Material), ShowAsObjectDrawer] private Material _overrideMaterial = null;
@@ -121,6 +122,14 @@ namespace FraxinusEngine.Rendering.Ultra
                 _isOpaque = value;
                 SetDirty();
             }
+        }
+
+        // A deferred graph still needs its complete forward path for overlay
+        // cameras, where the renderer disables deferred lighting for the frame.
+        public bool forwardOnlyInDeferred
+        {
+            get => _forwardOnlyInDeferred;
+            set => _forwardOnlyInDeferred = value;
         }
 
         public RenderQueueType renderQueueType
@@ -198,6 +207,7 @@ namespace FraxinusEngine.Rendering.Ultra
         FilteringSettings _filteringSettings;
         RenderStateBlock _renderStateBlock;
         List<ShaderTagId> _shaderTagIdList = new List<ShaderTagId>();
+        readonly List<ShaderTagId> _deferredForwardOnlyTagIds = new List<ShaderTagId>();
 
         protected override void SetDirty() => FlushRenderSettings();
 
@@ -435,6 +445,9 @@ namespace FraxinusEngine.Rendering.Ultra
 
         void FlushRenderSettings()
         {
+            _deferredForwardOnlyTagIds.Clear();
+            _deferredForwardOnlyTagIds.Add(new ShaderTagId("UltraForwardOnly"));
+            _deferredForwardOnlyTagIds.Add(new ShaderTagId("SRPDefaultUnlit"));
             _shaderTagIdList.Clear();
             _shaderTagIdList.Add(new ShaderTagId("SRPDefaultUnlit"));
             if (_shaderTagIdStrings != null && _shaderTagIdStrings.Count > 0)
@@ -519,7 +532,9 @@ namespace FraxinusEngine.Rendering.Ultra
                 filterSettings.layerMask = -1;
 #endif
 
-            DrawingSettings drawingSettings = RenderingUtils.CreateDrawingSettings(_shaderTagIdList, renderingData, cameraData, lightData, sortFlags);
+            var shaderTags = _isOpaque && _forwardOnlyInDeferred && renderingData.hasDeferred
+                ? _deferredForwardOnlyTagIds : _shaderTagIdList;
+            DrawingSettings drawingSettings = RenderingUtils.CreateDrawingSettings(shaderTags, renderingData, cameraData, lightData, sortFlags);
             if (!cameraData.isSubContext && cameraData.renderer.useDepthPriming && _isOpaque && (cameraData.renderType == CameraRenderType.Base || cameraData.clearDepth))
             {
                 _renderStateBlock.depthState = new DepthState(false, CompareFunction.Equal);

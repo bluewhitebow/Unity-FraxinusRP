@@ -113,6 +113,12 @@ namespace FraxinusEngine.Rendering.Ultra
             return true;
         }
 
+        internal bool SupportsTemporalAA()
+        {
+            return _cameraMotionVecMaterial != null && graph.postProcessData != null &&
+                HasTemporalResolvePass(true);
+        }
+
         internal bool SupportsTemporalUpscaling()
         {
             if (_cameraMotionVecMaterial == null || graph.postProcessData == null ||
@@ -123,6 +129,11 @@ namespace FraxinusEngine.Rendering.Ultra
             if (sgsr2Material == null || sgsr2Material.passCount <= TAAU_SGSR2.CopyHistoryPass)
                 return false;
 
+            return HasTemporalResolvePass(false);
+        }
+
+        private bool HasTemporalResolvePass(bool requireTemporalAA)
+        {
             // A temporal camera must resolve in its main context. A child-only post pass
             // cannot consume the main camera's jitter or history.
             int contextDepth = 0;
@@ -139,8 +150,13 @@ namespace FraxinusEngine.Rendering.Ultra
                     contextDepth = Mathf.Max(0, contextDepth - 1);
                 else if (contextDepth == 0 && pass is RenderDrivenPass)
                     hasDrivenPass = true;
-                else if (contextDepth == 0 && pass is PostProcessPass)
-                    return hasDrivenPass;
+                else if (contextDepth == 0 && pass is PostProcessPass postProcessPass)
+                {
+                    if (!hasDrivenPass)
+                        return false;
+                    if (!requireTemporalAA || postProcessPass.temporalAAEnabled)
+                        return true;
+                }
             }
 
             return false;
@@ -262,6 +278,17 @@ namespace FraxinusEngine.Rendering.Ultra
                     inputSummary.requiresMotionVectors |= needsMotion;
 
                     _renderingMode |= pass.RequestRenderingMode();
+                    // GBuffer layout and lighting mode are camera-wide. Child
+                    // scopes inherit the main scope instead of overriding it.
+                    if (pass is DeferredObjectPass deferred && deferred.cluster &&
+                        (graph.drivenNode == null || IsSameContext(pass, graph.drivenNode)) &&
+                        deferred.clusterLightingMode != ClusterLightingMode.Auto)
+                    {
+                        if (interalRendererData.clusterLightingMode != ClusterLightingMode.Auto &&
+                            interalRendererData.clusterLightingMode != deferred.clusterLightingMode)
+                            throw new InvalidOperationException("Cluster deferred passes in one camera must use the same explicit lighting mode.");
+                        interalRendererData.clusterLightingMode = deferred.clusterLightingMode;
+                    }
                     opaqueLayerMask |= pass.GetOpaqueLayerMask();
                 }
             }
@@ -515,11 +542,10 @@ namespace FraxinusEngine.Rendering.Ultra
             _forwardLights.SetupRenderGraphLights(renderGraph, renderingData, cameraData, lightData);
             if (renderingData.hasDeferred)
             {
-                // Compute-based clustered lighting samples textures outside the
-                // raster pass and must keep the non-framebuffer-fetch layout.
-                _deferredLights.useFramebufferFetch = renderGraph.nativeRenderPassesEnabled &&
-                    !renderingData.hasDeferredCluster && !renderingData.renderPassInputs.disableFramebufferFetch;
-                _deferredLights.cluster = renderingData.hasDeferredCluster;
+                // Choose the lighting path before attachment layout and camera targets.
+                _deferredLights.ConfigureLightingPath(renderGraph.nativeRenderPassesEnabled,
+                    renderingData.hasDeferredCluster, renderingData.clusterLightingMode,
+                    renderingData.renderPassInputs.disableFramebufferFetch);
                 _deferredLights.SetupRenderGraphLights(renderGraph, cameraData, lightData);
             }
         }
@@ -747,7 +773,8 @@ namespace FraxinusEngine.Rendering.Ultra
                 cameraTargetDescriptor.autoGenerateMips = false;
                 cameraTargetDescriptor.depthBufferBits = (int)DepthBits.None;
 
-                cameraTargetDescriptor.enableRandomWrite = GetModule<DeferredLights>().cluster;
+                var deferredLights = GetModule<DeferredLights>();
+                cameraTargetDescriptor.enableRandomWrite = deferredLights.cluster && !deferredLights.useClusterRaster;
 
                 // When there's a single camera setup, there's no need to do the double buffer technique with attachment A/B, in order to save memory allocation
                 // and simplify the workflow by using a RenderGraph texture directly.
@@ -850,6 +877,7 @@ namespace FraxinusEngine.Rendering.Ultra
             renderingData.hasForwardPlus = internalData.hasForwardPlus;
             renderingData.hasDeferred = internalData.hasDeferred;
             renderingData.hasDeferredCluster = internalData.hasDeferredCluster;
+            renderingData.clusterLightingMode = internalData.clusterLightingMode;
         }
 
         private void UpdateCameraHistory(CameraData cameraData)

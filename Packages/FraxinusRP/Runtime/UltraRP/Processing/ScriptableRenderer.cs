@@ -811,6 +811,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
                 {
+                    RasterCommandBuffer cmd = context.cmd;
                     bool yFlip = !SystemInfo.graphicsUVStartsAtTop || data.isTargetBackbuffer;
 
                     // - Camera billboard properties.
@@ -819,13 +820,13 @@ namespace FraxinusEngine.Rendering.Ultra
                     if (data.cameraData.renderType == CameraRenderType.Base)
                     {
                         context.cmd.SetupCameraProperties(data.cameraData.camera);
-                        data.renderer.SetPerCameraShaderVariables(context.cmd, data.cameraData, data.cameraTargetSizeCopy, !yFlip);
+                        data.renderer.SetPerCameraShaderVariables(cmd, data.cameraData, data.cameraTargetSizeCopy, !yFlip);
                     }
                     else
                     {
-                        data.renderer.SetPerCameraShaderVariables(context.cmd, data.cameraData, data.cameraTargetSizeCopy, !yFlip);
-                        data.renderer.SetPerCameraClippingPlaneProperties(context.cmd, in data.cameraData, !yFlip);
-                        data.renderer.SetPerCameraBillboardProperties(context.cmd, data.cameraData);
+                        data.renderer.SetPerCameraShaderVariables(cmd, data.cameraData, data.cameraTargetSizeCopy, !yFlip);
+                        data.renderer.SetPerCameraClippingPlaneProperties(cmd, in data.cameraData, !yFlip);
+                        data.renderer.SetPerCameraBillboardProperties(cmd, data.cameraData);
                     }
 
 #if UNITY_EDITOR
@@ -838,7 +839,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
                     // Reset shader time variables as they were overridden in SetupCameraProperties.
                     // If we don't do it we might have a mismatch between shadows and main rendering
-                    SetShaderTimeValues(context.cmd, time, deltaTime, smoothDeltaTime);
+                    SetShaderTimeValues(cmd, time, deltaTime, smoothDeltaTime);
                 });
             }
         }
@@ -1015,6 +1016,15 @@ namespace FraxinusEngine.Rendering.Ultra
             cmd.SetKeyword(ShaderGlobalKeywords.SoftShadowsLow, false);
             cmd.SetKeyword(ShaderGlobalKeywords.SoftShadowsMedium, false);
             cmd.SetKeyword(ShaderGlobalKeywords.SoftShadowsHigh, false);
+
+            // DBuffer textures belong to the current camera's graph. A camera
+            // without an active decal node must not inherit another camera's
+            // DBuffer variant after its transient textures have been released.
+            // The DBuffer pass enables the required mode again before receivers.
+            cmd.SetKeyword(ShaderGlobalKeywords.DBufferMRT1, false);
+            cmd.SetKeyword(ShaderGlobalKeywords.DBufferMRT2, false);
+            cmd.SetKeyword(ShaderGlobalKeywords.DBufferMRT3, false);
+            cmd.SetKeyword(ShaderGlobalKeywords.DecalLayers, false);
         }
 
         internal bool IsSceneFilteringEnabled(Camera camera)

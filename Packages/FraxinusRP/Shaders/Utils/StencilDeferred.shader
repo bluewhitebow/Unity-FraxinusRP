@@ -1,5 +1,10 @@
 Shader "Hidden/Ultra Render Pipeline/StencilDeferred"
 {
+    HLSLINCLUDE
+    // Also covers passes imported by UsePass in project deferred shaders.
+    #pragma editor_sync_compilation
+    ENDHLSL
+
     Properties {
         _StencilRef ("StencilRef", Int) = 0
         _StencilReadMask ("StencilReadMask", Int) = 0

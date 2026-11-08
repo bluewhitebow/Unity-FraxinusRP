@@ -1560,13 +1560,15 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
             FillSubPassArrays(descriptor);
 
             var colors = m_SubPassColors.AsArray();
-            bool isDepthReadOnly = (descriptor.flags & SubPassFlags.ReadOnlyDepth) != 0;
-            bool isStencilReadOnly = (descriptor.flags & SubPassFlags.ReadOnlyStencil) != 0;
+            // Match URP 14's writable depth/stencil bindings on the legacy
+            // context API. On Unity 2022/D3D11, a read-only depth subpass followed
+            // by a writable one suppressed the opaque draws. Keep the compiler's
+            // read dependencies and lifetimes; omit only the backend read-only flags.
 
             if (m_SubPassInputs.Length > 0)
-                rgContext.renderContext.BeginSubPass(colors, m_SubPassInputs.AsArray(), isDepthReadOnly, isStencilReadOnly);
+                rgContext.renderContext.BeginSubPass(colors, m_SubPassInputs.AsArray());
             else
-                rgContext.renderContext.BeginSubPass(colors, isDepthReadOnly, isStencilReadOnly);
+                rgContext.renderContext.BeginSubPass(colors);
 
             m_ContextSubPassActive = true;
         }

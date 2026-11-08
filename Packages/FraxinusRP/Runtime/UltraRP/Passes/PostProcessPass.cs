@@ -14,6 +14,11 @@ namespace FraxinusEngine.Rendering.Ultra
     [Serializable]
     public partial class PostProcessPass : ScriptableRenderPassNode
     {
+        // Recovery compatibility: plugins can sample the processed scene before
+        // final AA/upscaling, presentation and overlay UI. While subscribed, keep
+        // this image in a sampleable intermediate target and resolve it afterward.
+        public static event Action<RenderGraph, ScriptableRenderContext, ContextContainer> beforeFinalResolve;
+
         static class ShaderConstants
         {
             public static readonly int _TempTarget = Shader.PropertyToID("_TempTarget");
@@ -93,6 +98,19 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public List<PostPassEntry> postPassEntries => _postPassEntries;
 
+        // Read the renderer setting directly: camera jitter is initialized before
+        // input builds the active post-pass list for the current frame.
+        internal bool temporalAAEnabled
+        {
+            get
+            {
+                foreach (var entry in _postPassEntries)
+                    if (entry.enabled && entry.passInstance is TAAPass)
+                        return true;
+                return false;
+            }
+        }
+
         [HideInInspector, SerializeField]
         private List<UberEffectEntry> _uberEffectEntries = new List<UberEffectEntry>();
 
@@ -143,6 +161,18 @@ namespace FraxinusEngine.Rendering.Ultra
 
         internal BloomPass.UberSetupBloomPassData bloomData;
 
+        // Imported lookup textures remain owned by their assets/callers. Keep
+        // wrappers alive until this graph node is disabled, including when two
+        // cameras record different LUTs before execution.
+        readonly Dictionary<Texture, RTHandle> _userLutHandles = new Dictionary<Texture, RTHandle>();
+
+        void ReleaseUserLutHandles()
+        {
+            foreach (var handle in _userLutHandles.Values)
+                handle.Release();
+            _userLutHandles.Clear();
+        }
+
         // 添加一个缓存列表，用于存储当前帧/当前相机激活的 Pass
         private List<PostPassEntry> _activePostPassEntries = new List<PostPassEntry>();
 
@@ -182,6 +212,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
             _finalBlitPass?.Dispose();
             _finalBlitPass = null;
+            ReleaseUserLutHandles();
         }
 
         protected override void Enable()
@@ -244,6 +275,7 @@ namespace FraxinusEngine.Rendering.Ultra
             base.Disable();
 
             CleanupPostPasses();
+            ReleaseUserLutHandles();
         }
 
         public override void Execute(RenderGraph renderGraph, ScriptableRenderContext context, ContextContainer frameData)
@@ -300,7 +332,8 @@ namespace FraxinusEngine.Rendering.Ultra
                                  (cameraData.IsTemporalAAEnabled() && cameraData.taaSettings.contrastAdaptiveSharpening > 0.0f));
 
             bool hasCaptureActions = cameraData.captureActions != null && cameraData.resolveFinalTarget;
-            bool resolvePostProcessingToCameraTarget = !hasCaptureActions && !applyFinalPostProcessing;
+            bool hasBeforeFinalResolve = beforeFinalResolve != null;
+            bool resolvePostProcessingToCameraTarget = !hasCaptureActions && !applyFinalPostProcessing && !hasBeforeFinalResolve;
             bool needsColorEncoding = debugHandler == null || !debugHandler.HDRDebugViewIsActive(cameraData.resolveFinalTarget);
 
             bool resolveToDebugScreen = debugHandler != null && debugHandler.WriteToDebugScreenTexture(cameraData.resolveFinalTarget);
@@ -324,7 +357,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 TextureHandle backbuffer = resourceData.backBufferColor;
                 TextureHandle overlayUITexture = resourceData.overlayUITexture;
 
-                bool isTargetBackbuffer = (cameraData.resolveFinalTarget && !applyFinalPostProcessing);
+                bool isTargetBackbuffer = (cameraData.resolveFinalTarget && !applyFinalPostProcessing && !hasBeforeFinalResolve);
 
                 TextureHandle target;
                 if (isTargetBackbuffer)
@@ -395,6 +428,8 @@ namespace FraxinusEngine.Rendering.Ultra
                 }
             }
 
+            beforeFinalResolve?.Invoke(renderGraph, context, frameData);
+
             if (applyFinalPostProcessing)
             {
                 TextureHandle overlayUITexture = resourceData.overlayUITexture;
@@ -423,7 +458,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 // final PP always blit to camera target
                 applyFinalPostProcessing ||
                 // no final PP but we have PP stack. In that case it blit unless there are render pass after PP
-                (applyPostProcessing && !hasCaptureActions);
+                (applyPostProcessing && !hasCaptureActions && !hasBeforeFinalResolve);
 
             if (!resourceData.isActiveTargetBackBuffer && cameraData.resolveFinalTarget && !cameraTargetResolved)
             {
@@ -543,9 +578,9 @@ namespace FraxinusEngine.Rendering.Ultra
 
             TextureHandle currentSource = activeCameraColorTexture;
 
-            // Camera TAA/STP must run even when the optional entry is unchecked.
-            // Resolve before Bloom and other effects so they see the upscaled dimensions.
-            if (cameraData.IsTemporalAARequested() && !cameraData.IsSGSR2Requested())
+            // The renderer must support the camera's TAA/STP request. Resolve before
+            // Bloom and other effects so they see the upscaled dimensions.
+            if (temporalAAEnabled && cameraData.IsTemporalAARequested() && !cameraData.IsSGSR2Requested())
                 currentSource = _temporalAAPass.Render(renderGraph, frameData, in currentSource);
 
             // Meter scene-referred color after temporal resolve, and expose it before
@@ -660,7 +695,7 @@ namespace FraxinusEngine.Rendering.Ultra
                                 passType = type,
                                 passInstance = instance,
                                 // Exposure is controlled by its default-off Volume component.
-                                enabled = type == typeof(AutoExposurePass)
+                                enabled = type == typeof(AutoExposurePass) || type == typeof(PaniniProjectionPass)
                             });
                         }
                     }
@@ -1283,6 +1318,8 @@ namespace FraxinusEngine.Rendering.Ultra
             internal TextureHandle destinationTexture;
             internal TextureHandle lutTexture;
             internal Vector4 lutParams;
+            internal TextureHandle userLut;
+            internal Vector4 userLutParams;
             internal Material material;
             internal CameraData cameraData;
             internal TonemappingMode toneMappingMode;
@@ -1308,6 +1345,26 @@ namespace FraxinusEngine.Rendering.Ultra
             bool colorLutValid = colorLut?.value != null;
             if (colorLutValid) colorLutValid &= colorLut.value.IsValid();
 
+            // Snapshot the Volume values before deferred graph execution. A LUT
+            // may itself be a render target, so declare its sampled dependency.
+            var lookup = VolumeManager.instance.stack.GetComponent<ColorLookup>();
+            TextureHandle userLut = renderGraph.defaultResources.blackTexture;
+            Vector4 userLutParams = Vector4.zero;
+            if (lookup != null && lookup.active && lookup.IsActive())
+            {
+                Texture texture = lookup.texture.value;
+                if (!_userLutHandles.TryGetValue(texture, out var wrapper))
+                {
+                    wrapper = texture is RenderTexture target
+                        ? RTHandles.Alloc(target, transferOwnership: false)
+                        : RTHandles.Alloc(texture);
+                    _userLutHandles.Add(texture, wrapper);
+                }
+                userLut = renderGraph.ImportTexture(wrapper);
+                userLutParams = new Vector4(1f / texture.width, 1f / texture.height,
+                    texture.height - 1f, lookup.contribution.value);
+            }
+
             using (var builder = renderGraph.AddRasterRenderPass<UberPostPassData>("Blit Post Processing", out var passData, ProfilingSampler.Get(UltraRPProfileId.RG_UberPost)))
             {
                 passData.bloomData = bloomData;
@@ -1316,6 +1373,9 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 // LUT
                 passData.lutParams = lutParams;
+                passData.userLut = userLut;
+                passData.userLutParams = userLutParams;
+                builder.UseTexture(userLut, AccessFlags.Read);
                 if (colorLutValid)
                 {
                     builder.UseTexture(colorLut.value, AccessFlags.Read);
@@ -1346,6 +1406,8 @@ namespace FraxinusEngine.Rendering.Ultra
 
                     material.SetTexture(ShaderConstants._InternalLut, data.lutTexture);
                     material.SetVector(ShaderConstants._Lut_Params, data.lutParams);
+                    material.SetTexture(ShaderConstants._UserLut, data.userLut);
+                    material.SetVector(ShaderConstants._UserLut_Params, data.userLutParams);
 
                     if (data.isHdrGrading)
                         material.EnableKeyword(ShaderKeywordStrings.HDRGrading);

@@ -45,6 +45,15 @@ namespace FraxinusEngine.Rendering.Ultra
             // No resources to cleanup
         }
 
+#if !UNITY_2023_1_OR_NEWER && !UNITY_6000_0_OR_NEWER
+        private class LegacyPassData
+        {
+            internal Camera camera;
+            internal TextureHandle colorTarget;
+            internal TextureHandle depthTarget;
+        }
+#endif
+
         // RenderGraph path
         private class PassData
         {
@@ -72,6 +81,7 @@ namespace FraxinusEngine.Rendering.Ultra
             ConfigureDepthDescriptor(ref depthDescriptor, depthStencilFormat, cameraData.pixelWidth, cameraData.pixelHeight);
             TextureHandle depthBuffer = RenderingUtils.CreateRenderGraphTexture(renderGraph, depthDescriptor, "_OverlayUITexture_Depth", false);
 
+#if UNITY_2023_1_OR_NEWER || UNITY_6000_0_OR_NEWER
             // Render UIToolkit and uGUI overlays
             // Note: We only render UIToolkit/uGUI here (UISubset.UIToolkit_UGUI), not IMGUI
             using (var builder = renderGraph.AddRasterRenderPass<PassData>("Draw Screen Space UIToolkit/uGUI - Offscreen", out var passData, _profilingSampler))
@@ -115,12 +125,37 @@ namespace FraxinusEngine.Rendering.Ultra
                     ExecutePass(context.cmd, data, data.rendererList);
                 });
             }
+#else
+            // Unity 2022 has DrawUIOverlay, but cannot create the split UI
+            // renderer lists. Submit the complete overlay after binding its
+            // graph targets through the Core command-buffer bridge.
+            using (var builder = renderGraph.AddUnsafePass<LegacyPassData>(
+                       "Draw Screen Space UI - Offscreen (Unity 2022)", out var passData, _profilingSampler))
+            {
+                passData.camera = cameraData.camera;
+                passData.colorTarget = output;
+                passData.depthTarget = depthBuffer;
+                builder.UseTexture(output, AccessFlags.Write);
+                builder.UseTexture(depthBuffer, AccessFlags.ReadWrite);
+                builder.UseAllGlobalTextures(true);
+                builder.AllowPassCulling(false);
+                builder.AllowGlobalStateModification(true);
+                builder.SetRenderFunc((LegacyPassData data, UnsafeGraphContext context) =>
+                {
+                    context.cmd.SetRenderTarget(data.colorTarget, data.depthTarget);
+                    context.cmd.ClearRenderTarget(false, true, Color.clear);
+                    context.cmd.DrawUIOverlay(data.camera);
+                    context.cmd.SetGlobalTexture(ShaderPropertyId.overlayUITexture, data.colorTarget);
+                });
+            }
+#endif
         }
 
         public void RenderOverlay(RenderGraph renderGraph, ContextContainer frameData, in TextureHandle colorBuffer, in TextureHandle depthBuffer)
         {
             CameraData cameraData = frameData.Get<CameraData>();
 
+#if UNITY_2023_1_OR_NEWER || UNITY_6000_0_OR_NEWER
             // Render UIToolkit and uGUI overlays
             // Note: We only render UIToolkit/uGUI here (UISubset.UIToolkit_UGUI), not IMGUI
             using (var builder = renderGraph.AddRasterRenderPass<PassData>("Draw UIToolkit/uGUI Overlay", out var passData, _profilingSampler))
@@ -160,6 +195,24 @@ namespace FraxinusEngine.Rendering.Ultra
                     ExecutePass(context.cmd, data, data.rendererList);
                 });
             }
+#else
+            using (var builder = renderGraph.AddUnsafePass<LegacyPassData>(
+                       "Draw Screen Space UI Overlay (Unity 2022)", out var passData, _profilingSampler))
+            {
+                passData.camera = cameraData.camera;
+                passData.colorTarget = colorBuffer;
+                passData.depthTarget = depthBuffer;
+                builder.UseTexture(colorBuffer, AccessFlags.Write);
+                builder.UseTexture(depthBuffer, AccessFlags.ReadWrite);
+                builder.UseAllGlobalTextures(true);
+                builder.AllowPassCulling(false);
+                builder.SetRenderFunc((LegacyPassData data, UnsafeGraphContext context) =>
+                {
+                    context.cmd.SetRenderTarget(data.colorTarget, data.depthTarget);
+                    context.cmd.DrawUIOverlay(data.camera);
+                });
+            }
+#endif
         }
     }
 }

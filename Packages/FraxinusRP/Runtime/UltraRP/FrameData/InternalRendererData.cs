@@ -10,6 +10,7 @@ namespace FraxinusEngine.Rendering.Ultra
         public bool hasForwardPlus;
         public bool hasDeferred;
         public bool hasDeferredCluster;
+        public ClusterLightingMode clusterLightingMode;
 
         public override void Reset()
         {
@@ -18,6 +19,7 @@ namespace FraxinusEngine.Rendering.Ultra
             hasForwardPlus = false;
             hasDeferred = false;
             hasDeferredCluster = false;
+            clusterLightingMode = ClusterLightingMode.Auto;
         }
     }
 }

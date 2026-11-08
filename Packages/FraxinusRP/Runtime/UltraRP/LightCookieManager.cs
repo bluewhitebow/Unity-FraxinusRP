@@ -4,6 +4,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 using FraxinusEngine.Base;
 using static FraxinusEngine.Rendering.Ultra.UltraRenderPipeline;
 
@@ -257,6 +258,8 @@ namespace FraxinusEngine.Rendering.Ultra
 
         Texture2DAtlas _additionalLightsCookieAtlas;
         LightCookieShaderData _additionalLightsCookieShaderData;
+        Texture _mainLightCookieSource;
+        RTHandle _mainLightCookieHandle;
 
         readonly Settings _settings;
         WorkMemory _workMem;
@@ -272,6 +275,72 @@ namespace FraxinusEngine.Rendering.Ultra
         internal bool isKeywordLightCookieEnabled { get; private set; }
 
         internal RTHandle additionalLightsCookieAtlasTexture => _additionalLightsCookieAtlas?.AtlasTexture;
+
+        // Prepared during camera recording and copied into each consumer's pass data.
+        internal TextureHandle mainLightCookieTextureHandle { get; private set; }
+        internal TextureHandle additionalLightsCookieAtlasTextureHandle { get; private set; }
+
+        internal void PrepareRenderGraphTextures(RenderGraph renderGraph, LightData lightData)
+        {
+            mainLightCookieTextureHandle = renderGraph.defaultResources.whiteTexture;
+            additionalLightsCookieAtlasTextureHandle = renderGraph.defaultResources.whiteTexture;
+
+            Texture mainCookie = lightData.mainLightIndex >= 0
+                ? lightData.visibleLights[lightData.mainLightIndex].light.cookie : null;
+            // Each camera's graph executes before the next camera is recorded.
+            // Release only the wrapper when its source changes, so cookies from
+            // unloaded scenes are not retained for the renderer's lifetime.
+            if (!ReferenceEquals(mainCookie, _mainLightCookieSource))
+            {
+                _mainLightCookieHandle?.Release();
+                _mainLightCookieHandle = null;
+                _mainLightCookieSource = mainCookie;
+            }
+            if (mainCookie != null)
+            {
+                if (_mainLightCookieHandle == null)
+                {
+                    _mainLightCookieHandle = mainCookie is RenderTexture target
+                        ? RTHandles.Alloc(new RenderTargetIdentifier(target), target.name)
+                        : RTHandles.Alloc(mainCookie);
+                }
+                if (mainCookie is RenderTexture renderTexture)
+                {
+                    // A cookie can have both color and depth attachments. Import
+                    // only its sampled color view; the source RT remains owned
+                    // and configured by its producer.
+                    var colorInfo = new RenderTargetInfo
+                    {
+                        width = renderTexture.width,
+                        height = renderTexture.height,
+                        volumeDepth = renderTexture.volumeDepth,
+                        format = renderTexture.graphicsFormat,
+                        msaaSamples = renderTexture.antiAliasing,
+                        bindMS = renderTexture.bindTextureMS,
+                    };
+                    mainLightCookieTextureHandle = renderGraph.ImportTexture(_mainLightCookieHandle, colorInfo);
+                }
+                else
+                {
+                    mainLightCookieTextureHandle = renderGraph.ImportTexture(_mainLightCookieHandle);
+                }
+            }
+
+            if (lightData.additionalLightsCount <= 0)
+                return;
+
+            _workMem.Resize(Math.Min(_settings.maxAdditionalLights, lightData.visibleLights.Length));
+            int validLightCount = FilterAndValidateAdditionalLights(lightData, _workMem.lightMappings);
+            if (validLightCount <= 0)
+                return;
+
+            // Setup uploads atlas contents when the graph executes. Allocate its
+            // backing texture now so the producer and consumers share a handle
+            // even on the first frame that a cookie becomes visible.
+            if (!IsInitialized())
+                InitAdditionalLights(validLightCount);
+            additionalLightsCookieAtlasTextureHandle = renderGraph.ImportTexture(_additionalLightsCookieAtlas.AtlasTexture);
+        }
 
         public LightCookieManager(ref Settings settings)
         {
@@ -304,6 +373,9 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public void Dispose()
         {
+            _mainLightCookieHandle?.Release();
+            _mainLightCookieHandle = null;
+            _mainLightCookieSource = null;
             _additionalLightsCookieAtlas?.Release();
             _additionalLightsCookieShaderData?.Dispose();
         }

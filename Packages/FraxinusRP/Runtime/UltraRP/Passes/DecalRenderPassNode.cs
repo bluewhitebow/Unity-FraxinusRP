@@ -169,12 +169,16 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             profilingSampler = new ProfilingSampler(nameof(DecalRenderPassNode));
             _recreateSystems = true;
-            _previewPass = new DecalPreviewPass();
         }
 
         protected override void Enable()
         {
             base.Enable();
+
+            // Managed-reference node constructors also run during graph
+            // deserialization. DecalPreviewPass creates ShaderTagIds, which call
+            // Unity's TagToID and must wait for the graph's OnEnable lifecycle.
+            _previewPass ??= new DecalPreviewPass();
 
 #if UNITY_EDITOR
             ResourceReloader.TryReloadAllNullIn(this, UltraRenderPipelineAsset.packagePath);

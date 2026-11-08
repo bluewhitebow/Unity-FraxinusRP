@@ -8,7 +8,7 @@ using static FraxinusEngine.Rendering.Ultra.DepthCopyHelper;
 
 namespace FraxinusEngine.Rendering.Ultra
 {
-    public class DeferredPass : BuiltinPass
+    public partial class DeferredPass : BuiltinPass
     {
         private class RasterPassData
         {
@@ -43,32 +43,23 @@ namespace FraxinusEngine.Rendering.Ultra
             internal BufferHandle dispatchIndirectBuffer;
             internal BufferHandle tileListBuffer;
 
-            // PreIntergratedFGD
+            // Lighting lookup textures
             internal TextureHandle fgdGGXAndDisneyDiffuse;
             internal TextureHandle areaLightLtc;
             internal int areaLightCount;
             internal bool areaLightingReady;
 
-            // Sky Ambient
-            internal BufferHandle ambientProbe;
-
-            // Sky Reflect
-            internal TextureHandle reflectProbe;
-
-            // Lighting Buffers (SSAO, SSR, SSGI, SSShadow)
-            internal TextureHandle ssrLightingTexture;
-            internal bool rayTracingShadowsEnabled;
-
-            internal TextureHandle ssShadowsTexture;
+            // Screen-space AO and light cookies consumed by the lighting kernels.
             internal TextureHandle ambientOcclusionTexture;
             internal bool ambientOcclusionEnabled;
             internal float ambientOcclusionDirectStrength;
+            internal TextureHandle mainLightCookieTexture;
+            internal TextureHandle additionalLightsCookieAtlasTexture;
             internal bool contactShadowsEnabled;
         }
 
         private const int k_deferredLightingTileSize = 16;
         private static readonly int s_contactShadowsEnabledPropID = Shader.PropertyToID("_ContactShadowsEnabled");
-
 
         public DeferredPass() : base()
         {
@@ -95,6 +86,12 @@ namespace FraxinusEngine.Rendering.Ultra
                 RenderGraphUtils.TextureHandlesEqual(depth, resourceData.activeDepthTexture);
 
             bool clusterLighting = isCluster;
+            if (clusterLighting && deferredLights.useClusterRaster)
+            {
+                RenderClusterRaster(renderGraph, frameData, color, depth, gbuffer,
+                    mainShadowsTexture, additionalShadowsTexture, deferredLights, contactShadowsEnabled);
+                return;
+            }
             if (clusterLighting)
             {
                 var deferredClassifyDebug = cameraData.isSubContext ? frameData.Get<DeferredClassifyDebugBuffersData>() : frameData.GetOrCreate<DeferredClassifyDebugBuffersData>();
@@ -153,13 +150,8 @@ namespace FraxinusEngine.Rendering.Ultra
                         ? ambientOcclusion.output : renderGraph.defaultResources.whiteTexture;
                     passData.ambientOcclusionDirectStrength = passData.ambientOcclusionEnabled
                         ? ambientOcclusion.directLightingStrength : 0f;
-
-                    // Sky Environment
-                    // passData.ambientProbe = resourceData.skyAmbientProbe;
-                    // passData.reflectProbe = resourceData.skyReflectionProbe;
-
-                    // Lighting Buffers (SSAO, SSR, SSGI, SSShadow)
-                    // passData.ssShadowsTexture = TextureHandle.nullHandle;
+                    deferredLights.GetCookieTextures(renderGraph,
+                        out passData.mainLightCookieTexture, out passData.additionalLightsCookieAtlasTexture);
 
                     // Declare input/output
                     builder.UseTexture(passData.lightingHandle, AccessFlags.ReadWrite);
@@ -169,6 +161,8 @@ namespace FraxinusEngine.Rendering.Ultra
                     builder.UseTexture(passData.fgdGGXAndDisneyDiffuse, AccessFlags.Read);
                     builder.UseTexture(passData.areaLightLtc, AccessFlags.Read);
                     builder.UseTexture(passData.ambientOcclusionTexture, AccessFlags.Read);
+                    builder.UseTexture(passData.mainLightCookieTexture, AccessFlags.Read);
+                    builder.UseTexture(passData.additionalLightsCookieAtlasTexture, AccessFlags.Read);
                     builder.UseTexture(resourceData.cameraDepthTexture, AccessFlags.Read);
                     if (mainShadowsTexture.IsValid())
                         builder.UseTexture(mainShadowsTexture, AccessFlags.Read);
@@ -184,11 +178,6 @@ namespace FraxinusEngine.Rendering.Ultra
                     builder.UseBuffer(gpuLights.perVoxelOffset, AccessFlags.Read);
                     builder.UseBuffer(gpuLights.perVoxelLightLists, AccessFlags.Read);
                     builder.UseBuffer(gpuLights.perTileLogBaseTweak, AccessFlags.Read);
-
-                    // builder.UseBuffer(passData.ambientProbe, AccessFlags.Read);
-                    // builder.UseTexture(passData.reflectProbe, AccessFlags.Read);
-
-                    // builder.UseTexture(passData.ssShadowsTexture, AccessFlags.Read);
 
                     for (int i = 0; i < gbuffer.Length; ++i)
                     {
@@ -220,17 +209,11 @@ namespace FraxinusEngine.Rendering.Ultra
                             areaLightCount = data.areaLightCount,
                             areaLightingReady = data.areaLightingReady,
 
-                            ambientProbe = data.ambientProbe,
-
-                            reflectProbe = data.reflectProbe,
-
-                            ssrLightingTexture = data.ssrLightingTexture,
-                            rayTracingShadowsEnabled = data.rayTracingShadowsEnabled,
-
-                            ssShadowsTexture = data.ssShadowsTexture,
                             ambientOcclusionTexture = data.ambientOcclusionTexture,
                             ambientOcclusionEnabled = data.ambientOcclusionEnabled,
                             ambientOcclusionDirectStrength = data.ambientOcclusionDirectStrength,
+                            mainLightCookieTexture = data.mainLightCookieTexture,
+                            additionalLightsCookieAtlasTexture = data.additionalLightsCookieAtlasTexture,
                         };
 
                         data.deferredLights.ExecuteClusterDeferredPass(context.cmd, data.cameraData, data.lightData, data.shadowData, lightDatas);

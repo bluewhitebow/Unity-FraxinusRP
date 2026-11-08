@@ -91,7 +91,8 @@ namespace FraxinusEngine.Rendering.Ultra
             int height = Mathf.Max(1, (int)(parentDesc.height * Mathf.Clamp(_scaleFactor, 0.1f, 1f)));
             _cachedSubResourceData ??= new ResourceData();
             _cachedSubCameraData ??= new CameraData();
-            UpdateSubResourceData(renderGraph, _cachedSubResourceData, resourceData, cameraData, width, height, renderingData.hasDeferredCluster);
+            UpdateSubResourceData(renderGraph, _cachedSubResourceData, resourceData, cameraData, width, height,
+                renderingData.hasDeferredCluster && !cameraData.renderer.GetModule<DeferredLights>().useClusterRaster);
             UpdateCameraData(_cachedSubCameraData, cameraData, width, height);
             CopyRenderingData(_subRenderingData, renderingData);
             _subContextData.Clear();
@@ -138,6 +139,7 @@ namespace FraxinusEngine.Rendering.Ultra
             target.hasForwardPlus = source.hasForwardPlus;
             target.hasDeferred = source.hasDeferred;
             target.hasDeferredCluster = source.hasDeferredCluster;
+            target.clusterLightingMode = source.clusterLightingMode;
             // Occlusion history belongs to the main camera's depth surface.
             target.needsOccluderUpdate = false;
         }

@@ -840,7 +840,8 @@ namespace FraxinusEngine.Rendering.Ultra
         public bool supportsSoftShadows
         {
             get => _softShadowsSupported;
-            internal set => _softShadowsSupported = value;
+            // Recovered runtime quality options switch this alongside shadow maps.
+            set => _softShadowsSupported = value;
         }
 
         internal SoftShadowQuality softShadowQuality

@@ -251,7 +251,7 @@ namespace UnityEngine
 
         /// <summary>
         /// Reflection-only bridge to SRP-owned rendering-layer names.  RPCore
-        /// cannot reference URP's assembly directly (the dependency points the
+        /// cannot reference UltraRP's assembly directly (the dependency points the
         /// other way), so this intentionally avoids a compile-time cycle.
         /// </summary>
         static class RenderingLayerRegistry
@@ -261,7 +261,7 @@ namespace UnityEngine
             static readonly string[] k_FallbackNames = { "Default" };
 
             // Reflection is unavoidable here because RPCore must not take a
-            // compile-time dependency on URPExtensions.  Keep the expensive
+            // compile-time dependency on Fraxinus.  Keep the expensive
             // metadata lookups out of the rendering hot path, and retain a
             // copy of the resolved names so callers do not allocate an array
             // on every mask/count query.  The source values are compared when
@@ -271,9 +271,9 @@ namespace UnityEngine
             static readonly Dictionary<Type, PropertyInfo> s_NamesProperties =
                 new Dictionary<Type, PropertyInfo>();
             static UnityEngine.Rendering.IRenderingLayerNamesProvider s_NamesProvider;
-            static bool s_UniversalTypeResolved;
-            static Type s_UniversalGlobalSettingsType;
-            static PropertyInfo s_UniversalInstanceProperty;
+            static bool s_UltraTypeResolved;
+            static Type s_UltraGlobalSettingsType;
+            static PropertyInfo s_UltraInstanceProperty;
             static object s_CachedNamesOwner;
             static PropertyInfo s_CachedNamesProperty;
             static string[] s_CachedNames;
@@ -334,7 +334,7 @@ namespace UnityEngine
                 string[] names;
                 try
                 {
-                    // URP and other cooperating pipelines register this direct
+                    // UltraRP and other cooperating pipelines register this direct
                     // provider through the graphics-settings bridge. Returning
                     // its serialized array is allocation-free and observes
                     // in-place editor changes immediately. Every public mask
@@ -342,11 +342,11 @@ namespace UnityEngine
                     if (TryGetProviderNames(out names))
                         return names;
 
-                    // URP 2022 stores the names on an internal global-settings
+                    // UltraRP 2022 stores the names on an internal global-settings
                     // type; reflection keeps Core independent from
-                    // URPExtensions.  Prefer this direct source so querying
+                    // Fraxinus.  Prefer this direct source so querying
                     // the mask does not force pipeline creation.
-                    if (TryGetUniversalGlobalSettings(out var settings) && TryGetNames(settings, out names))
+                    if (TryGetUltraGlobalSettings(out var settings) && TryGetNames(settings, out names))
                         return names;
 
                     // The asset override is also available while a pipeline
@@ -471,41 +471,41 @@ namespace UnityEngine
                 s_CachedNames = names;
             }
 
-            static bool TryGetUniversalGlobalSettings(out object settings)
+            static bool TryGetUltraGlobalSettings(out object settings)
             {
                 settings = null;
                 try
                 {
-                    // Resolve the URP type/property once.  The old code
+                    // Resolve the UltraRP type/property once.  The old code
                     // searched every loaded assembly and called GetProperty
                     // for every rendering-layer query, which is particularly
-                    // expensive in the editor.  If URP has not loaded yet,
+                    // expensive in the editor.  If UltraRP has not loaded yet,
                     // leave the flag clear so a later domain/package load can
                     // still be discovered.
-                    if (!s_UniversalTypeResolved)
+                    if (!s_UltraTypeResolved)
                     {
                         var type = Type.GetType(
-                            "UnityEngine.Rendering.Universal.UniversalRenderPipelineGlobalSettings, Unity.RenderPipelines.Universal.Runtime");
+                            "FraxinusEngine.Rendering.Ultra.UltraRenderPipelineGlobalSettings, Fraxinus.Runtime");
                         if (type == null)
                         {
                             var assemblies = AppDomain.CurrentDomain.GetAssemblies();
                             for (int i = 0; i < assemblies.Length && type == null; ++i)
-                                type = assemblies[i].GetType("UnityEngine.Rendering.Universal.UniversalRenderPipelineGlobalSettings", false);
+                                type = assemblies[i].GetType("FraxinusEngine.Rendering.Ultra.UltraRenderPipelineGlobalSettings", false);
                         }
 
                         if (type != null)
                         {
-                            s_UniversalGlobalSettingsType = type;
-                            s_UniversalInstanceProperty = type.GetProperty("instance", k_StaticFlags);
-                            s_UniversalTypeResolved = true;
+                            s_UltraGlobalSettingsType = type;
+                            s_UltraInstanceProperty = type.GetProperty("instance", k_StaticFlags);
+                            s_UltraTypeResolved = true;
                         }
                     }
 
-                    if (!s_UniversalTypeResolved || s_UniversalGlobalSettingsType == null ||
-                        s_UniversalInstanceProperty == null)
+                    if (!s_UltraTypeResolved || s_UltraGlobalSettingsType == null ||
+                        s_UltraInstanceProperty == null)
                         return false;
 
-                    settings = s_UniversalInstanceProperty.GetValue(null, null);
+                    settings = s_UltraInstanceProperty.GetValue(null, null);
                     return settings != null;
                 }
                 catch

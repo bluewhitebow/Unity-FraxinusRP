@@ -58,5 +58,14 @@ namespace FraxinusEngine.Rendering.Ultra
             get => _deferredLightingCS;
             set => this.SetValueAndNotify(ref _deferredLightingCS, value);
         }
+
+        [SerializeField, ResourcePath("Shaders/Lighting/ClusterDeferred.shader")]
+        private Shader _clusterDeferredPS;
+
+        public Shader clusterDeferredPS
+        {
+            get => _clusterDeferredPS;
+            set => this.SetValueAndNotify(ref _clusterDeferredPS, value);
+        }
     }
 }

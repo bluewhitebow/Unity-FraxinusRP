@@ -17,3 +17,4 @@ Feature checks and their tested environments are documented with each package:
 - [UltraRP validation / UltraRP 验证](../Packages/FraxinusRP/Documentation~/Validation.md)
 - [Core APV checks / Core APV 检查](../Packages/Fraxinus-RPCore/Tests~/Unity2022APV/README.md)
 - [Compute ray-query smoke checks / Compute 射线查询烟测](../Packages/Fraxinus-Light-Transport/Tests~/GpuSmoke/README.md)
+- [Duckov adaptation sync / Duckov 适配回同步](DuckovAdaptationSync.md)

@@ -127,9 +127,15 @@ namespace FraxinusEngine.Rendering.Ultra
                 subCallCount = drawCallChunk.subCallCounts,
             };
 
-            var handle = drawCallJob.Schedule(cachedChunk.currentJobHandle);
+            // The job reads cached properties and culling indices and writes
+            // draw-call arrays. Track it on every participating chunk so later
+            // property/culling changes and lifecycle mutations synchronize it.
+            var dependencies = JobHandle.CombineDependencies(cachedChunk.currentJobHandle,
+                culledChunk.currentJobHandle, drawCallChunk.currentJobHandle);
+            var handle = drawCallJob.Schedule(dependencies);
             drawCallChunk.currentJobHandle = handle;
             cachedChunk.currentJobHandle = handle;
+            culledChunk.currentJobHandle = handle;
         }
 
 #if ENABLE_BURST_1_0_0_OR_NEWER

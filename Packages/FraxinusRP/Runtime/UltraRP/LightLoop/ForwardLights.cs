@@ -152,12 +152,22 @@ namespace FraxinusEngine.Rendering.Ultra
 
         internal void SetupRenderGraphLights(RenderGraph renderGraph, RenderingData renderingData, CameraData cameraData, LightData lightData)
         {
+            _lightCookieManager?.PrepareRenderGraphTextures(renderGraph, lightData);
             using (var builder = renderGraph.AddUnsafePass<SetupLightPassData>(s_setupForwardLights.name, out var passData, s_setupForwardLights))
             {
                 passData.renderingData = renderingData;
                 passData.cameraData = cameraData;
                 passData.lightData = lightData;
                 passData.forwardLights = this;
+
+                if (_lightCookieManager != null)
+                {
+                    builder.UseTexture(_lightCookieManager.mainLightCookieTextureHandle, AccessFlags.Read);
+                    var cookieAtlas = _lightCookieManager.additionalLightsCookieAtlasTextureHandle;
+                    // A missing cookie uses the read-only default white texture.
+                    builder.UseTexture(cookieAtlas, RenderGraphUtils.TextureHandlesEqual(cookieAtlas, renderGraph.defaultResources.whiteTexture)
+                        ? AccessFlags.Read : AccessFlags.ReadWrite);
+                }
 
                 builder.AllowPassCulling(false);
 

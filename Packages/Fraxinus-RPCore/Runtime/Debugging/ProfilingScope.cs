@@ -154,8 +154,8 @@ namespace UnityEngine.Rendering
         public string name { get; private set; }
 
 #if UNITY_USE_RECORDER
-        Recorder m_Recorder;
-        Recorder m_InlineRecorder;
+        UnityEngine.Profiling.Recorder m_Recorder;
+        UnityEngine.Profiling.Recorder m_InlineRecorder;
 #endif
 
         /// <summary>
