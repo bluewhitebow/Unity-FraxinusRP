@@ -56,6 +56,7 @@ Shader "Hidden/TerrainEngine/Details/UltraPipeline/Vertexlit"
             Tags{"LightMode" = "UniversalGBuffer"}
 
             HLSLPROGRAM
+            #pragma multi_compile _ _FORWARD_PLUS
             #pragma target 2.0
             #pragma vertex Vert
             #pragma fragment Frag

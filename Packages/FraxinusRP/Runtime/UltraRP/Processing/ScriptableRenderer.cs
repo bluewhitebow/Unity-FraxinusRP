@@ -62,8 +62,20 @@ namespace FraxinusEngine.Rendering.Ultra
         private static Dictionary<Type, List<InjectPassInfo>> s_passToInjectorMap;
         private static List<InjectPassInfo> s_fallbackInjectors;
         private static List<Type> s_moduleTypes;
+        private static IReadOnlyList<Type> s_injectPassTypes;
+
+        /// <summary>Automatically discovered injectable modules shared by runtime and graph tools.</summary>
+        public static IReadOnlyList<Type> injectPassTypes
+        {
+            get
+            {
+                CachePassModuleTypes();
+                return s_injectPassTypes;
+            }
+        }
 
         private readonly List<(InjectPass pass, ContextScopeFilter filter)> _fallbackInjections = new();
+        private readonly List<string> _appliedDisabledInjectPasses = new();
         private int _mainFallbackCount;
         private int _subFallbackCount;
 
@@ -119,10 +131,12 @@ namespace FraxinusEngine.Rendering.Ultra
 
             SetupPassModules();
             InjectPassToRenderPassNode();
+            graph.injectPassSettingsChanged += InjectPassToRenderPassNode;
         }
 
         protected override void Dispose(bool dispose)
         {
+            graph.injectPassSettingsChanged -= InjectPassToRenderPassNode;
             debugHandler?.Dispose();
 
             foreach (var kvp in _moduleContainer)
@@ -155,7 +169,6 @@ namespace FraxinusEngine.Rendering.Ultra
                 }
             }
 
-            ConfigureFallbackInjections();
         }
 
         private static void CachePassModuleTypes()
@@ -168,6 +181,7 @@ namespace FraxinusEngine.Rendering.Ultra
             s_moduleTypes = new List<Type>();
             s_passToInjectorMap = new Dictionary<Type, List<InjectPassInfo>>();
             s_fallbackInjectors = new List<InjectPassInfo>();
+            var injectTypes = new List<Type>();
 
             var passTypes = AppDomain.CurrentDomain.GetAssemblies()
                 .SelectMany(a => {
@@ -175,7 +189,7 @@ namespace FraxinusEngine.Rendering.Ultra
                     catch { return Type.EmptyTypes; }
                 })
                 .Where(t => (typeof(BuiltinPass).IsAssignableFrom(t) || typeof(InjectPass).IsAssignableFrom(t))
-                            && !t.IsAbstract
+                            && !t.IsAbstract && !t.ContainsGenericParameters
                             && t != typeof(BuiltinPass)
                             && t != typeof(InjectPass));
 
@@ -188,6 +202,8 @@ namespace FraxinusEngine.Rendering.Ultra
                 if (typeof(InjectPass).IsAssignableFrom(type))
                 {
                     var attributes = type.GetCustomAttributes(typeof(InjectPassAttribute), true);
+                    if (attributes.OfType<InjectPassAttribute>().Any(attribute => attribute.targetPassType != null))
+                        injectTypes.Add(type);
                     foreach (InjectPassAttribute attr in attributes)
                     {
                         if (attr?.targetPassType != null)
@@ -223,6 +239,7 @@ namespace FraxinusEngine.Rendering.Ultra
                     }
                 }
             }
+            s_injectPassTypes = injectTypes.AsReadOnly();
         }
 
         private void ConfigureFallbackInjections()
@@ -231,6 +248,8 @@ namespace FraxinusEngine.Rendering.Ultra
             _mainFallbackCount = _subFallbackCount = 0;
             foreach (var info in s_fallbackInjectors)
             {
+                if (!graph.IsInjectPassEnabled(info.injectorType))
+                    continue;
                 if (!_moduleContainer.TryGetValue(info.injectorType, out var module) || !(module is InjectPass pass))
                     continue;
                 pass.fallbackScopeFilter = info.scopeFilter;
@@ -256,7 +275,6 @@ namespace FraxinusEngine.Rendering.Ultra
             _moduleContainer[typeof(T)] = obj;
             if (obj is InjectPass)
             {
-                ConfigureFallbackInjections();
                 InjectPassToRenderPassNode();
             }
             return obj;
@@ -583,6 +601,7 @@ namespace FraxinusEngine.Rendering.Ultra
         private readonly Dictionary<ScriptableRenderPassNode, ContextBeginNode> _nodeContexts = new();
         private readonly Dictionary<ScriptableRenderPassNode, ContextBeginNode> _nodeAfterContexts = new();
         private readonly HashSet<(InjectPass pass, ContextBeginNode scope)> _primaryInjectionContexts = new();
+        private readonly HashSet<InjectPass> _boundInjectPasses = new();
 
         internal bool IsSameContext(ScriptableRenderPassNode first, ScriptableRenderPassNode second)
         {
@@ -596,9 +615,15 @@ namespace FraxinusEngine.Rendering.Ultra
             if (s_passToInjectorMap is null)
                 return;
 
+            ConfigureFallbackInjections();
+            _appliedDisabledInjectPasses.Clear();
+            foreach (var typeId in graph.disabledInjectPasses)
+                _appliedDisabledInjectPasses.Add(typeId);
+
             _nodeContexts.Clear();
             _nodeAfterContexts.Clear();
             _primaryInjectionContexts.Clear();
+            _boundInjectPasses.Clear();
             foreach (var node in graph.nodes)
                 if (node is ScriptableRenderPassNode passNode)
                     passNode.ClearAllInjectPasses();
@@ -636,6 +661,8 @@ namespace FraxinusEngine.Rendering.Ultra
                 var scopeFilter = postScope == null ? ContextScopeFilter.Main : ContextScopeFilter.Sub;
                 foreach (var fallback in _fallbackInjections)
                 {
+                    if ((fallback.filter & scopeFilter) != 0)
+                        _boundInjectPasses.Add(fallback.pass);
                     // A primary node owns the visible binding. Only passes without
                     // a primary in this scope are shown at the fallback location.
                     if ((fallback.filter & scopeFilter) != 0 &&
@@ -647,6 +674,9 @@ namespace FraxinusEngine.Rendering.Ultra
 
         private bool TryInjectPass(ScriptableRenderPassNode targetNode, InjectPassInfo info)
         {
+            if (!graph.IsInjectPassEnabled(info.injectorType))
+                return false;
+
             var contexts = info.point == InjectionPoint.Before ? _nodeContexts : _nodeAfterContexts;
             contexts.TryGetValue(targetNode, out var scope);
             var scopeFilter = scope == null ? ContextScopeFilter.Main : ContextScopeFilter.Sub;
@@ -659,10 +689,49 @@ namespace FraxinusEngine.Rendering.Ultra
                 {
                     targetNode.AddInjectPass(injector, info.point, info.scopeFilter);
                     _primaryInjectionContexts.Add((injector, scope));
+                    _boundInjectPasses.Add(injector);
                     return true;
                 }
             }
             return false;
+        }
+
+        internal void RefreshInjectPassSettings()
+        {
+            // Undo and deserialization update serialized fields without invoking
+            // the setter. Compare exact values before camera requirements are
+            // collected, and only rebuild bindings when the settings changed.
+            var disabled = graph.disabledInjectPasses;
+            if (disabled.Count == _appliedDisabledInjectPasses.Count)
+            {
+                bool matches = true;
+                for (int i = 0; i < disabled.Count; ++i)
+                    if (disabled[i] != _appliedDisabledInjectPasses[i])
+                    {
+                        matches = false;
+                        break;
+                    }
+                if (matches)
+                    return;
+            }
+            InjectPassToRenderPassNode();
+        }
+
+        internal bool PrepareInjectPasses(RenderGraph renderGraph, ContextContainer frameData)
+        {
+            bool requiresFinalBlit = false;
+            foreach (var module in _moduleContainer.Values)
+                if (module is InjectPass pass)
+                    pass.ResetFrame(renderGraph, frameData);
+
+            foreach (var module in _moduleContainer.Values)
+                if (module is InjectPass pass && _boundInjectPasses.Contains(pass) && graph.IsInjectPassEnabled(pass.GetType()))
+                    requiresFinalBlit |= pass.PrepareFrame(renderGraph, frameData);
+
+            var rendering = frameData.Get<RenderingData>();
+            rendering.renderPassInputs.requiresDepthTexture |= rendering.renderPassInputs.requiresMotionVectors;
+            rendering.renderPassInputs.requiresIntermediateTexture |= requiresFinalBlit;
+            return requiresFinalBlit;
         }
 
         internal void ProcessFallbackInjections(RenderGraph renderGraph, ScriptableRenderContext context, ContextContainer frameData)
@@ -675,7 +744,7 @@ namespace FraxinusEngine.Rendering.Ultra
             // Preserve one ordered fallback queue, including primaries skipped by
             // SupportedInCurrentFrame. Nothing is re-registered during rendering.
             foreach (var fallback in _fallbackInjections)
-                if (state.TryBeginInjection(fallback.pass, fallback.filter))
+                if (graph.IsInjectPassEnabled(fallback.pass.GetType()) && state.TryBeginInjection(fallback.pass, fallback.filter))
                     fallback.pass.Execute(renderGraph, context, frameData);
         }
 
@@ -1085,6 +1154,7 @@ namespace FraxinusEngine.Rendering.Ultra
         public virtual bool supportsGPUOcclusion => false;
 
         public virtual bool isForwardPlus => false;
+        public virtual bool usesForwardPlusLightLists => isForwardPlus;
 
         public virtual void SetupRenderGraphFinalPassDebug(RenderGraph renderGraph, ContextContainer frameData) { }
 

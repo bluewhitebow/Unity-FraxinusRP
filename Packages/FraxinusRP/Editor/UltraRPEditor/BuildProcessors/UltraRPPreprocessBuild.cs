@@ -1,13 +1,11 @@
-using System;
 using System.Collections.Generic;
 using System.Text;
+using FraxinusEngine.Rendering.Ultra;
+using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 using UnityEngine.Rendering;
-using FraxinusEngine.Rendering.Ultra;
-
-using UnityEditor;
 
 namespace FraxinusEditor.Rendering.Ultra
 {
@@ -15,31 +13,29 @@ namespace FraxinusEditor.Rendering.Ultra
     {
         public int callbackOrder => int.MinValue + 100;
 
-        private static UltraRPBuildData s_buildData = null;
-
         public void OnPreprocessBuild(BuildReport report)
         {
-            ClearBuildState();
+            UltraRPShaderBuildDiagnostics.End();
             bool isDevelopmentBuild = (report.summary.options & BuildOptions.Development) != 0;
-            s_buildData = new UltraRPBuildData(EditorUserBuildSettings.activeBuildTarget, isDevelopmentBuild);
+            UltraRPShaderBuildSession.BeginPlayer(report);
+            var buildData = UltraRPShaderBuildSession.data;
+            if (!buildData.buildingPlayerForUltraRenderPipeline)
+                return;
 
-            if (s_buildData.buildingPlayerForUltraRenderPipeline)
+            try
             {
-                try
-                {
-                    if (!UltraRPBuildDataValidator.IsProjectValidForBuilding(report, out var message))
-                        throw new BuildFailedException(message);
-                    UltraRPShaderBuildDiagnostics.Begin(report);
-                    UltraRenderPipelineGlobalSettings.Ensure()?.PrepareGraphicsSettingsForPlayerBuild();
-                    UltraRPShaderPrefiltering.PrepareForBuild(isDevelopmentBuild);
-                    LogIncludedAssets(s_buildData.renderPipelineAssets);
-                }
-                catch
-                {
-                    ClearBuildState();
-                    UltraRPShaderPrefiltering.RestorePending();
-                    throw;
-                }
+                if (!UltraRPBuildDataValidator.IsProjectValidForBuilding(report, out var message))
+                    throw new BuildFailedException(message);
+                UltraRPShaderBuildDiagnostics.Begin(report);
+                UltraRenderPipelineGlobalSettings.Ensure()?.PrepareGraphicsSettingsForPlayerBuild();
+                UltraRPShaderPrefiltering.PrepareForBuild(isDevelopmentBuild,
+                    report.summary.platform, buildData.allRenderPipelineAssets);
+                LogIncludedAssets(buildData.renderPipelineAssets);
+            }
+            catch
+            {
+                ClearBuildState("player preparation failed");
+                throw;
             }
         }
 
@@ -67,20 +63,23 @@ namespace FraxinusEditor.Rendering.Ultra
 
         public void OnPostprocessBuild(BuildReport report)
         {
-            try { UltraRPShaderBuildDiagnostics.Complete(report); }
+            string status = "shader diagnostics failed";
+            try
+            {
+                UltraRPShaderBuildDiagnostics.Complete(report);
+                status = report.summary.result.ToString();
+            }
             finally
             {
                 // Clear the in-memory state before recovery, which can fail on disk I/O.
-                ClearBuildState();
-                UltraRPShaderPrefiltering.RestorePending();
+                ClearBuildState(status);
             }
         }
 
-        static void ClearBuildState()
+        static void ClearBuildState(string status)
         {
             UltraRPShaderBuildDiagnostics.End();
-            s_buildData?.Dispose();
-            s_buildData = null;
+            UltraRPShaderBuildSession.End(status);
         }
     }
 }

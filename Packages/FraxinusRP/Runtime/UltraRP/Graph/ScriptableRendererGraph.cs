@@ -1,5 +1,6 @@
 using FraxinusEngine.Base;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
@@ -81,6 +82,61 @@ namespace FraxinusEngine.Rendering.Ultra
     public abstract class ScriptableRendererGraph : BaseGraph
     {
         public bool globalPreviewEnabled = true;
+
+        // Store only overrides so existing graphs and newly discovered passes stay enabled.
+        // Exclude assembly versions so package upgrades preserve the user's choices.
+        [SerializeField, HideInInspector]
+        private List<string> _disabledInjectPasses = new List<string>();
+
+        private static readonly Dictionary<Type, string> s_injectPassTypeIds = new Dictionary<Type, string>();
+
+        internal IReadOnlyList<string> disabledInjectPasses => _disabledInjectPasses ?? (IReadOnlyList<string>)Array.Empty<string>();
+        internal event Action injectPassSettingsChanged;
+
+        /// <summary>Whether this graph permits an injected pass type to execute.</summary>
+        public bool IsInjectPassEnabled(Type passType)
+        {
+            string typeId = GetInjectPassTypeId(passType);
+            return _disabledInjectPasses == null || !_disabledInjectPasses.Contains(typeId);
+        }
+
+        /// <summary>
+        /// Enables or disables all injections of a pass type in this graph, including fallbacks.
+        /// The next render reads this setting without recreating the renderer or its modules.
+        /// </summary>
+        public void SetInjectPassEnabled(Type passType, bool enabled)
+        {
+            string typeId = GetInjectPassTypeId(passType);
+            bool changed = false;
+            if (enabled)
+                changed = _disabledInjectPasses != null && _disabledInjectPasses.RemoveAll(id => id == typeId) > 0;
+            else
+            {
+                _disabledInjectPasses ??= new List<string>();
+                if (!_disabledInjectPasses.Contains(typeId))
+                {
+                    _disabledInjectPasses.Add(typeId);
+                    changed = true;
+                }
+            }
+            if (changed)
+                injectPassSettingsChanged?.Invoke();
+        }
+
+        private static string GetInjectPassTypeId(Type passType)
+        {
+            if (passType == null)
+                throw new ArgumentNullException(nameof(passType));
+            if (!typeof(InjectPass).IsAssignableFrom(passType))
+                throw new ArgumentException("The type must derive from InjectPass.", nameof(passType));
+
+            if (!s_injectPassTypeIds.TryGetValue(passType, out string typeId))
+            {
+                typeId = passType.FullName + ", " + passType.Assembly.GetName().Name;
+                s_injectPassTypeIds.Add(passType, typeId);
+            }
+            return typeId;
+        }
         
         [HideInInspector]
         public int previewCameraInstanceID = 0;

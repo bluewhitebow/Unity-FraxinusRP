@@ -39,6 +39,8 @@ namespace FraxinusEngine.Rendering.Ultra
             var parentResources = frameData.Get<ResourceData>();
             frameData.Get<CameraData>().renderer.SetupRenderGraphCameraProperties(renderGraph, parentResources.isActiveTargetBackBuffer);
             ContextRenderState.RestoreTextures(renderGraph, parentResources, parent.textureBindings);
+            if (frameData.Get<RenderingData>().usesForwardPlusLightLists)
+                ForwardLights.RestoreContextLightLists(renderGraph, frameData);
             if (frameData.Get<RenderingData>().hasDeferredCluster)
                 GPULights.RenderGlobalBindings(renderGraph, frameData.Get<GPULightsOutPassData>());
             ConfigurePortValue(outColorTexture, subColor);

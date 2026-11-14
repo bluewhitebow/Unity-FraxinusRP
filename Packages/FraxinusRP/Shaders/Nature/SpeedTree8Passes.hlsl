@@ -477,7 +477,7 @@ void SpeedTree8Frag(
     InitializeBRDFData(albedo, metallic, specular, smoothness, alpha, brdfData);
 
     MixRealtimeAndBakedGI(mainLight, inputData.normalWS, inputData.bakedGI, inputData.shadowMask);
-    half3 color = GlobalIllumination(brdfData, inputData.bakedGI, occlusion, inputData.positionWS, inputData.normalWS, inputData.viewDirectionWS);
+    half3 color = GlobalIllumination(brdfData, inputData.bakedGI, occlusion, inputData.positionWS, inputData.normalWS, inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV);
 
     return BRDFDataToGbuffer(brdfData, inputData, smoothness, emission + color, occlusion);
 

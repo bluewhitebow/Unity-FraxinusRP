@@ -31,15 +31,23 @@ namespace FraxinusEditor.Rendering.Ultra
             .Where(field => field.Name.StartsWith("_prefilter", StringComparison.Ordinal) ||
                             field.Name.StartsWith("_refilter", StringComparison.Ordinal)).ToArray();
 
-        [Serializable] sealed class Journal { public int process; public List<Snapshot> assets = new List<Snapshot>(); }
-        [Serializable] sealed class Snapshot
+        [Serializable]
+        sealed class Journal
+        {
+            public int process;
+            public List<Snapshot> assets = new List<Snapshot>();
+        }
+
+        [Serializable]
+        sealed class Snapshot
         {
             public string guid;
             public string path;
             public bool dirty;
             public List<FieldState> fields = new List<FieldState>();
         }
-        [Serializable] sealed class FieldState
+        [Serializable]
+        sealed class FieldState
         {
             public string name;
             public int value;
@@ -55,7 +63,7 @@ namespace FraxinusEditor.Rendering.Ultra
             EditorApplication.update += RestoreAfterBuild;
             EditorApplication.delayCall += () =>
             {
-                if (!BuildPipeline.isBuildingPlayer && !s_prepared && File.Exists(JournalPath))
+                if (!BuildPipeline.isBuildingPlayer && !UltraRPShaderBuildSession.isActive && !s_prepared && File.Exists(JournalPath))
                     RestorePending();
             };
         }
@@ -64,73 +72,97 @@ namespace FraxinusEditor.Rendering.Ultra
         {
             if (BuildPipeline.isBuildingPlayer)
                 s_buildObserved = true;
-            else if (s_buildObserved && File.Exists(JournalPath))
+            else if (!UltraRPShaderBuildSession.isActive && s_buildObserved && File.Exists(JournalPath))
                 RestorePending();
         }
 
         internal static Data CreateData(UltraRenderPipelineAsset asset, bool stripUnused,
-            bool stripDebug, bool stripScreen, bool allowHDRDisplay, bool knownForward, bool knownBuiltIn = false)
+            bool stripDebug, bool stripScreen, bool allowHDRDisplay, bool knownForward, bool knownBuiltIn = false,
+            UltraRPShaderBuildFeatures.Snapshot features = null)
         {
             Data data = Data.GetDefault();
-            if (!stripUnused)
+            if (!stripUnused || asset == null || asset.GetType() != typeof(UltraRenderPipelineAsset))
                 return data;
+            features = features ?? UltraRPShaderBuildFeatures.Gather(new RenderPipelineAsset[] { asset }, true);
 
-            bool mainShadows = asset.mainLightRenderingMode != LightRenderingMode.Disabled && asset.supportsMainLightShadows;
-            data.mainLightShadowsPrefilteringMode = mainShadows ? MainMode.SelectAll : MainMode.Remove;
-            switch (asset.additionalLightsRenderingMode)
-            {
-                case LightRenderingMode.Disabled: data.additionalLightsPrefilteringMode = AdditionalMode.Remove; break;
-                case LightRenderingMode.PerVertex: data.additionalLightsPrefilteringMode = AdditionalMode.SelectVertexAndOff; break;
-                case LightRenderingMode.PerPixel: data.additionalLightsPrefilteringMode = AdditionalMode.SelectPixelAndOff; break;
-            }
-            if (asset.additionalLightsRenderingMode == LightRenderingMode.Disabled || !asset.supportsAdditionalLightShadows)
+            bool stripMain = features.CanStripKeyword(ShaderKeywordStrings.MainLightShadows) &&
+                features.CanStripKeyword(ShaderKeywordStrings.MainLightShadowCascades) &&
+                features.CanStripKeyword(ShaderKeywordStrings.MainLightShadowScreen);
+            data.mainLightShadowsPrefilteringMode = stripMain ? MainMode.Remove :
+                features.CanStripKeyword(ShaderKeywordStrings.MainLightShadowScreen) ?
+                MainMode.SelectMainLightCascadesAndOff : MainMode.SelectAll;
+            // Native SelectIf cannot prove that this pass declares the complete
+            // main/cascade/screen group. Remove OFF in the managed pass rule;
+            // a pass declaring only main still needs OFF when cascades are active.
+            bool stripPixel = features.CanStripKeyword(ShaderKeywordStrings.AdditionalLightsPixel);
+            bool stripVertex = features.CanStripKeyword(ShaderKeywordStrings.AdditionalLightsVertex);
+            data.additionalLightsPrefilteringMode = features.CanRequireKeyword(ShaderKeywordStrings.AdditionalLightsPixel) ? AdditionalMode.SelectPixel :
+                features.CanRequireKeyword(ShaderKeywordStrings.AdditionalLightsVertex) ? AdditionalMode.SelectVertex :
+                stripPixel && stripVertex ? AdditionalMode.Remove :
+                stripPixel ? AdditionalMode.SelectVertexAndOff :
+                stripVertex ? AdditionalMode.SelectPixelAndOff : AdditionalMode.SelectAll;
+            if (features.CanStripKeyword(ShaderKeywordStrings.AdditionalLightShadows))
                 data.additionalLightsShadowsPrefilteringMode = Mode.Remove;
+            else if (features.CanRequireKeyword(ShaderKeywordStrings.AdditionalLightShadows))
+                data.additionalLightsShadowsPrefilteringMode = Mode.SelectOnly;
 
             data.stripDebugDisplay = stripDebug;
             data.stripScreenCoordOverride = stripScreen;
             data.stripHDRKeywords = !allowHDRDisplay;
-            data.stripAlphaOutputKeywords = !asset.allowPostProcessAlphaOutput;
-            data.stripSoftShadows = !asset.supportsSoftShadows;
-            data.stripSoftShadowsQualityLow = data.stripSoftShadows;
-            data.stripSoftShadowsQualityMedium = data.stripSoftShadows;
-            data.stripSoftShadowsQualityHigh = data.stripSoftShadows;
-            data.stripReflectionProbeBlending = !asset.reflectionProbeBlending;
-            data.stripReflectionProbeBoxProjection = !asset.reflectionProbeBoxProjection;
-            data.stripLODCrossFade = !asset.enableLODCrossFade;
-            data.stripProbeVolumes = !asset.supportProbeVolume;
-            data.stripAPRTVolumes = !asset.supportAPRTV;
-            data.stripLightLayers = !asset.useRenderingLayers;
-            data.stripLightCookies = !asset.supportsLightCookies;
-            data.stripMixedLighting = !asset.supportsMixedLighting;
+            data.stripAlphaOutputKeywords = features.CanStripKeyword(ShaderKeywordStrings._ENABLE_ALPHA_OUTPUT);
+            data.stripTerrainHoles = features.TerrainHolesUnused;
+            data.stripWriteRenderingLayers = features.CanStripKeyword(ShaderKeywordStrings.WriteRenderingLayers);
+            // The same build-wide intersection drives the ordinary shader stripper.
+            // supportsSoftShadows is a runtime quality option; retain OFF and ON.
+            data.stripSoftShadows = false;
+            data.stripSoftShadowsQualityLow = features.CanStripKeyword(ShaderKeywordStrings.SoftShadowsLow);
+            data.stripSoftShadowsQualityMedium = features.CanStripKeyword(ShaderKeywordStrings.SoftShadowsMedium);
+            data.stripSoftShadowsQualityHigh = features.CanStripKeyword(ShaderKeywordStrings.SoftShadowsHigh);
+            data.stripSHMixed = features.CanStripKeyword(ShaderKeywordStrings.EVALUATE_SH_MIXED);
+            data.stripSHVertex = features.CanStripKeyword(ShaderKeywordStrings.EVALUATE_SH_VERTEX);
+            data.stripReflectionProbeBlending = features.CanStripKeyword(ShaderKeywordStrings.ReflectionProbeBlending);
+            data.requireReflectionProbeBlending = features.CanRequireKeyword(ShaderKeywordStrings.ReflectionProbeBlending);
+            data.stripReflectionProbeBoxProjection = features.CanStripKeyword(ShaderKeywordStrings.ReflectionProbeBoxProjection);
+            data.stripLODCrossFade = features.CanStripKeyword(ShaderKeywordStrings.LOD_FADE_CROSSFADE);
+            data.stripProbeVolumes = features.CanStripKeyword(ShaderKeywordStrings.ProbeVolumeL1) && features.CanStripKeyword(ShaderKeywordStrings.ProbeVolumeL2);
+            data.stripAPRTVolumes = features.CanStripKeyword(ShaderKeywordStrings.ProbeVolumeAPRT);
+            data.stripLightLayers = features.CanStripKeyword(ShaderKeywordStrings.LightLayers);
+            data.stripLightCookies = features.CanStripKeyword(ShaderKeywordStrings.LightCookies);
+            data.areaLightsPrefilteringMode = features.CanStripKeyword(ShaderKeywordStrings.AreaLights) ? Mode.Remove :
+                features.CanRequireKeyword(ShaderKeywordStrings.AreaLights) ? Mode.SelectOnly : Mode.Select;
+            data.stripMixedLighting = features.CanStripKeyword(ShaderKeywordStrings.LightmapShadowMixing) &&
+                features.CanStripKeyword(ShaderKeywordStrings.ShadowsShadowMask) &&
+                features.CanStripKeyword(ShaderKeywordStrings.MixedLightingSubtractive);
+            if (features.CanStripKeyword(ShaderKeywordStrings.ForwardPlus))
+                data.forwardPlusPrefilteringMode = Mode.Remove;
 
-            // Unknown, derived, missing, custom or runtime-created graphs retain
-            // graph-controlled modes. Native pass and lightmap states stay intact.
-            if (knownForward || knownBuiltIn)
-            {
-                if (knownForward)
-                    data.deferredPrefilteringMode = Mode.Remove;
-                bool forwardPlus = asset.rendererGraphList.Any(graph => graph.nodes.OfType<DrawObjectsPass>().Any(node => node.isForwardPlus));
-                if (!forwardPlus)
-                    data.forwardPlusPrefilteringMode = Mode.Remove;
-                // AO is injected from the camera's Volume stack and can change at
-                // runtime without adding a graph node. Keep both lighting variants.
-                data.screenSpaceOcclusionPrefilteringMode = Mode.Select;
-                data.stripDBufferMRT1 = data.stripDBufferMRT2 = data.stripDBufferMRT3 = true;
-            }
+            // Independent decal-provider requirements, merged across all assets.
+            // Only named MRT modes are removed; DBuffer OFF remains available.
+            data.stripDBufferMRT1 = features.CanStripKeyword(ShaderKeywordStrings.DBufferMRT1);
+            data.stripDBufferMRT2 = features.CanStripKeyword(ShaderKeywordStrings.DBufferMRT2);
+            data.stripDBufferMRT3 = features.CanStripKeyword(ShaderKeywordStrings.DBufferMRT3);
+            if (knownForward)
+                data.deferredPrefilteringMode = Mode.Remove;
+            // AO is injected dynamically from the camera's Volume stack.
+            data.screenSpaceOcclusionPrefilteringMode = Mode.Select;
             return data;
         }
 
-        internal static void PrepareForBuild(bool isDevelopmentBuild)
+        internal static void PrepareForBuild(bool isDevelopmentBuild, BuildTarget? buildTarget = null,
+            IEnumerable<RenderPipelineAsset> includedAssets = null, bool enableNativeFiltering = true)
         {
             // A failed synchronous build can be followed by another build before
             // EditorApplication.update runs. Recompute from the original state
             // for every preparation, including the normal preprocess callback.
             if (File.Exists(JournalPath))
                 RestorePending();
-            var assets = new List<UltraRenderPipelineAsset>();
-            if (!UnityEditor.Rendering.BuildTargetExtensions.TryGetRenderPipelineAssets(EditorUserBuildSettings.activeBuildTarget, assets))
+            var allAssets = new List<RenderPipelineAsset>();
+            if (includedAssets != null)
+                allAssets.AddRange(includedAssets);
+            else if (!UnityEditor.Rendering.BuildTargetExtensions.TryGetRenderPipelineAssets(
+                         buildTarget ?? EditorUserBuildSettings.activeBuildTarget, allAssets))
                 return;
-            assets = assets.Where(asset => asset != null).Distinct().ToList();
+            var assets = allAssets.OfType<UltraRenderPipelineAsset>().Distinct().ToList();
             if (assets.Count == 0)
                 return;
 
@@ -138,6 +170,10 @@ namespace FraxinusEditor.Rendering.Ultra
             var ultra = settings == null ? null : RenderPipelineGraphicsSettingsCompatibility.GetRenderPipelineSettings<UltraRenderPipelineShaderStrippingSetting>(settings);
             var core = settings == null ? null : RenderPipelineGraphicsSettingsCompatibility.GetRenderPipelineSettings<ShaderStrippingSetting>(settings);
             bool stripUnused = ultra != null && ultra.stripUnusedVariants;
+            var features = UltraRPShaderBuildFeatures.WithBuildSettings(
+                UltraRPShaderBuildFeatures.Gather(allAssets, stripUnused),
+                core != null && core.stripRuntimeDebugShaders, ultra != null && ultra.stripScreenCoordOverrideVariants);
+            UltraRPShaderBuildReport.RecordFeatures(features);
             var journal = new Journal { process = s_process };
             foreach (var asset in assets)
                 journal.assets.Add(Capture(asset));
@@ -148,24 +184,30 @@ namespace FraxinusEditor.Rendering.Ultra
             s_buildObserved = BuildPipeline.isBuildingPlayer;
             try
             {
+                bool knownForward = stripUnused && UltraRPPostProcessShaderStripper.TryProveForwardOnlyBuild(
+                    allAssets, out _, out _);
                 foreach (var asset in assets)
                 {
-                    bool knownForward = stripUnused && UltraRPPostProcessShaderStripper.TryProveForwardOnlyBuild(
-                        new RenderPipelineAsset[] { asset }, out _, out _);
-                    bool knownBuiltIn = knownForward || (stripUnused && UltraRPPostProcessShaderStripper.TryProveBuiltInBuild(
-                        new RenderPipelineAsset[] { asset }, true, out _, out _));
-                    Data data = CreateData(asset, stripUnused, core != null && core.stripRuntimeDebugShaders,
-                        ultra != null && ultra.stripScreenCoordOverrideVariants, PlayerSettings.allowHDRDisplaySupport, knownForward, knownBuiltIn);
+                    // Plain native AssetBundle callbacks have no reliable begin/end
+                    // boundary and Unity may reuse them across synchronous builds.
+                    // Keep their native fields neutral; current settings still drive
+                    // the managed stripper and its report. Explicit/SBP/Player
+                    // sessions have a real boundary and use early native filtering.
+                    Data data = enableNativeFiltering ? CreateData(asset, stripUnused, core != null && core.stripRuntimeDebugShaders,
+                        ultra != null && ultra.stripScreenCoordOverrideVariants, PlayerSettings.allowHDRDisplaySupport, knownForward, false, features) : Data.GetDefault();
                     asset.UpdateShaderKeywordPrefiltering(ref data);
                     EditorUtility.SetDirty(asset);
-                    Debug.Log("UltraRP shader prefiltering: " + asset.name + ", opt-in=" + stripUnused +
+                    Debug.Log("UltraRP shader prefiltering: " + asset.name + ", native filtering=" + enableNativeFiltering + ", opt-in=" + stripUnused +
                         ", known forward=" + knownForward + ", main=" + data.mainLightShadowsPrefilteringMode +
                         ", additional=" + data.additionalLightsPrefilteringMode + ", strip debug=" + data.stripDebugDisplay +
-                        ", strip screen=" + data.stripScreenCoordOverride + ", strip HDR output=" + data.stripHDRKeywords + ".");
+                        ", strip screen=" + data.stripScreenCoordOverride + ", strip HDR output=" + data.stripHDRKeywords +
+                        ", shared removed globals=" + string.Join(",", features.ForbiddenGlobalKeywords) +
+                        ", shared required globals=" + string.Join(",", features.RequiredGlobalKeywords) + ".");
                 }
             }
             catch
             {
+                // Preparation owns these temporary mutations, including direct callers.
                 RestorePending();
                 throw;
             }
@@ -247,7 +289,8 @@ namespace FraxinusEditor.Rendering.Ultra
                 foreach (var state in snapshot.fields)
                 {
                     var field = s_fields.FirstOrDefault(item => item.Name == state.name);
-                    if (field == null) throw new BuildFailedException("Missing prefilter recovery field: " + state.name);
+                    if (field == null)
+                        throw new BuildFailedException("Missing prefilter recovery field: " + state.name);
                     field.SetValue(asset, field.FieldType == typeof(bool) ? (object)(state.value != 0) : Enum.ToObject(field.FieldType, state.value));
                 }
                 EditorUtility.SetDirty(asset);
@@ -259,7 +302,8 @@ namespace FraxinusEditor.Rendering.Ultra
                     new KeyValuePair<string, string>(state.name, state.diskLine)));
                 if (!string.Equals(current, restored, StringComparison.Ordinal))
                     File.WriteAllText(diskPath, restored, new UTF8Encoding(bom));
-                if (!snapshot.dirty) EditorUtility.ClearDirty(asset);
+                if (!snapshot.dirty)
+                    EditorUtility.ClearDirty(asset);
             }
             File.Delete(JournalPath);
             s_prepared = s_buildObserved = false;

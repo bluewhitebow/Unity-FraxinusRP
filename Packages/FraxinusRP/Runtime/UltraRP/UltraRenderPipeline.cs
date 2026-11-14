@@ -652,8 +652,9 @@ namespace FraxinusEngine.Rendering.Ultra
                 return;
             }
 
-            APRTRelightPass.PrepareSkyEnvironment(camera);
-            var frameData = GetRenderer(camera, additionalCameraData).frameData;
+            var renderer = GetRenderer(camera, additionalCameraData);
+            APRTRelightPass.PrepareSkyEnvironment(camera, renderer);
+            var frameData = renderer.frameData;
             var cameraData = CreateCameraData(frameData, camera, additionalCameraData, true);
             InitializeAdditionalCameraData(camera, additionalCameraData, true, isLastBaseCamera, cameraData);
 
@@ -689,6 +690,7 @@ namespace FraxinusEngine.Rendering.Ultra
             var cameraMetadata = CameraMetadataCache.GetCached(camera);
             using (new ProfilingScope(cmd, cameraMetadata.sampler))
             {
+                renderer.RefreshInjectPassSettings();
                 renderer.StartRenderGraphRendering(in cameraData);
 
                 // Request previous object transforms before culling, including the first temporal frame.
@@ -778,7 +780,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 GPUResidentDrawer.PostCullBeginCameraRendering(new RenderRequestBatcherContext { commandBuffer = cmd });
 
-                bool isForwardPlus = cameraData.renderer.isForwardPlus;
+                bool isForwardPlus = cameraData.renderer.usesForwardPlusLightLists;
 
                 // Initialize all the data types required for rendering.
                 LightData lightData;
@@ -873,7 +875,7 @@ namespace FraxinusEngine.Rendering.Ultra
             using (new CameraRenderingScope(context, baseCamera))
             {
                 UpdateVolumeFramework(baseCamera, baseCameraAdditionalData);
-                APRTRelightPass.PrepareSkyEnvironment(baseCamera);
+                APRTRelightPass.PrepareSkyEnvironment(baseCamera, renderer);
                 ContextContainer frameData = renderer.frameData;
                 CameraData baseCameraData = CreateCameraData(frameData, baseCamera, baseCameraAdditionalData, !isStackedRendering);
 

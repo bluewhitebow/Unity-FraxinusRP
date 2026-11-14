@@ -87,7 +87,7 @@ namespace FraxinusEngine.Rendering.Ultra
             combinedEvent = Event.Opaque;
             combinedMaskSize = MaskSize.Bits8;
 
-            bool isDeferred = (renderingMode & RenderingMode.Deferred) != 0;
+            bool isDeferred = (renderingMode & (RenderingMode.Deferred | RenderingMode.DeferredPlus | RenderingMode.DeferredCluster)) != 0;
             bool result = false;
 
             if (UltraRenderPipelineGlobalSettings.instance)

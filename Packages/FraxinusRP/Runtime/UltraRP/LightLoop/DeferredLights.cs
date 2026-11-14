@@ -301,6 +301,7 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             cluster = false;
             useClusterRaster = false;
+            useDeferredPlus = false;
 
             // Disable any global keywords setup in SetupLights().
             cmd.SetKeyword(ShaderGlobalKeywords._GBUFFER_NORMALS_OCT, false);
@@ -320,6 +321,8 @@ namespace FraxinusEngine.Rendering.Ultra
             _stencilDeferredMaterial = null;
             CoreUtils.Destroy(_clusterDeferredMaterial);
             _clusterDeferredMaterial = null;
+            CoreUtils.Destroy(_deferredPlusMaterial);
+            _deferredPlusMaterial = null;
             _gpuLights.Dispose();
             _gpuLights = null;
         }
@@ -423,12 +426,15 @@ namespace FraxinusEngine.Rendering.Ultra
             this.renderWidth = camera.allowDynamicResolution ? Mathf.CeilToInt(ScalableBufferManager.widthScaleFactor * cameraTargetSizeCopy.x) : cameraTargetSizeCopy.x;
             this.renderHeight = camera.allowDynamicResolution ? Mathf.CeilToInt(ScalableBufferManager.heightScaleFactor * cameraTargetSizeCopy.y) : cameraTargetSizeCopy.y;
 
-            PrecomputeLights(
-                out _stencilVisLights,
-                out _stencilVisLightOffsets,
-                ref lightData.visibleLights,
-                lightData.additionalLightsCount != 0 || lightData.mainLightIndex >= 0
-            );
+            if (!cluster && !useDeferredPlus)
+            {
+                PrecomputeLights(
+                    out _stencilVisLights,
+                    out _stencilVisLightOffsets,
+                    ref lightData.visibleLights,
+                    lightData.additionalLightsCount != 0 || lightData.mainLightIndex >= 0
+                );
+            }
 
             SetupDeferredKeywords(cmd, cameraData, lightData, isRenderGraph);
 

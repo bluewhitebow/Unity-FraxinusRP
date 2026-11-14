@@ -132,6 +132,11 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 ref VisibleLight vl = ref visibleLights.UnsafeElementAt(visibleLightIndex);
                 Light light = vl.light;
+                if (light == null)
+                {
+                    s_visibleLightIndexToCameraSquareDistance[visibleLightIndex] = float.MaxValue;
+                    continue;
+                }
                 LightType lightType = vl.lightType;
                 LightShadows lightShadows = light.shadows;
                 float shadowStrength = light.shadowStrength;
@@ -182,6 +187,14 @@ namespace FraxinusEngine.Rendering.Ultra
             // When not using structured buffers, m_AdditionalLightShadowSliceIndexTo_WorldShadowMatrix.Length maps to _AdditionalLightsWorldToShadow in Shadows.hlsl
             // In that case we have to limit its size because uniform buffers cannot be higher than 64kb for some platforms.
             int totalShadowSlicesCount = useStructuredBuffer ? totalShadowResolutionRequestsCount : Math.Min(totalShadowResolutionRequestsCount, UltraRenderPipeline.maxVisibleAdditionalLights);  // Number of shadow slices that we will actually be able to fit in the shadow atlas without causing visual artifacts.
+            // Requests are grouped by light. The uniform-buffer limit must not split a point
+            // light's six faces: culling and sampling always access the complete cubemap.
+            if (totalShadowSlicesCount > 0 && totalShadowSlicesCount < totalShadowResolutionRequestsCount &&
+                _sortedShadowResolutionRequests[totalShadowSlicesCount - 1].visibleLightIndex ==
+                _sortedShadowResolutionRequests[totalShadowSlicesCount].visibleLightIndex)
+            {
+                totalShadowSlicesCount -= _sortedShadowResolutionRequests[totalShadowSlicesCount - 1].perLightShadowSliceIndex + 1;
+            }
             int atlasSize = shadowData.additionalLightsShadowmapWidth;
 
             // Find biggest end index in m_SortedShadowResolutionRequests array, under which all shadow requests can be allocated a big enough shadow atlas slot, to not cause rendering artifacts

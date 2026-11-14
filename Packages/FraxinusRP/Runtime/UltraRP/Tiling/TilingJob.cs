@@ -23,12 +23,14 @@ namespace FraxinusEngine.Rendering.Ultra
         public int rangesPerItem;
 
         public Fixed2<float4x4> worldToViews;
-        public float4 centerOffset;
 
         public float2 tileScale;
         public float2 tileScaleInv;
-        public Fixed2<float2> viewPlaneHalfSizes;
-        public Fixed2<float2> viewPlaneHalfSizeInvs;
+        // Projection-aware tile mapping from Unity Graphics 6000.3. This also
+        // keeps main-camera jitter and unjittered child contexts independent.
+        public Fixed2<float> viewPlaneBottoms;
+        public Fixed2<float> viewPlaneTops;
+        public Fixed2<float4> viewToViewportScaleBiases;
         public int2 tileCount;
         public float near;
         public bool isOrthographic;
@@ -36,13 +38,11 @@ namespace FraxinusEngine.Rendering.Ultra
         InclusiveRange _tileYRange;
         int _offset;
         int _viewIndex;
-        float2 _centerOffset;
 
         public void Execute(int jobIndex)
         {
             var index = jobIndex % itemsPerTile;
             _viewIndex = jobIndex / itemsPerTile;
-            _centerOffset = _viewIndex == 0 ? centerOffset.xy : centerOffset.zw;
             _offset = jobIndex * rangesPerItem;
 
             _tileYRange = new InclusiveRange(short.MaxValue, short.MinValue);
@@ -193,13 +193,13 @@ namespace FraxinusEngine.Rendering.Ultra
                 GetConeSideTangentPoints(lightPositionVS, lightDirectionVS, cosHalfAngle, baseRadius, coneHeight, range, coneU, coneV, out var l1, out var l2);
 
                 {
-                    var planeNormal = math.float3(0, 1, -viewPlaneHalfSizes[_viewIndex].y);
+                    var planeNormal = math.float3(0, 1, viewPlaneBottoms[_viewIndex]);
                     var l1t = math.dot(-lightPositionVS, planeNormal) / math.dot(l1, planeNormal);
                     var l1x = lightPositionVS + l1 * l1t;
                     if (l1t >= 0 && l1t <= 1 && l1x.z >= near) ExpandY(l1x);
                 }
                 {
-                    var planeNormal = math.float3(0, 1, viewPlaneHalfSizes[_viewIndex].y);
+                    var planeNormal = math.float3(0, 1, viewPlaneTops[_viewIndex]);
                     var l1t = math.dot(-lightPositionVS, planeNormal) / math.dot(l1, planeNormal);
                     var l1x = lightPositionVS + l1 * l1t;
                     if (l1t >= 0 && l1t <= 1 && l1x.z >= near) ExpandY(l1x);
@@ -213,7 +213,7 @@ namespace FraxinusEngine.Rendering.Ultra
                     var planeRange = InclusiveRange.empty;
 
                     // Y-position on the view plane (Z=1)
-                    var planeY = math.lerp(-viewPlaneHalfSizes[_viewIndex].y, viewPlaneHalfSizes[_viewIndex].y, planeIndex * tileScaleInv.y);
+                    var planeY = math.lerp(viewPlaneBottoms[_viewIndex], viewPlaneTops[_viewIndex], planeIndex * tileScaleInv.y);
 
                     var planeNormal = math.float3(0, 1, -planeY);
 
@@ -257,7 +257,7 @@ namespace FraxinusEngine.Rendering.Ultra
             {
                 var planeRange = InclusiveRange.empty;
 
-                var planeY = math.lerp(-viewPlaneHalfSizes[_viewIndex].y, viewPlaneHalfSizes[_viewIndex].y, planeIndex * tileScaleInv.y);
+                var planeY = math.lerp(viewPlaneBottoms[_viewIndex], viewPlaneTops[_viewIndex], planeIndex * tileScaleInv.y);
                 GetSphereYPlaneHorizon(lightPositionVS, range, near, sphereClipRadius, planeY, out var sphereTile0, out var sphereTile1);
                 if (SpherePointIsValid(sphereTile0)) planeRange.Expand((short)math.clamp(ViewToTileSpace(sphereTile0).x, 0, tileCount.x - 1));
                 if (SpherePointIsValid(sphereTile1)) planeRange.Expand((short)math.clamp(ViewToTileSpace(sphereTile1).x, 0, tileCount.x - 1));
@@ -351,7 +351,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 var planeRange = InclusiveRange.empty;
 
                 // Sphere
-                var planeY = math.lerp(-viewPlaneHalfSizes[_viewIndex].y, viewPlaneHalfSizes[_viewIndex].y, planeIndex * tileScaleInv.y);
+                var planeY = math.lerp(viewPlaneBottoms[_viewIndex], viewPlaneTops[_viewIndex], planeIndex * tileScaleInv.y);
                 var sphereX = math.sqrt(rangeSq - square(planeY - lightPosVS.y));
                 var sphereX0 = math.float3(lightPosVS.x - sphereX, planeY, lightPosVS.z);
                 var sphereX1 = math.float3(lightPosVS.x + sphereX, planeY, lightPosVS.z);
@@ -512,7 +512,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 {
                     var planeRange = InclusiveRange.empty;
 
-                    var planeY = math.lerp(-viewPlaneHalfSizes[_viewIndex].y, viewPlaneHalfSizes[_viewIndex].y, planeIndex * tileScaleInv.y);
+                    var planeY = math.lerp(viewPlaneBottoms[_viewIndex], viewPlaneTops[_viewIndex], planeIndex * tileScaleInv.y);
 
                     for (var i = 0; i < hullPointsCount; i++)
                     {
@@ -547,8 +547,7 @@ namespace FraxinusEngine.Rendering.Ultra
         /// </summary>
         float2 ViewToTileSpace(float3 positionVS)
         {
-            var positionCS = _centerOffset + positionVS.xy / positionVS.z * viewPlaneHalfSizeInvs[_viewIndex];
-            return (positionCS * 0.5f + 0.5f) * tileScale;
+            return (positionVS.xy / positionVS.z * viewToViewportScaleBiases[_viewIndex].xy + viewToViewportScaleBiases[_viewIndex].zw) * tileScale;
         }
 
         /// <summary>
@@ -556,8 +555,7 @@ namespace FraxinusEngine.Rendering.Ultra
         /// </summary>
         float2 ViewToTileSpaceOrthographic(float3 positionVS)
         {
-            var positionCS = _centerOffset + positionVS.xy * viewPlaneHalfSizeInvs[_viewIndex];
-            return (positionCS * 0.5f + 0.5f) * tileScale;
+            return (positionVS.xy * viewToViewportScaleBiases[_viewIndex].xy + viewToViewportScaleBiases[_viewIndex].zw) * tileScale;
         }
 
         /// <summary>

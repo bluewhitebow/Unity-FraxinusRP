@@ -20,7 +20,7 @@ Unity-FraxinusRP 以 **UltraRP** 为核心，让你在可编辑的 **Renderer Gr
 
 这张图也直接用于调整渲染。例如，要在延迟光照后补充一组 ForwardOnly 材质的绘制，可以接入 DrawObjects 节点，配置 Shader Tags、绘制队列和 Layer Mask，再把颜色与深度目标传给后续阶段。流程连接、绘制条件和阶段输出都能在图中一起查看；项目特有的处理则通过自定义节点或 Pass 注入扩展。
 
-Renderer Graph 支持 Forward、Forward+、Stencil Deferred 与 Clustered Deferred。需要分辨率不同的中间结果时，**嵌套 Context** 可以为同一相机视角建立独立颜色、深度和帧数据，再显式合成回父目标。底层 Fraxinus Core RenderGraph 管理 Pass 与资源依赖，图编辑器负责组织这些渲染阶段。[渲染图与 Context](Packages/FraxinusRP/Documentation~/ScriptableNode.md)
+Renderer Graph 支持 Forward、Forward+、Stencil Deferred、Deferred+ 与 GPU Clustered Deferred。需要分辨率不同的中间结果时，**嵌套 Context** 可以为同一相机视角建立独立颜色、深度和帧数据，再显式合成回父目标。底层 Fraxinus Core RenderGraph 管理 Pass 与资源依赖，图编辑器负责组织这些渲染阶段。[渲染图与 Context](Packages/FraxinusRP/Documentation~/ScriptableNode.md)
 
 ## 与 URP、HDRP 的具体区别
 

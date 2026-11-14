@@ -6,6 +6,15 @@ using UnityEngine.Rendering.RenderGraphModule;
 
 namespace FraxinusEngine.Rendering.Ultra
 {
+    public enum DeferredLightingMode
+    {
+        Stencil = 0,
+        [InspectorName("Deferred+")]
+        DeferredPlus = 1,
+        [InspectorName("GPU Cluster")]
+        GPUCluster = 2
+    }
+
     public enum ClusterLightingMode
     {
         Auto = 0,
@@ -14,7 +23,7 @@ namespace FraxinusEngine.Rendering.Ultra
     }
 
     [Serializable, NodeMenuItem("UltraRP/DeferredObjectPass")]
-    public class DeferredObjectPass : ScriptableRenderPassNode
+    public class DeferredObjectPass : ScriptableRenderPassNode, ISerializationCallbackReceiver
     {
         [Input("Camera Target")]
         public CameraTargetBufferNodeParameter inCameraTarget;
@@ -41,17 +50,30 @@ namespace FraxinusEngine.Rendering.Ultra
             }
         }
 
-        [SerializeField] private bool _cluster;
-        public bool cluster
+        [SerializeField] private DeferredLightingMode _lightingMode;
+        [SerializeField, HideInInspector] private int _lightingModeVersion;
+        [SerializeField, HideInInspector] private bool _cluster;
+
+        public DeferredLightingMode lightingMode
         {
-            get => _cluster;
+            get => _lightingModeVersion == 0 && _cluster ? DeferredLightingMode.GPUCluster : _lightingMode;
             set
             {
-                _cluster = value;
+                _lightingMode = value;
+                _lightingModeVersion = 1;
+                _cluster = value == DeferredLightingMode.GPUCluster;
             }
         }
 
-        [SerializeField, Tooltip("Auto uses raster clustered lighting when framebuffer fetch is available. Raster also supports ordinary GBuffer sampling; Compute keeps the classified compute path.")]
+        // Retain the scripting API used by existing renderer graph setup tools.
+        public bool cluster
+        {
+            get => lightingMode == DeferredLightingMode.GPUCluster;
+            set => lightingMode = value ? DeferredLightingMode.GPUCluster : DeferredLightingMode.Stencil;
+        }
+
+        [VisibleIf("_lightingMode", DeferredLightingMode.GPUCluster)]
+        [SerializeField, Tooltip("Auto uses Raster when framebuffer fetch is available, otherwise Compute. Raster uses fullscreen stencil-filtered lighting with framebuffer fetch or ordinary GBuffer sampling.")]
         private ClusterLightingMode _clusterLightingMode;
         public ClusterLightingMode clusterLightingMode
         {
@@ -66,19 +88,33 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public override RenderingMode RequestRenderingMode()
         {
-            return _cluster ? RenderingMode.DeferredCluster : RenderingMode.Deferred;
+            switch (lightingMode)
+            {
+                case DeferredLightingMode.DeferredPlus: return RenderingMode.DeferredPlus;
+                case DeferredLightingMode.GPUCluster: return RenderingMode.DeferredCluster;
+                default: return RenderingMode.Deferred;
+            }
         }
 
-        public override ScriptableRenderPassInput input => _cluster ? ScriptableRenderPassInput.Depth : base.input;
+        public override ScriptableRenderPassInput input => cluster ? ScriptableRenderPassInput.Depth : base.input;
 
         public DeferredObjectPass() : base()
         {
             base.profilingSampler = new ProfilingSampler(nameof(DeferredObjectPass));
         }
 
-        protected override void Enable()
+        public void OnBeforeSerialize()
         {
-            base.Enable();
+            lightingMode = lightingMode;
+        }
+
+        public void OnAfterDeserialize()
+        {
+            if (_lightingModeVersion == 0)
+                lightingMode = _cluster ? DeferredLightingMode.GPUCluster : DeferredLightingMode.Stencil;
+            // Migrate the removed experimental mode. Value 2 already maps to Raster.
+            if ((int)_clusterLightingMode == 3)
+                _clusterLightingMode = ClusterLightingMode.Raster;
         }
 
         public override void SetupPass()
@@ -120,10 +156,10 @@ namespace FraxinusEngine.Rendering.Ultra
             TextureHandle mainShadowsTexture = mainShadowMap.value;
             TextureHandle additionalShadowsTexture = additionalShadowMap.value;
 
-            deferredPass.Render(renderGraph, frameData, activeColorTexture, activeDepthTexture, gbuffer, mainShadowsTexture, additionalShadowsTexture, cluster);
+            deferredPass.Render(renderGraph, frameData, activeColorTexture, activeDepthTexture, gbuffer, mainShadowsTexture, additionalShadowsTexture);
 
 #if UNITY_2022_1_OR_NEWER && !UNITY_2023_1_OR_NEWER
-            if ((!cluster || deferredLights.useClusterRaster) && renderGraph.nativeRenderPassesEnabled && SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D11)
+            if ((!renderingData.hasDeferredCluster || deferredLights.useClusterRaster) && renderGraph.nativeRenderPassesEnabled && SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D11)
             {
                 // Separate deferred lighting from the following forward draws
                 // on the legacy D3D11 native-pass backend. The read dependencies

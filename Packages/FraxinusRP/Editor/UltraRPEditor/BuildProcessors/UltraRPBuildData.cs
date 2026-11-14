@@ -1,39 +1,45 @@
 using System;
 using System.Collections.Generic;
-using UnityEngine;
-using UnityEngine.Assertions;
+using System.Linq;
 using FraxinusEngine.Rendering.Ultra;
 using UnityEditor;
-using UnityEditor.Rendering;
+using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace FraxinusEditor.Rendering.Ultra
 {
     internal class UltraRPBuildData : IDisposable
     {
-        // Instance can be null when building AssetBundles, otherwise the lifetime will be given by UltraRPPreprocessBuild
-        static UltraRPBuildData s_instance = null;
+        // Shader callback sessions own the lifetime for Player and AssetBundle builds.
+        static UltraRPBuildData s_instance;
 
         public static UltraRPBuildData instance => s_instance ??= new(EditorUserBuildSettings.activeBuildTarget, Debug.isDebugBuild);
 
         public bool buildingPlayerForUltraRenderPipeline { get; private set; }
 
-        public List<UltraRenderPipelineAsset> renderPipelineAssets { get; private set; } = new List<UltraRenderPipelineAsset>();
+        public BuildTarget buildTarget { get; }
+        public bool isDevelopmentBuild { get; }
+        public IReadOnlyList<RenderPipelineAsset> allRenderPipelineAssets { get; }
 
-        public UltraRPBuildData(BuildTarget buildTarget, bool isDevelopmentBuild)
+        public List<UltraRenderPipelineAsset> renderPipelineAssets { get; } = new List<UltraRenderPipelineAsset>();
+
+        public UltraRPBuildData(BuildTarget buildTarget, bool isDevelopmentBuild,
+            IEnumerable<RenderPipelineAsset> additionalAssets = null)
         {
             s_instance = this;
-
-            buildingPlayerForUltraRenderPipeline = CoreBuildData.instance.buildingPlayerForRenderPipeline &&
-                                                   CoreBuildData.instance.currentRenderPipelineAssetType == typeof(UltraRenderPipelineAsset);
-
+            this.buildTarget = buildTarget;
+            this.isDevelopmentBuild = isDevelopmentBuild;
+            var assets = new List<RenderPipelineAsset>();
+            UnityEditor.Rendering.BuildTargetExtensions.TryGetRenderPipelineAssets(buildTarget, assets);
+            if (additionalAssets != null)
+                assets.AddRange(additionalAssets);
+            allRenderPipelineAssets = assets.Distinct().ToArray();
+            // Never prove capabilities from only the first asset in a mixed or
+            // partially unresolved configuration.
+            buildingPlayerForUltraRenderPipeline = allRenderPipelineAssets.Count > 0 &&
+                allRenderPipelineAssets.All(asset => asset != null && asset.GetType() == typeof(UltraRenderPipelineAsset));
             if (buildingPlayerForUltraRenderPipeline)
-            {
-                foreach (var asset in CoreBuildData.instance.renderPipelineAssets)
-                {
-                    Assert.IsTrue(asset is UltraRenderPipelineAsset);
-                    renderPipelineAssets.Add(asset as UltraRenderPipelineAsset);
-                }
-            }
+                renderPipelineAssets.AddRange(allRenderPipelineAssets.Cast<UltraRenderPipelineAsset>());
         }
 
         public void Dispose()
@@ -42,9 +48,11 @@ namespace FraxinusEditor.Rendering.Ultra
 
             buildingPlayerForUltraRenderPipeline = false;
 
-            CoreBuildData.instance.Dispose();
-
-            s_instance = null;
+            // A late Dispose from an earlier build must not erase its successor.
+            if (ReferenceEquals(s_instance, this))
+                s_instance = null;
         }
+
+        internal static void DisposeCurrent() => s_instance?.Dispose();
     }
 }

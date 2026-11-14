@@ -1,0 +1,11 @@
+{
+  "name": "Fraxinus.UltraRP.SBP.Editor",
+  "rootNamespace": "FraxinusEditor.Rendering.Ultra",
+  "references": ["Fraxinus.UltraRP.Editor", "Unity.ScriptableBuildPipeline.Editor", "Unity.ScriptableBuildPipeline"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": true,
+  "defineConstraints": ["FRAXINUS_SBP"],
+  "versionDefines": [
+    { "name": "com.unity.scriptablebuildpipeline", "expression": "[1.20.0,3.0.0)", "define": "FRAXINUS_SBP" }
+  ]
+}

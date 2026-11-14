@@ -53,7 +53,7 @@ namespace FraxinusEngine.Rendering.Ultra
         protected override void OnCameraCleanup(CommandBuffer cmd) { }
         protected override void OnDispose() { }
 
-        internal bool PrepareFrame(RenderGraph graph, ContextContainer frame)
+        public override void ResetFrame(RenderGraph graph, ContextContainer frame)
         {
             var data = frame.GetOrCreate<AmbientOcclusionData>();
             data.Reset();
@@ -61,7 +61,11 @@ namespace FraxinusEngine.Rendering.Ultra
             resources.ambientOcclusionTexture = TextureHandle.nullHandle;
             resources.ambientOcclusionDirectLightingStrength = 0f;
             Publish(graph, TextureHandle.nullHandle, false, 0f);
+        }
 
+        public override bool PrepareFrame(RenderGraph graph, ContextContainer frame)
+        {
+            var data = frame.GetOrCreate<AmbientOcclusionData>();
             var camera = frame.Get<CameraData>();
             if (!IsCameraSupported(camera) || !HasActiveMainInjection(camera.renderer, frame))
                 return false;

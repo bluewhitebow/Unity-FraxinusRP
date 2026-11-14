@@ -15,6 +15,7 @@ namespace FraxinusEngine.Rendering.Ultra
         Forward = 1 << 0,
         Deferred = 1 << 1,
         ForwardPlus = 1 << 2,
+        DeferredPlus = 1 << 3,
         DeferredCluster = 1 << 4, 
     };
 
@@ -255,19 +256,20 @@ namespace FraxinusEngine.Rendering.Ultra
 
             _renderingMode = RenderingMode.None;
 
+            DeferredLightingMode? deferredMode = null;
             LayerMask opaqueLayerMask = 0;
             RenderPassInputSummary inputSummary = new RenderPassInputSummary();
             for (int i = 0; i < _sortedNodes.Count; ++i)
             {
                 var node = _sortedNodes[i];
-                if (node is ScriptableRenderPassNode pass && pass.active)
+                if (node.computeOrder >= 0 && node.canProcess && node is ScriptableRenderPassNode pass && pass.active)
                 {
                     bool needsDepth = (pass.input & ScriptableRenderPassInput.Depth) != ScriptableRenderPassInput.None;
                     bool needsNormals = (pass.input & ScriptableRenderPassInput.Normal) != ScriptableRenderPassInput.None;
                     bool needsColor = (pass.input & ScriptableRenderPassInput.Color) != ScriptableRenderPassInput.None;
                     bool needsMotion = (pass.input & ScriptableRenderPassInput.Motion) != ScriptableRenderPassInput.None;
 
-                    inputSummary.requiresIntermediateTexture = pass.requiresIntermediateTexture;
+                    inputSummary.requiresIntermediateTexture |= pass.requiresIntermediateTexture;
                     inputSummary.requiresColorTextureCreated = true;
                     inputSummary.requiresDepthTexture |= needsDepth;
 
@@ -277,37 +279,40 @@ namespace FraxinusEngine.Rendering.Ultra
                     inputSummary.requiresColorTexture |= needsColor;
                     inputSummary.requiresMotionVectors |= needsMotion;
 
-                    _renderingMode |= pass.RequestRenderingMode();
+                    bool mainContext = graph.drivenNode == null || IsSameContext(pass, graph.drivenNode);
+                    if (!(pass is DeferredObjectPass) || mainContext)
+                        _renderingMode |= pass.RequestRenderingMode();
                     // GBuffer layout and lighting mode are camera-wide. Child
                     // scopes inherit the main scope instead of overriding it.
-                    if (pass is DeferredObjectPass deferred && deferred.cluster &&
-                        (graph.drivenNode == null || IsSameContext(pass, graph.drivenNode)) &&
-                        deferred.clusterLightingMode != ClusterLightingMode.Auto)
+                    if (pass is DeferredObjectPass deferred && mainContext)
                     {
-                        if (interalRendererData.clusterLightingMode != ClusterLightingMode.Auto &&
-                            interalRendererData.clusterLightingMode != deferred.clusterLightingMode)
-                            throw new InvalidOperationException("Cluster deferred passes in one camera must use the same explicit lighting mode.");
-                        interalRendererData.clusterLightingMode = deferred.clusterLightingMode;
+                        if (deferredMode.HasValue && deferredMode.Value != deferred.lightingMode)
+                            throw new InvalidOperationException("Deferred passes in one camera must use the same lighting mode.");
+                        deferredMode = deferred.lightingMode;
+                        if (deferred.cluster && deferred.clusterLightingMode != ClusterLightingMode.Auto)
+                        {
+                            if (interalRendererData.clusterLightingMode != ClusterLightingMode.Auto &&
+                                interalRendererData.clusterLightingMode != deferred.clusterLightingMode)
+                                throw new InvalidOperationException("Cluster deferred passes in one camera must use the same explicit lighting mode.");
+                            interalRendererData.clusterLightingMode = deferred.clusterLightingMode;
+                        }
                     }
                     opaqueLayerMask |= pass.GetOpaqueLayerMask();
                 }
             }
 
-            bool useForwardPlus = (_renderingMode & RenderingMode.ForwardPlus) != 0;
             if (cameraData.renderType != CameraRenderType.Base)
             {
-                _renderingMode &= ~RenderingMode.Deferred;
-                _renderingMode &= ~RenderingMode.DeferredCluster;
+                if ((_renderingMode & RenderingMode.DeferredPlus) != 0)
+                    _renderingMode |= RenderingMode.ForwardPlus;
+                _renderingMode &= ~(RenderingMode.Deferred | RenderingMode.DeferredPlus | RenderingMode.DeferredCluster);
             }
-
-            bool useDeferred = (_renderingMode & RenderingMode.Deferred) != 0;
-            bool useDeferredCluster = (_renderingMode & RenderingMode.DeferredCluster) != 0;
 
             interalRendererData.renderPassInputs = inputSummary;
             interalRendererData.opaqueLayerMask = opaqueLayerMask;
-            interalRendererData.hasForwardPlus = useForwardPlus;
-            interalRendererData.hasDeferred = useDeferred || useDeferredCluster;
-            interalRendererData.hasDeferredCluster = useDeferredCluster;
+            interalRendererData.hasForwardPlus = isForwardPlus;
+            interalRendererData.hasDeferred = (_renderingMode & (RenderingMode.Deferred | RenderingMode.DeferredPlus | RenderingMode.DeferredCluster)) != 0;
+            interalRendererData.deferredLightingMode = deferredMode ?? DeferredLightingMode.Stencil;
         }
 
         public override void SetupCullingParameters(ref ScriptableCullingParameters cullingParameters, ref CameraData cameraData)
@@ -317,7 +322,7 @@ namespace FraxinusEngine.Rendering.Ultra
             // TODO: PerObjectCulling also affect reflection probes. Enabling it for now.
             // if (asset.additionalLightsRenderingMode == LightRenderingMode.Disabled ||
             //     asset.maxAdditionalLightsCount == 0)
-            if (internalData.hasForwardPlus && UltraRenderPipeline.asset.reflectionProbeBlending)
+            if (internalData.usesForwardPlusLightLists && UltraRenderPipeline.asset.reflectionProbeBlending)
                 cullingParameters.cullingOptions |= CullingOptions.DisablePerObjectCulling;
 
             // We disable shadow casters if both shadow casting modes are turned off
@@ -327,15 +332,15 @@ namespace FraxinusEngine.Rendering.Ultra
             if (isShadowCastingDisabled || isShadowDistanceZero)
                 cullingParameters.cullingOptions &= ~CullingOptions.ShadowCasters;
 
-            if (internalData.hasDeferred)
-                cullingParameters.maximumVisibleLights = 0xFFFF;
-            else if (internalData.hasForwardPlus)
+            if (internalData.usesForwardPlusLightLists)
             {
                 // We don't add one to the maximum light because mainlight is treated as any other light.
                 cullingParameters.maximumVisibleLights = UltraRenderPipeline.maxVisibleAdditionalLights;
                 // Do not sort reflection probe from engine it will come in reverse order from what we need.
                 cullingParameters.reflectionProbeSortingCriteria = ReflectionProbeSortingCriteria.None;
             }
+            else if (internalData.hasDeferred)
+                cullingParameters.maximumVisibleLights = 0xFFFF;
             else
             {
                 // We set the number of maximum visible lights allowed and we add one for the mainlight...
@@ -376,17 +381,21 @@ namespace FraxinusEngine.Rendering.Ultra
             useRenderPassEnabled = renderGraph.nativeRenderPassesEnabled;
 
             CollectRenderingData(cameraData.IsTemporalJitterEnabled(), cameraData.postProcessEnabled, cameraData.isSceneViewCamera, ref internalData, renderingData);
-            bool contactShadowsActive = GetModule<ContactShadowsPass>().PrepareFrame(renderGraph, frameData);
-            bool ambientOcclusionActive = GetModule<GroundTruthAmbientOcclusionPass>().PrepareFrame(renderGraph, frameData);
+            bool injectedEffectsRequireFinalBlit = PrepareInjectPasses(renderGraph, frameData);
             GetModule<AreaLightsPass>().PrepareFrame(renderGraph, frameData);
             if (cameraData.renderType == CameraRenderType.Base)
-                s_effectRequiresFinalBlit = contactShadowsActive || ambientOcclusionActive;
+                s_effectRequiresFinalBlit = injectedEffectsRequireFinalBlit;
             if (cameraData.isSceneViewCamera)
                 renderingData.opaqueLayerMask = -1;
 
             bool isCameraTargetOffscreenDepth = IsOffscreenDepthTexture(cameraData);
             if (isCameraTargetOffscreenDepth)
             {
+                // This path still draws material Forward passes, including on the
+                // first camera with no visible lights. RenderDrivenPass is skipped,
+                // so establish its lighting policy and Forward+ resources here.
+                _forwardLights.useforwardLight = renderingData.usesForwardPlusLightLists;
+                _forwardLights.SetupRenderGraphLights(renderGraph, frameData);
                 ImportOffscreenDepthTarget(renderGraph, resourceData, cameraData);
                 OnOffscreenDepthTextureRendering(renderGraph, context, resourceData, cameraData);
                 return;
@@ -535,16 +544,17 @@ namespace FraxinusEngine.Rendering.Ultra
         }
 
         public override bool isForwardPlus => (_renderingMode & RenderingMode.ForwardPlus) != 0; 
+        public override bool usesForwardPlusLightLists => (_renderingMode & (RenderingMode.ForwardPlus | RenderingMode.DeferredPlus)) != 0;
 
         private void SetupRenderGraphLights(RenderGraph renderGraph, RenderingData renderingData, CameraData cameraData, LightData lightData)
         {
-            _forwardLights.useforwardLight = renderingData.hasForwardPlus;
-            _forwardLights.SetupRenderGraphLights(renderGraph, renderingData, cameraData, lightData);
+            _forwardLights.useforwardLight = renderingData.usesForwardPlusLightLists;
+            _forwardLights.SetupRenderGraphLights(renderGraph, frameData);
             if (renderingData.hasDeferred)
             {
                 // Choose the lighting path before attachment layout and camera targets.
                 _deferredLights.ConfigureLightingPath(renderGraph.nativeRenderPassesEnabled,
-                    renderingData.hasDeferredCluster, renderingData.clusterLightingMode,
+                    renderingData.deferredLightingMode, renderingData.clusterLightingMode,
                     renderingData.renderPassInputs.disableFramebufferFetch);
                 _deferredLights.SetupRenderGraphLights(renderGraph, cameraData, lightData);
             }
@@ -576,6 +586,30 @@ namespace FraxinusEngine.Rendering.Ultra
 
         private void OnOffscreenDepthTextureRendering(RenderGraph renderGraph, ScriptableRenderContext context, ResourceData resourceData, CameraData cameraData)
         {
+            // Like URP's depth-target path, these are material Forward draws.
+            // Run the declared shadow passes (including their empty-map setup),
+            // so no-light and zero-shadow-distance cameras use the same keywords
+            // as regular cameras. Reuse the graph-owned passes and their lifetime.
+            TextureHandle mainShadows = TextureHandle.nullHandle;
+            TextureHandle additionalShadows = TextureHandle.nullHandle;
+            for (int i = 0; i < _sortedNodes.Count; ++i)
+            {
+                var node = _sortedNodes[i];
+                if (node.computeOrder < 0 || !node.canProcess ||
+                    !(node is ScriptableRenderPassNode pass) || !pass.active ||
+                    !pass.SupportedInCurrentFrame(frameData))
+                    continue;
+
+                // Custom subclasses can change Execute/SetupPass behavior and
+                // do not participate in the built-in shadow stripping contract.
+                if (node.GetType() == typeof(MainLightShadowCasterPass))
+                    mainShadows = ((MainLightShadowCasterPass)node).Render(renderGraph, frameData);
+                else if (node.GetType() == typeof(AdditionalLightsShadowCasterPass))
+                    additionalShadows = ((AdditionalLightsShadowCasterPass)node).Render(renderGraph, frameData);
+            }
+
+            // Shadow rendering changes view/projection state; restore the camera
+            // before recording the depth-target draw, just as in the regular path.
             SetupRenderGraphCameraProperties(renderGraph, true);
             RenderingData renderingData = frameData.Get<RenderingData>();
             LayerMask transparentLayers = 0;
@@ -587,7 +621,7 @@ namespace FraxinusEngine.Rendering.Ultra
             }
 
             OffscreenDepthPass.Render(renderGraph, frameData, resourceData.backBufferDepth,
-                renderingData.opaqueLayerMask, transparentLayers);
+                renderingData.opaqueLayerMask, transparentLayers, mainShadows, additionalShadows);
         }
 
         const string k_cameraTargetAttachmentAName = "_CameraTargetAttachmentA";
@@ -663,6 +697,11 @@ namespace FraxinusEngine.Rendering.Ultra
 
             // Gather render pass history requests and update history textures.
             UpdateCameraHistory(cameraData);
+
+            // A stack shares attachments, but each camera needs its own depth
+            // prepass and priming state before issuing opaque draws.
+            useDepthPriming = IsDepthPrimingEnabled(cameraData);
+            renderingData.requiresDepthPrepass = RequireDepthPrepass(cameraData, ref inputSummary);
 
             // We configure this for the first camera of the stack and overlay camera will reuse create color/depth var
             // to pick the correct target, as if there is an intermediate texture, overlay cam should use them
@@ -849,7 +888,8 @@ namespace FraxinusEngine.Rendering.Ultra
             #endregion
 
             CreateCameraDepthCopyTexture(renderGraph, cameraData.cameraTargetDescriptor, depthTextureIsDepthFormat);
-            CreateCameraNormalsTexture(renderGraph, cameraData.cameraTargetDescriptor);
+            if (inputSummary.requiresNormalsTexture)
+                CreateCameraNormalsTexture(renderGraph, cameraData.cameraTargetDescriptor);
             CreateMotionVectorTextures(renderGraph, cameraData.cameraTargetDescriptor);
             CreateRenderingLayersTexture(renderGraph, cameraData.cameraTargetDescriptor);
         }
@@ -876,7 +916,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
             renderingData.hasForwardPlus = internalData.hasForwardPlus;
             renderingData.hasDeferred = internalData.hasDeferred;
-            renderingData.hasDeferredCluster = internalData.hasDeferredCluster;
+            renderingData.deferredLightingMode = internalData.deferredLightingMode;
             renderingData.clusterLightingMode = internalData.clusterLightingMode;
         }
 
@@ -915,23 +955,18 @@ namespace FraxinusEngine.Rendering.Ultra
 
         bool RequiresIntermediateAttachments(CameraData cameraData, RenderingData renderingData)
         {
-            bool requiresDepthPrepass = RequireDepthPrepass(cameraData, ref renderingData.renderPassInputs);
             bool isPreviewCamera = cameraData.isPreviewCamera;
 
             var requireColorTexture = graph.intermediateTextureMode == IntermediateTextureMode.Always;
             requireColorTexture |= renderingData.renderPassInputs.requiresIntermediateTexture;
-            requireColorTexture |= Application.isEditor && isForwardPlus;
+            requireColorTexture |= Application.isEditor && usesForwardPlusLightLists;
             requireColorTexture |= RequiresIntermediateColorTexture(cameraData, ref renderingData.renderPassInputs);
 #if ENABLE_VIRTUALTEXTURES
             // Feedback is an MRT attachment and must match an ordinary offscreen color/depth target.
             requireColorTexture |= VTBufferManager.IsSupported(cameraData);
 #endif
 
-            var requireDepthTexture = RequireDepthTexture(cameraData, requiresDepthPrepass, ref renderingData.renderPassInputs);
-
-            useDepthPriming = IsDepthPrimingEnabled(cameraData);
-
-            renderingData.requiresDepthPrepass = requiresDepthPrepass;
+            var requireDepthTexture = RequireDepthTexture(cameraData, renderingData.requiresDepthPrepass, ref renderingData.renderPassInputs);
 
             return requireColorTexture || requireDepthTexture;
         }
@@ -966,7 +1001,7 @@ namespace FraxinusEngine.Rendering.Ultra
             bool depthPrimingEnabled = IsDepthPrimingEnabled(cameraData);
             bool requiresDepthTexture = cameraData.requiresDepthTexture || renderPassInputs.requiresDepthTexture || depthPrimingEnabled;
             bool cameraHasPostProcessingWithDepth = CameraHasPostProcessingWithDepth(cameraData);
-            bool useDeferred = (_renderingMode & (RenderingMode.Deferred | RenderingMode.DeferredCluster)) != 0;
+            bool useDeferred = (_renderingMode & (RenderingMode.Deferred | RenderingMode.DeferredPlus | RenderingMode.DeferredCluster)) != 0;
 
             var createDepthTexture = (requiresDepthTexture || cameraHasPostProcessingWithDepth) && !requiresDepthPrepass;
             createDepthTexture |= !cameraData.resolveFinalTarget;
@@ -1108,7 +1143,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 ResourceData resourceData = frameData.Get<ResourceData>();
                 renderinglayerSetting.renderingLayersTextureName = "_CameraRenderingLayersTexture";
 
-                bool isDeferred = (renderingMode & RenderingMode.Deferred) != 0;
+                bool isDeferred = (renderingMode & (RenderingMode.Deferred | RenderingMode.DeferredPlus | RenderingMode.DeferredCluster)) != 0;
                 // TODO RENDERGRAPH: deferred optimization
                 if (isDeferred && _deferredLights.useRenderingLayers)
                 {

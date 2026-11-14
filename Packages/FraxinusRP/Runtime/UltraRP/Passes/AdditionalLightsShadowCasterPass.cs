@@ -136,6 +136,12 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public override void Execute(RenderGraph renderGraph, ScriptableRenderContext context, ContextContainer frameData)
         {
+            ConfigurePortValue(additionalLightShadow, Render(renderGraph, frameData));
+        }
+
+        // Keep the same shadow keyword and empty-map policy for depth-target cameras.
+        internal TextureHandle Render(RenderGraph renderGraph, ContextContainer frameData)
+        {
             ShadowData shadowData = frameData.Get<ShadowData>();
             CameraData cameraData = frameData.Get<CameraData>();
             LightData lightData = frameData.Get<LightData>();
@@ -147,12 +153,12 @@ namespace FraxinusEngine.Rendering.Ultra
 
             if (Setup(renderingData, cameraData, lightData, shadowData))
             {
+                TextureHandle shadowTexture;
                 using (var builder = renderGraph.AddRasterRenderPass<PassData>(passName, out var passData, profilingSampler))
                 {
                     InitPassData(ref passData, cameraData, lightData, shadowData);
                     InitRendererLists(ref renderingData.cullResults, ref passData, default(ScriptableRenderContext), renderGraph);
 
-                    TextureHandle shadowTexture;
                     if (!_createEmptyShadowmap)
                     {
                         for (int globalShadowSliceIndex = 0; globalShadowSliceIndex < _shadowSliceToAdditionalLightIndex.Count; ++globalShadowSliceIndex)
@@ -163,8 +169,6 @@ namespace FraxinusEngine.Rendering.Ultra
                     }
                     else
                         shadowTexture = renderGraph.defaultResources.defaultShadowTexture;
-
-                    ConfigurePortValue(additionalLightShadow, shadowTexture);
 
                     TextureDesc descriptor = shadowTexture.GetDescriptor(renderGraph);
                     passData.allocatedShadowAtlasSize = new Vector2Int(descriptor.width, descriptor.height);
@@ -189,7 +193,9 @@ namespace FraxinusEngine.Rendering.Ultra
                     });
 
                 }
+                return shadowTexture;
             }
+            return TextureHandle.nullHandle;
         }
 
         // Returns the guard angle that must be added to a frustum angle covering a projection map of resolution sliceResolutionInTexels,
@@ -320,7 +326,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 ref VisibleLight vl = ref visibleLights.UnsafeElementAt(visibleLightIndex);
                 Light light = vl.light;
 
-                if (!ShadowUtils.IsValidShadowCastingLight(lightData, visibleLightIndex, vl.lightType, light.shadows, light.shadowStrength))
+                if (light == null || !ShadowUtils.IsValidShadowCastingLight(lightData, visibleLightIndex, vl.lightType, light.shadows, light.shadowStrength))
                     continue;
 
                 switch (vl.lightType)
@@ -446,7 +452,10 @@ namespace FraxinusEngine.Rendering.Ultra
             {
                 if (!_issuedMessageAboutRemovedShadowSlices)
                 {
-                    Debug.LogWarning($"Too many additional punctual lights shadows to look good, UltraRP removed {totalShadowResolutionRequestCount - totalShadowSlicesCount} shadow maps to make the others fit in the shadow atlas. To avoid this, increase shadow atlas size, remove some shadowed lights, replace soft shadows by hard shadows ; or replace point lights by spot lights");
+                    string limit = !s_useStructuredBuffer && totalShadowResolutionRequestCount > UltraRenderPipeline.maxVisibleAdditionalLights
+                        ? $"The current platform supports at most {UltraRenderPipeline.maxVisibleAdditionalLights} shadow slices; a point light requires 6 and a spot light requires 1. Reduce shadow-casting lights or use spot lights where appropriate. Increasing atlas resolution does not raise this slice limit."
+                        : "Increase the shadow atlas resolution, lower per-light shadow resolutions, or reduce shadow-casting lights.";
+                    Debug.LogWarning($"UltraRP allocated {totalShadowSlicesCount} of {totalShadowResolutionRequestCount} requested additional-light shadow slices in the {atlasSize}x{atlasSize} atlas. {limit}");
                     _issuedMessageAboutRemovedShadowSlices = true;  // Only output this once per shadow requests configuration
                 }
             }
@@ -510,14 +519,16 @@ namespace FraxinusEngine.Rendering.Ultra
                 ref VisibleLight visibleLight = ref visibleLights.UnsafeElementAt(visibleLightIndex);
                 Light light = visibleLight.light;
                 if (light == null)
-                    break;
+                    continue;
 
                 LightType lightType = visibleLight.lightType;
                 bool usesBakedShadows = UsesBakedShadows(light);
                 float lightTypeIdentifierForShadowParams = GetLightTypeIdentifierForShadowParams(lightType);
                 int perLightShadowSlicesCount = ShadowUtils.GetPunctualLightShadowSlicesCount(lightType);
                 bool isValidShadowCastingLight = ShadowUtils.IsValidShadowCastingLight(lightData, visibleLightIndex, visibleLight.lightType, light.shadows, light.shadowStrength);
-                if (isValidShadowCastingLight && (_shadowSliceToAdditionalLightIndex.Count + perLightShadowSlicesCount) > totalShadowSlicesCount)
+                bool hasSpaceForLight = atlasLayout.HasSpaceForLight(visibleLightIndex);
+                if (isValidShadowCastingLight && hasSpaceForLight &&
+                    (_shadowSliceToAdditionalLightIndex.Count + perLightShadowSlicesCount) > totalShadowSlicesCount)
                 {
                     if (!_issuedMessageAboutShadowSlicesTooMany)
                     {
@@ -525,7 +536,7 @@ namespace FraxinusEngine.Rendering.Ultra
                         Debug.Log($"There are too many shadowed additional punctual lights active at the same time, UltraRP will not render all the shadows. To ensure all shadows are rendered, reduce the number of shadowed additional lights in the scene ; make sure they are not active at the same time ; or replace point lights by spot lights (spot lights use less shadow maps than point lights).");
                         _issuedMessageAboutShadowSlicesTooMany = true; // Only output this once
                     }
-                    break;
+                    continue;
                 }
 
                 float softShadows = ShadowUtils.SoftShadowQualityToShaderProperty(light, (supportsSoftShadows && light.shadows == LightShadows.Soft));
@@ -551,7 +562,7 @@ namespace FraxinusEngine.Rendering.Ultra
                         continue;
                     }
 
-                    if (!atlasLayout.HasSpaceForLight(visibleLightIndex))
+                    if (!hasSpaceForLight)
                     {
                         // We could not find place in the shadow atlas for shadow maps of this light.
                         // Skip it.

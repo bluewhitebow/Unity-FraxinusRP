@@ -3,8 +3,11 @@
 
 // Texture arrays require shader model 3.5. Legacy materials keep their old lighting.
 #if SHADER_TARGET >= 35 && !defined(SHADER_API_GLES)
-#define FRAXINUS_AREA_LIGHTS_SUPPORTED 1
+// Hybrid Lit's FGD/IBL readiness is shared with this buffer even when the
+// pipeline omits rectangle-light evaluation. Unused arrays compile away.
 #include "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/Lighting/AreaLight/ShaderVariablesAreaLights.hlsl"
+#if defined(_FRAXINUS_AREA_LIGHTS)
+#define FRAXINUS_AREA_LIGHTS_SUPPORTED 1
 #include "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/Lighting/AreaLight/AreaLightEvaluation.hlsl"
 #include "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/PreIntegratedFGD.hlsl"
 
@@ -66,6 +69,8 @@ half3 FraxinusEvaluateAreaLights(InputData inputData, BRDFData brdfData, BRDFDat
     }
     return half3(min(color, HALF_MAX));
 }
+#endif
+
 #endif
 
 #endif

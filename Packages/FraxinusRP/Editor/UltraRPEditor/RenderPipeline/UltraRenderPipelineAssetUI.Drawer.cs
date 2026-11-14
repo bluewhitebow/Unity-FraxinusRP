@@ -300,6 +300,7 @@ namespace FraxinusEditor.Rendering.Ultra
             EditorGUILayout.PropertyField(serialized.mixedLightingSupportedProp, Styles.mixedLightingSupportLabel);
             EditorGUILayout.PropertyField(serialized.useRenderingLayers, Styles.useRenderingLayers);
             EditorGUILayout.PropertyField(serialized.supportsLightCookies, Styles.supportsLightCookies);
+            EditorGUILayout.PropertyField(serialized.supportsAreaLights, Styles.supportsAreaLights);
             EditorGUILayout.PropertyField(serialized.shEvalModeProp, Styles.shEvalModeText);
 
             if (serialized.useRenderingLayers.boolValue && !ValidateRendererGraphicsAPIsForLightLayers(serialized.asset, out var unsupportedGraphicsApisMessage))

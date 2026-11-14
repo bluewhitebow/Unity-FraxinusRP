@@ -56,6 +56,7 @@ namespace FraxinusEditor.Rendering.Ultra
         public SerializedProperty mixedLightingSupportedProp { get; }
         public SerializedProperty useRenderingLayers { get; }
         public SerializedProperty supportsLightCookies { get; }
+        public SerializedProperty supportsAreaLights { get; }
 
         public SerializedProperty shadowDistanceProp { get; }
         public SerializedProperty shadowCascadeCountProp { get; }
@@ -155,6 +156,7 @@ namespace FraxinusEditor.Rendering.Ultra
             mixedLightingSupportedProp = serializedObject.FindProperty("_mixedLightingSupported");
             useRenderingLayers = serializedObject.FindProperty("_supportsLightLayers");
             supportsLightCookies = serializedObject.FindProperty("_supportsLightCookies");
+            supportsAreaLights = serializedObject.FindProperty("_supportsAreaLights");
 
             volumeFrameworkUpdateModeProp = serializedObject.FindProperty("_volumeFrameworkUpdateMode");
             volumeProfileProp = serializedObject.FindProperty("_volumeProfile");

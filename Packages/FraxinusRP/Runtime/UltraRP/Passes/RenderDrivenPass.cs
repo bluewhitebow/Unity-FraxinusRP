@@ -53,7 +53,6 @@ namespace FraxinusEngine.Rendering.Ultra
             LightData lightData             = frameData.Get<LightData>();
 
             var renderer = cameraData.renderer;
-            var forwardLights = renderer.GetModule<ForwardLights>();
             var deferredLights = renderer.GetModule<DeferredLights>();
             var gBufferPass = renderer.GetModule<GBufferPass>();
 
@@ -73,7 +72,7 @@ namespace FraxinusEngine.Rendering.Ultra
             bool hasFullPrepass = isDepthOnlyPrepass || (isDepthNormalPrepass && !allowPartialDepthNormals);
 
             deferredLights.ConfigureLightingPath(renderGraph.nativeRenderPassesEnabled,
-                renderingData.hasDeferredCluster, renderingData.clusterLightingMode,
+                renderingData.deferredLightingMode, renderingData.clusterLightingMode,
                 renderingData.renderPassInputs.disableFramebufferFetch);
             TextureCopySchedules copySchedules = CalculateTextureCopySchedules(renderer, cameraData, renderingData.renderPassInputs,
                 renderingData.hasDeferred, requiresDepthPrepass, hasFullPrepass, deferredLights.useFramebufferFetch);
@@ -182,8 +181,6 @@ namespace FraxinusEngine.Rendering.Ultra
                     copyAfterGBuffer && renderingData.renderPassInputs.requiresMotionVectors);
             }
  
-            forwardLights.PreSetup(renderingData, cameraData, lightData);
-
             var passWithDepthCopyAndMotion = renderer.GetModule<CustomPassWithDepthCopyAndMotion>();
             // Configure for AfterOpaques scenario
             // AfterGBuffer is now handled by GBufferDepthCopyAndMotionPass

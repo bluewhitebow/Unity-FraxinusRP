@@ -61,7 +61,7 @@ namespace FraxinusEngine.Rendering.Ultra
             if ((debugHandler != null) && debugHandler.IsActiveForCamera(cameraData.isPreviewCamera))
             {
                 if (debugHandler.TryGetFullscreenDebugMode(out DebugFullScreenMode fullScreenDebugMode, out int textureHeightPercent) &&
-                    (fullScreenDebugMode != DebugFullScreenMode.ReflectionProbeAtlas || isForwardPlus) &&
+                    (fullScreenDebugMode != DebugFullScreenMode.ReflectionProbeAtlas || usesForwardPlusLightLists) &&
                     (fullScreenDebugMode != DebugFullScreenMode.STP))
                 {
                     float screenWidth = cameraData.pixelWidth;
@@ -146,8 +146,7 @@ namespace FraxinusEngine.Rendering.Ultra
                                     // Copy atlas texture to make it "readonly". Direct reference (debug=atlas) can lead to handle->texture reallocation.
                                     var textureHandle =
                                         _forwardLights.reflectionProbeManager.atlasRT != null
-                                            ? renderGraph.ImportTexture(RTHandles.Alloc(
-                                                _forwardLights.reflectionProbeManager.atlasRT, transferOwnership: true))
+                                            ? renderGraph.ImportTexture(_forwardLights.reflectionProbeManager.atlasRTHandle)
                                             : TextureHandle.nullHandle;
 
                                     BlitToDebugTexture(renderGraph, textureHandle, debugTexture);

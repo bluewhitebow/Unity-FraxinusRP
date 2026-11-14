@@ -1,6 +1,8 @@
 #ifndef ULTRA_LIGHTING_INCLUDED
 #define ULTRA_LIGHTING_INCLUDED
 
+#include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/AreaLightKeywords.hlsl"
+
 #include "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/BRDF.hlsl"
 #include "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/Debug/Debugging3D.hlsl"
 #include "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/GlobalIllumination.hlsl"

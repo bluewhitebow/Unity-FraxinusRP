@@ -46,6 +46,7 @@ namespace FraxinusEngine.Rendering.Ultra
             internal uint batchLayerMask;
             internal bool isActiveTargetBackBuffer;
             internal bool contactShadowsEnabled;
+            internal ForwardPlusFrameData forwardPlus;
 
             internal RendererListHandle rendererListHdl;
             internal RendererListHandle objectsWithErrorRendererListHdl;
@@ -329,6 +330,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 builder.UseAllGlobalTextures(true);
                 APRTRelightPass.UseLightingResources(builder, frameData);
                 AreaLightsPass.UseLightingResources(builder, frameData);
+                passData.forwardPlus = ForwardLights.UseLightingResources(builder, frameData);
                 GroundTruthAmbientOcclusionPass.UseLightingResources(builder, frameData);
 
                 InitPassData(cameraData, ref passData, batchLayerMask, resourceData.isActiveTargetBackBuffer);
@@ -365,6 +367,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 builder.AllowGlobalStateModification(true);
                 builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
                 {
+                    ForwardLights.BindLightLists(context.cmd, data.forwardPlus);
                     bool yFlip = data.cameraData.IsRenderTargetProjectionMatrixFlipped(data.albedoHdl);
                     ExecutePass(context.cmd, data, data.rendererListHdl, data.objectsWithErrorRendererListHdl, yFlip);
                 });
@@ -380,6 +383,7 @@ namespace FraxinusEngine.Rendering.Ultra
             {
                 APRTRelightPass.UseLightingResources(builder, frameData);
                 AreaLightsPass.UseLightingResources(builder, frameData);
+                passData.basePassData.forwardPlus = ForwardLights.UseLightingResources(builder, frameData);
                 GroundTruthAmbientOcclusionPass.UseLightingResources(builder, frameData);
                 ResourceData resourceData   = frameData.Get<ResourceData>();
                 RenderingData renderingData = frameData.Get<RenderingData>();
@@ -420,6 +424,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 builder.SetRenderFunc((RenderingLayersPassData data, RasterGraphContext context) =>
                 {
+                    ForwardLights.BindLightLists(context.cmd, data.basePassData.forwardPlus);
                     // Enable Rendering Layers
                     context.cmd.SetKeyword(ShaderGlobalKeywords.WriteRenderingLayers, true);
 

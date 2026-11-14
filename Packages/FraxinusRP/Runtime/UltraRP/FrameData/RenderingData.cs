@@ -35,7 +35,10 @@ namespace FraxinusEngine.Rendering.Ultra
         public bool requiresDepthPrepass;
         public bool hasForwardPlus;
         public bool hasDeferred;
-        public bool hasDeferredCluster;
+        public DeferredLightingMode deferredLightingMode;
+        public bool hasDeferredCluster => hasDeferred && deferredLightingMode == DeferredLightingMode.GPUCluster;
+        public bool hasDeferredPlus => hasDeferred && deferredLightingMode == DeferredLightingMode.DeferredPlus;
+        public bool usesForwardPlusLightLists => hasForwardPlus || hasDeferredPlus;
         public ClusterLightingMode clusterLightingMode;
         public bool needsOccluderUpdate;
 
@@ -51,7 +54,7 @@ namespace FraxinusEngine.Rendering.Ultra
             requiresDepthPrepass = false;
             hasForwardPlus = false;
             hasDeferred = false;
-            hasDeferredCluster = false;
+            deferredLightingMode = DeferredLightingMode.Stencil;
             clusterLightingMode = ClusterLightingMode.Auto;
             needsOccluderUpdate = false;
         }

@@ -28,6 +28,11 @@ namespace FraxinusEditor.Rendering.Ultra
         
         private IVisualElementScheduledItem _debugInfoSchedule;
         private IVisualElementScheduledItem _autoHideSchedule;
+        private IVisualElementScheduledItem _injectInfoSchedule;
+        private readonly List<(Button button, Type passType, bool? enabled)> _injectPassButtons = new();
+        private int _beforeInjectPassCount;
+        private int _afterInjectPassCount;
+        private int _fallbackInjectPassCount;
 
         private string[] _previewOptions;
         private int[] _previewIndices;
@@ -102,6 +107,8 @@ namespace FraxinusEditor.Rendering.Ultra
 
             InitDebugInfoLabel();
             InitInjectInfoContainer();
+            _injectInfoSchedule?.Pause();
+            _injectInfoSchedule = schedule.Execute(RefreshInjectPassStates).Every(500);
         }
 
         public override bool RefreshPorts()
@@ -127,6 +134,9 @@ namespace FraxinusEditor.Rendering.Ultra
             
             _autoHideSchedule?.Pause();
             _autoHideSchedule = null;
+
+            _injectInfoSchedule?.Pause();
+            _injectInfoSchedule = null;
         }
 
         ~ScriptableRenderPassNodeView()
@@ -138,7 +148,7 @@ namespace FraxinusEditor.Rendering.Ultra
         {
             base.ComputeOrderUpdatedCallback(computedNodes);
             if (_injectInfoContainer != null)
-                UpdateInjectPassesContainer(_injectInfoContainer);
+                RefreshInjectPassStates();
         }
 
         #endregion
@@ -838,10 +848,14 @@ namespace FraxinusEditor.Rendering.Ultra
         private void UpdateInjectPassesContainer(VisualElement container)
         {
             container.Clear();
+            _injectPassButtons.Clear();
 
             var beforePasses = nodeTarget.beforeRenderingPasses;
             var afterPasses = nodeTarget.afterRenderingPasses;
             var fallbackPasses = nodeTarget.fallbackRenderingPasses;
+            _beforeInjectPassCount = beforePasses.Count;
+            _afterInjectPassCount = afterPasses.Count;
+            _fallbackInjectPassCount = fallbackPasses.Count;
 
             if (beforePasses.Count == 0 && afterPasses.Count == 0 && fallbackPasses.Count == 0)
             {
@@ -861,6 +875,62 @@ namespace FraxinusEditor.Rendering.Ultra
 
             if (fallbackPasses.Count > 0)
                 container.Add(CreateInjectPassFoldout("InjectedPasses(Fallback)", fallbackPasses));
+
+            UpdateInjectPassButtonStates();
+        }
+
+        public void RefreshInjectPassStates()
+        {
+            if (_injectInfoContainer == null || nodeTarget == null)
+                return;
+
+            var beforePasses = nodeTarget.beforeRenderingPasses;
+            var afterPasses = nodeTarget.afterRenderingPasses;
+            var fallbackPasses = nodeTarget.fallbackRenderingPasses;
+            if (beforePasses.Count != _beforeInjectPassCount
+                || afterPasses.Count != _afterInjectPassCount
+                || fallbackPasses.Count != _fallbackInjectPassCount
+                || !InjectPassTypesMatch(beforePasses, 0)
+                || !InjectPassTypesMatch(afterPasses, _beforeInjectPassCount)
+                || !InjectPassTypesMatch(fallbackPasses, _beforeInjectPassCount + _afterInjectPassCount))
+            {
+                UpdateInjectPassesContainer(_injectInfoContainer);
+                return;
+            }
+
+            UpdateInjectPassButtonStates();
+        }
+
+        private bool InjectPassTypesMatch(IReadOnlyList<InjectPass> passes, int offset)
+        {
+            for (int i = 0; i < passes.Count; i++)
+            {
+                if (passes[i].GetType() != _injectPassButtons[offset + i].passType)
+                    return false;
+            }
+            return true;
+        }
+
+        private void UpdateInjectPassButtonStates()
+        {
+            var graph = owner?.graph;
+            if (graph == null)
+                return;
+
+            for (int i = 0; i < _injectPassButtons.Count; i++)
+            {
+                var entry = _injectPassButtons[i];
+                bool enabled = graph.IsInjectPassEnabled(entry.passType);
+                if (entry.enabled == enabled)
+                    continue;
+
+                entry.button.style.opacity = enabled ? 1f : 0.45f;
+                entry.button.tooltip = $"{entry.passType.FullName}\n"
+                    + (enabled ? "Enabled for this renderer." : "Disabled for this renderer.")
+                    + " Click to open script.";
+                entry.enabled = enabled;
+                _injectPassButtons[i] = entry;
+            }
         }
 
         private Foldout CreateInjectPassFoldout(string title, IReadOnlyList<InjectPass> passes)
@@ -901,6 +971,7 @@ namespace FraxinusEditor.Rendering.Ultra
 
             SetupInjectButtonStyle(button);
             RegisterInjectButtonHoverEvents(button);
+            _injectPassButtons.Add((button, passType, null));
 
             return button;
         }

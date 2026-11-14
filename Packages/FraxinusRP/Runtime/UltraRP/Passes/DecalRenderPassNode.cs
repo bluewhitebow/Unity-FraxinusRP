@@ -12,10 +12,8 @@ namespace FraxinusEngine.Rendering.Ultra
     {
         public DecalTechniqueOption technique = DecalTechniqueOption.Automatic;
         public float maxDrawDistance = 1000f;
-#if UNITY_EDITOR
-        [UnityEditor.ShaderKeywordFilter.ApplyRulesIfNotGraphicsAPI(GraphicsDeviceType.OpenGLES3, GraphicsDeviceType.OpenGLCore)]
-        [UnityEditor.ShaderKeywordFilter.SelectIf(true, overridePriority: true, keywordNames: ShaderKeywordStrings.DecalLayers)]
-#endif
+        // Unity 2022's keyword prefilter cannot traverse the graph's parallel node/edge
+        // collections. Keep decal-layer variants without placing filters inside the graph.
         public bool decalLayers = false;
         public DBufferSettings dBufferSettings = new DBufferSettings();
         public DecalScreenSpaceSettings screenSpaceSettings = new DecalScreenSpaceSettings();

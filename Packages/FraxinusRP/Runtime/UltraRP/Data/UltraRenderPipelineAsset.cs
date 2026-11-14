@@ -201,12 +201,8 @@ namespace FraxinusEngine.Rendering.Ultra
 
 
         // Probe volume settings
-#if UNITY_EDITOR
-        [ShaderKeywordFilter.RemoveIf(LightProbeSystem.LegacyLightProbes, keywordNames: new[] { ShaderKeywordStrings.ProbeVolumeL1, ShaderKeywordStrings.ProbeVolumeL2 })]
-        [ShaderKeywordFilter.RemoveIf(LightProbeSystem.PrecomputeRadianceTransfer, keywordNames: new[] { ShaderKeywordStrings.ProbeVolumeL1, ShaderKeywordStrings.ProbeVolumeL2 })]
-        [ShaderKeywordFilter.RemoveIf(LightProbeSystem.LegacyLightProbes, keywordNames: ShaderKeywordStrings.ProbeVolumeAPRT)]
-        [ShaderKeywordFilter.RemoveIf(LightProbeSystem.ProbeVolumes, keywordNames: ShaderKeywordStrings.ProbeVolumeAPRT)]
-#endif
+        // Native filtering is derived from all build consumers in the prefilter
+        // fields. Direct filters here would bypass stripUnused and that union.
         [SerializeField] LightProbeSystem _lightProbeSystem = LightProbeSystem.LegacyLightProbes;
         [SerializeField] ProbeVolumeTextureMemoryBudget _probeVolumeMemoryBudget = ProbeVolumeTextureMemoryBudget.MemoryBudgetMedium;
         [SerializeField] ProbeVolumeBlendingTextureMemoryBudget _probeVolumeBlendingMemoryBudget = ProbeVolumeBlendingTextureMemoryBudget.MemoryBudgetMedium;
@@ -273,6 +269,7 @@ namespace FraxinusEngine.Rendering.Ultra
         // multi_compile_fragment _ _LIGHT_COOKIES
 #endif
         [SerializeField] bool _supportsLightCookies = true;
+        [SerializeField] bool _supportsAreaLights = true;
 
 #if UNITY_EDITOR
         // multi_compile_fragment _ _LIGHT_LAYERS
@@ -868,6 +865,9 @@ namespace FraxinusEngine.Rendering.Ultra
         }
 
         public bool supportsLightCookies => _supportsLightCookies;
+
+        /// <summary>Build capability for realtime rectangle lights. Keep this fixed in a Player.</summary>
+        public bool supportsAreaLights => _supportsAreaLights;
 
         public bool useRenderingLayers => _supportsLightLayers;
 

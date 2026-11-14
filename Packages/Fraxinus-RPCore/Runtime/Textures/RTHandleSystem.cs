@@ -583,6 +583,43 @@ namespace UnityEngine.Rendering
                 autoGenerateMips, isShadowMap, anisoLevel, mipMapBias, msaaSamples, bindTextureMS, useDynamicScale, useDynamicScaleExplicit, memoryless, vrUsage, name);
         }
 
+#if !UNITY_6000_0_OR_NEWER
+        /// <summary>
+        /// Preserves the fixed-size allocation signature used by precompiled plugins.
+        /// Explicit dynamic scaling was not part of this API and remains disabled.
+        /// </summary>
+        // Keep every parameter required so source calls with omitted arguments continue
+        // to bind to the current overload and its existing defaults.
+        public RTHandle Alloc(
+            int width,
+            int height,
+            int slices,
+            DepthBits depthBufferBits,
+            GraphicsFormat colorFormat,
+            FilterMode filterMode,
+            TextureWrapMode wrapMode,
+            TextureDimension dimension,
+            bool enableRandomWrite,
+            bool useMipMap,
+            bool autoGenerateMips,
+            bool isShadowMap,
+            int anisoLevel,
+            float mipMapBias,
+            MSAASamples msaaSamples,
+            bool bindTextureMS,
+            bool useDynamicScale,
+            RenderTextureMemoryless memoryless,
+            VRTextureUsage vrUsage,
+            string name)
+        {
+            return Alloc(width, height, slices, depthBufferBits, colorFormat, filterMode,
+                wrapMode, dimension, enableRandomWrite, useMipMap, autoGenerateMips,
+                isShadowMap, anisoLevel, mipMapBias, msaaSamples, bindTextureMS,
+                useDynamicScale, useDynamicScaleExplicit: false, memoryless: memoryless,
+                vrUsage: vrUsage, name: name);
+        }
+#endif
+
         /// <summary>
         /// Allocate a new fixed sized RTHandle.
         /// </summary>

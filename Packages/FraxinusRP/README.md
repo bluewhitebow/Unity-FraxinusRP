@@ -38,6 +38,8 @@ UltraRP 保留独立的编辑器程序集以与 URP 共存。Shader Graph 14 的
 
 配套 Core / URP / Shader Graph 改动和迁移注意事项见 [Migration.md](Documentation~/Migration.md)。
 
+构建时的功能收集、关键词预过滤、普通 Shader 裁剪及构建报告说明见 [ShaderBuild.md](Documentation~/ShaderBuild.md)。
+
 ## Hybrid 光照来源与许可证
 
 Hybrid Lit 的部分 BRDF / FGD 算法和矩形面光 LTC 积分适配自 AkiKurisu 的 [IllusionRP](https://github.com/AkiKurisu/IllusionRP)（源版本 `91495f7`），其中包含源于 Unity HDRP 的算法。Fraxinus 复用自身的 LTC 数据、FGD 资源和渲染框架。

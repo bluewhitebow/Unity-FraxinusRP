@@ -14,6 +14,7 @@ namespace FraxinusEngine.Rendering.Ultra
             internal TextureHandle depth;
 
             internal DeferredLights deferredLights;
+            internal ForwardPlusFrameData forwardPlus;
 
             internal RendererListHandle rendererListHdl;
             internal RendererListHandle objectsWithErrorRendererListHdl;
@@ -128,6 +129,7 @@ namespace FraxinusEngine.Rendering.Ultra
             using (var builder = renderGraph.AddRasterRenderPass<PassData>(_passName, out var passData, _profilingSampler))
             {
                 APRTRelightPass.UseLightingResources(builder, frameData);
+                passData.forwardPlus = ForwardLights.UseLightingResources(builder, frameData);
                 GroundTruthAmbientOcclusionPass.UseLightingResources(builder, frameData);
                 // Note: This code is pretty confusing as passData.gbuffer[i] and gbuffer[i] actually point to the same array but seem to be mixed in this code.
                 if (passData.gbuffer == null || passData.gbuffer.Length != deferredLights.gBufferSliceCount)
@@ -159,8 +161,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 RenderGraphUtils.UseDBufferIfValid(builder, resourceData);
                 resourceData.gBuffer = gbuffer;
-                if (cameraData.isSubContext)
-                    resourceData.cameraNormalsTexture = gbuffer[deferredLights.gBufferNormalSmoothnessIndex];
+                resourceData.cameraNormalsTexture = gbuffer[deferredLights.gBufferNormalSmoothnessIndex];
 
                 passData.depth = cameraDepth;
                 builder.SetRenderAttachmentDepth(cameraDepth, AccessFlags.Write);
@@ -182,6 +183,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
                 {
+                    ForwardLights.BindLightLists(context.cmd, data.forwardPlus);
                     ExecutePass(context.cmd, data, data.rendererListHdl, data.objectsWithErrorRendererListHdl);
                 });
             }

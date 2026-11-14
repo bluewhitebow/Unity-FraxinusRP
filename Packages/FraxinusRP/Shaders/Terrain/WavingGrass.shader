@@ -10,7 +10,17 @@ Shader "Hidden/TerrainEngine/Details/UltraPipeline/WavingDoublePass"
     }
     SubShader
     {
-        Tags {"Queue" = "Geometry+200" "RenderType" = "Grass" "IgnoreProjector" = "True" "RenderPipeline" = "UltraPipeline" "UltraMaterialType" = "SimpleLit" "DisableBatching" = "True" }
+        Tags
+        {
+            "FraxinusShadowRules" = "Standard"
+            "FraxinusPassRules" = "Standard"
+            "Queue" = "Geometry+200"
+            "RenderType" = "Grass"
+            "IgnoreProjector" = "True"
+            "RenderPipeline" = "UltraPipeline"
+            "UltraMaterialType" = "SimpleLit"
+            "DisableBatching" = "True"
+        }
         Cull Off
         LOD 200
 
@@ -76,6 +86,7 @@ Shader "Hidden/TerrainEngine/Details/UltraPipeline/WavingDoublePass"
             }
 
             HLSLPROGRAM
+            #pragma multi_compile _ _FORWARD_PLUS
             #pragma target 4.5
 
             // Deferred Rendering Path does not support the OpenGL-based graphics API:
@@ -84,9 +95,8 @@ Shader "Hidden/TerrainEngine/Details/UltraPipeline/WavingDoublePass"
 
             // -------------------------------------
             // Universal Pipeline keywords
-            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
-            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
-            #pragma multi_compile_fragment _ _LIGHT_COOKIES
+            // This GBuffer writes baked GI and surface data only; realtime shadows
+            // and light cookies are evaluated later by the deferred lighting pass.
             #pragma multi_compile_fragment _ _RENDER_PASS_ENABLED
             #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
             #include_with_pragmas "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRenderingKeywords.hlsl"

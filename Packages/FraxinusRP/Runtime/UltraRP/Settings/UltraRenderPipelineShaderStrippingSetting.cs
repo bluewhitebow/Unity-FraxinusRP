@@ -34,7 +34,7 @@ namespace FraxinusEngine.Rendering.Ultra
         bool _stripUnusedPostProcessingVariants = false;
 
         [SerializeField]
-        [Tooltip("Removes unused StencilDeferred and Clustered DeferredLit paths independently, only when all included renderer graphs prove that path is unnecessary. Unknown/custom graphs retain both. Declare every runtime-selected graph and Deferred mode, or disable this when scripts create graphs or change to an undeclared mode at runtime.")]
+        [Tooltip("Prefilters unused shader keywords across included pipeline assets and renderer graphs, and removes unused StencilDeferred and Clustered DeferredLit paths when proven unnecessary. Explicit debug, screen-coordinate and HDR display settings apply independently of VolumeProfile effect stripping. Declare every runtime-selected rendering configuration, or disable this for undeclared runtime feature changes.")]
         bool _stripUnusedVariants = true;
 
         [SerializeField]
@@ -56,8 +56,9 @@ namespace FraxinusEngine.Rendering.Ultra
         }
 
         /// <summary>
-        /// Removes unused Stencil and Clustered paths independently across all declared renderer graphs.
-        /// Disable this for undeclared runtime pipeline assets, renderer graphs or Deferred mode changes.
+        /// Filters unused feature keywords and lighting paths across declared pipeline assets and renderer graphs.
+        /// Applies explicit build settings independently of VolumeProfile effect stripping.
+        /// Disable this for undeclared runtime pipeline assets, renderer graphs or feature mode changes.
         /// </summary>
         public bool stripUnusedVariants
         {

@@ -9,7 +9,10 @@ namespace FraxinusEngine.Rendering.Ultra
         public LayerMask opaqueLayerMask;
         public bool hasForwardPlus;
         public bool hasDeferred;
-        public bool hasDeferredCluster;
+        public DeferredLightingMode deferredLightingMode;
+        public bool hasDeferredCluster => hasDeferred && deferredLightingMode == DeferredLightingMode.GPUCluster;
+        public bool hasDeferredPlus => hasDeferred && deferredLightingMode == DeferredLightingMode.DeferredPlus;
+        public bool usesForwardPlusLightLists => hasForwardPlus || hasDeferredPlus;
         public ClusterLightingMode clusterLightingMode;
 
         public override void Reset()
@@ -18,7 +21,7 @@ namespace FraxinusEngine.Rendering.Ultra
             opaqueLayerMask = 0;
             hasForwardPlus = false;
             hasDeferred = false;
-            hasDeferredCluster = false;
+            deferredLightingMode = DeferredLightingMode.Stencil;
             clusterLightingMode = ClusterLightingMode.Auto;
         }
     }

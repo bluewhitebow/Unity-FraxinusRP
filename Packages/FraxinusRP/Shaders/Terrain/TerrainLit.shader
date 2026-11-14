@@ -48,7 +48,19 @@ Shader "Ultra Render Pipeline/Terrain/Lit"
 
     SubShader
     {
-        Tags { "Queue" = "Geometry-100" "RenderType" = "Opaque" "RenderPipeline" = "UltraPipeline" "UltraMaterialType" = "Lit" "IgnoreProjector" = "False" "TerrainCompatible" = "True"}
+        Tags
+        {
+            "FraxinusTerrainHoles" = "True"
+            "FraxinusShadowRules" = "Standard"
+            "FraxinusPassRules" = "Standard"
+            "FraxinusLightmapRules" = "Standard"
+            "Queue" = "Geometry-100"
+            "RenderType" = "Opaque"
+            "RenderPipeline" = "UltraPipeline"
+            "UltraMaterialType" = "Lit"
+            "IgnoreProjector" = "False"
+            "TerrainCompatible" = "True"
+        }
 
         Pass
         {
@@ -139,6 +151,7 @@ Shader "Ultra Render Pipeline/Terrain/Lit"
             Tags{"LightMode" = "UniversalGBuffer"}
 
             HLSLPROGRAM
+            #pragma multi_compile _ _FORWARD_PLUS
             #pragma target 4.5
 
             // Deferred Rendering Path does not support the OpenGL-based graphics API:

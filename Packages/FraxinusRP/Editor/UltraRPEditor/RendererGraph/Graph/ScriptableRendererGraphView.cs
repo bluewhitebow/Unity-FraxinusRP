@@ -27,6 +27,7 @@ namespace FraxinusEditor.Rendering.Ultra
         private Button _zoomButton;
         private VisualElement _previewBar;
         private VisualElement _statusBar;
+        private RendererGraphInjectPassView _injectPassView;
 
         public ScriptableRendererGraphView(EditorWindow window) : base(window)
         {
@@ -44,7 +45,10 @@ namespace FraxinusEditor.Rendering.Ultra
             SetupZoom(0.05f, 32f);
             viewTransformChanged += _ => UpdateGraphSummary();
             RegisterCallback<GeometryChangedEvent>(evt =>
-                EnableInClassList("fraxinus-compact", evt.newRect.width < 760));
+            {
+                EnableInClassList("fraxinus-compact", evt.newRect.width < 760);
+                UpdateInjectPanelHeight(evt.newRect.height);
+            });
 
             RegisterCallback<DetachFromPanelEvent>(e => Disable());
         }
@@ -112,7 +116,17 @@ namespace FraxinusEditor.Rendering.Ultra
             RegisterCallback<KeyDownEvent>(KeyCallback);
             CreateCameraPreviewSelector();
             CreateStatusBar();
+            _injectPassView?.RemoveFromHierarchy();
+            _injectPassView = new RendererGraphInjectPassView(this);
+            Add(_injectPassView);
+            UpdateInjectPanelHeight(layout.height);
             UpdateGraphSummary();
+        }
+
+        void UpdateInjectPanelHeight(float height)
+        {
+            if (_injectPassView != null && !float.IsNaN(height))
+                _injectPassView.style.maxHeight = Mathf.Clamp(height - 140, 64, 400);
         }
 
         void CreateCameraPreviewSelector()
@@ -209,8 +223,9 @@ namespace FraxinusEditor.Rendering.Ultra
                     Mathf.Max(bounds.xMax, rect.xMax), Mathf.Max(bounds.yMax, rect.yMax));
             }
 
-            // Keep every node clear of the toolbar, preview strip, and navigation footer.
-            var viewport = new Rect(28, 104, Mathf.Max(1, layout.width - 56), Mathf.Max(1, layout.height - 164));
+            // Keep nodes clear of the controls, including the expanded injection list.
+            float left = _injectPassView != null && _injectPassView.expanded && layout.width > 600 ? 324 : 28;
+            var viewport = new Rect(left, 104, Mathf.Max(1, layout.width - left - 28), Mathf.Max(1, layout.height - 164));
             float scale = Mathf.Clamp(Mathf.Min(viewport.width / Mathf.Max(1, bounds.width),
                 viewport.height / Mathf.Max(1, bounds.height)), minScale, 1f);
             Vector2 position = viewport.center - bounds.center * scale;
@@ -364,8 +379,13 @@ namespace FraxinusEditor.Rendering.Ultra
 
         void ReloadGraph()
         {
+            if (graph == null)
+                return;
             graph.drivenNode = null;
             graph.postNode = null;
+            _injectPassView?.RefreshStates();
+            EditorApplication.QueuePlayerLoopUpdate();
+            SceneView.RepaintAll();
         }
 
         void OnNodeDuplicated(BaseNode sourceNode, BaseNode newNode)

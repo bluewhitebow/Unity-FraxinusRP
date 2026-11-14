@@ -25,6 +25,7 @@ namespace FraxinusEngine.Rendering.Ultra
             SelectMainLightAndOff,      // Selects MainLightShadows & OFF variants
             SelectMainLightAndCascades, // Selects MainLightShadows, MainLightShadowCascades & Removes OFF variant
             SelectAll,                  // Selects MainLightShadows, MainLightShadowCascades & OFF variant
+            SelectMainLightCascadesAndOff, // No screen-space provider; retain both atlas modes and OFF.
         }
 
         internal enum PrefilteringModeAdditionalLights
@@ -55,17 +56,20 @@ namespace FraxinusEngine.Rendering.Ultra
 
         // User can change cascade count at runtime so we have to include both MainLightShadows and MainLightShadowCascades.
         // ScreenSpaceShadows renderer feature has separate filter attribute for keeping MainLightShadowScreen.
-        // NOTE: off variants are atm always removed when shadows are supported
+        // Managed stripping checks the complete pass keyword group before
+        // removing OFF; native selection also serves partial declarations.
         [ShaderKeywordFilter.RemoveIf(PrefilteringModeMainLightShadows.Remove, keywordNames: new[] { ShaderKeywordStrings.MainLightShadows, ShaderKeywordStrings.MainLightShadowCascades, ShaderKeywordStrings.MainLightShadowScreen })]
         [ShaderKeywordFilter.SelectIf(PrefilteringModeMainLightShadows.SelectMainLight, keywordNames: ShaderKeywordStrings.MainLightShadows)]
         [ShaderKeywordFilter.SelectIf(PrefilteringModeMainLightShadows.SelectMainLightAndOff, keywordNames: new[] { "", ShaderKeywordStrings.MainLightShadows })]
         [ShaderKeywordFilter.SelectIf(PrefilteringModeMainLightShadows.SelectMainLightAndCascades, keywordNames: new[] { ShaderKeywordStrings.MainLightShadows, ShaderKeywordStrings.MainLightShadowCascades })]
         [ShaderKeywordFilter.SelectIf(PrefilteringModeMainLightShadows.SelectAll, keywordNames: new[] { "", ShaderKeywordStrings.MainLightShadows, ShaderKeywordStrings.MainLightShadowCascades, ShaderKeywordStrings.MainLightShadowScreen })]
+        [ShaderKeywordFilter.SelectIf(PrefilteringModeMainLightShadows.SelectMainLightCascadesAndOff, keywordNames: new[] { "", ShaderKeywordStrings.MainLightShadows, ShaderKeywordStrings.MainLightShadowCascades })]
         [SerializeField] private PrefilteringModeMainLightShadows _prefilteringModeMainLightShadows = PrefilteringModeMainLightShadows.SelectAll;
 
         // Additional Lights
         // clustered renderer can override PerVertex/PerPixel to be disabled
-        // NOTE: off variants are atm always kept when additional lights are enabled due to XR perf reasons
+        // The native renderer keeps the selected mode enabled even with zero visible lights.
+        // OFF removal additionally requires every declared renderer/provider to preserve that policy.
         // multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
         [ShaderKeywordFilter.RemoveIf(PrefilteringModeAdditionalLights.Remove, keywordNames: new string[] { ShaderKeywordStrings.AdditionalLightsVertex, ShaderKeywordStrings.AdditionalLightsPixel })]
         [ShaderKeywordFilter.SelectIf(PrefilteringModeAdditionalLights.SelectVertex, keywordNames: ShaderKeywordStrings.AdditionalLightsVertex)]
@@ -118,13 +122,21 @@ namespace FraxinusEngine.Rendering.Ultra
 
         // HDR Output
         [ShaderKeywordFilter.RemoveIf(true, keywordNames: new[] {
-            HDRKeywords.HDR_INPUT, HDRKeywords.HDR_COLORSPACE_CONVERSION, HDRKeywords.HDR_ENCODING, HDRKeywords.HDR_COLORSPACE_CONVERSION_AND_ENCODING
+            HDRKeywords.HDR_INPUT, HDRKeywords.HDR_COLORSPACE_CONVERSION, HDRKeywords.HDR_ENCODING, HDRKeywords.HDR_COLORSPACE_CONVERSION_AND_ENCODING,
+            "_EASU_RCAS_AND_HDR_INPUT", "_GAMMA_20_AND_HDR_INPUT"
         })]
         [SerializeField] private bool _prefilterHDROutput = false;
 
         // Alpha Output
         [ShaderKeywordFilter.RemoveIf(true, keywordNames: ShaderKeywordStrings._ENABLE_ALPHA_OUTPUT)]
         [SerializeField] private bool _prefilterAlphaOutput = false;
+
+        // Only shaders explicitly declaring terrain-hole alpha semantics may
+        // lose this state. Ordinary cutout materials must retain alpha testing.
+        // The build-wide union is used even for additional Bundle consumers.
+        [ShaderKeywordFilter.ApplyRulesIfTagsEqual("FraxinusTerrainHoles", "true")]
+        [ShaderKeywordFilter.RemoveIf(true, keywordNames: "_ALPHATEST_ON")]
+        [SerializeField] private bool _prefilterTerrainHoles;
 
         // Screen Space Ambient Occlusion (SSAO) specific keywords
         //[ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusion.k_SourceDepthNormalsKeyword)]
@@ -159,9 +171,8 @@ namespace FraxinusEngine.Rendering.Ultra
         [ShaderKeywordFilter.RemoveIf(true, keywordNames: ShaderKeywordStrings.DBufferMRT3)]
         [SerializeField] private bool _prefilterDBufferMRT3 = false;
 
-        // Decal Layers - Gets overridden in Decal renderer feature if enabled.
-        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ShaderKeywordStrings.DecalLayers)]
-        private const bool k_decalLayersDefault = true;
+        // Retain both decal-layer variants: Unity 2022 cannot gather the graph-local
+        // override through parallel node/edge collections, so a default removal is unsafe.
 
         [ShaderKeywordFilter.RemoveIf(true, keywordNames: ShaderKeywordStrings.SoftShadowsLow)]
         [SerializeField] private bool _prefilterSoftShadowsQualityLow = false;
@@ -171,6 +182,13 @@ namespace FraxinusEngine.Rendering.Ultra
         [SerializeField] private bool _prefilterSoftShadowsQualityHigh = false;
         [ShaderKeywordFilter.RemoveIf(true, keywordNames: ShaderKeywordStrings.SoftShadows)]
         [SerializeField] private bool _prefilterSoftShadows = false;
+
+        // Use the effective runtime SH policy (including Auto), rather than
+        // changing the user-facing SH setting while preparing a build.
+        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ShaderKeywordStrings.EVALUATE_SH_MIXED)]
+        [SerializeField] private bool _prefilterSHMixed;
+        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ShaderKeywordStrings.EVALUATE_SH_VERTEX)]
+        [SerializeField] private bool _prefilterSHVertex;
 
         // Screen Coord Override - Controlled by the Global Settings
         [ShaderKeywordFilter.RemoveIf(true, keywordNames: ShaderKeywordStrings.SCREEN_COORD_OVERRIDE)]
@@ -188,6 +206,9 @@ namespace FraxinusEngine.Rendering.Ultra
         // Reflection probe blending (_REFLECTION_PROBE_BLENDING)
         [ShaderKeywordFilter.RemoveIf(true, keywordNames: ShaderKeywordStrings.ReflectionProbeBlending)]
         [SerializeField] private bool _prefilterReflectionProbeBlending = false;
+        // Select only the group that actually declares this global keyword.
+        [ShaderKeywordFilter.SelectIf(true, keywordNames: ShaderKeywordStrings.ReflectionProbeBlending)]
+        [SerializeField] private bool _prefilterReflectionProbeBlendingRequired;
 
         // Reflection probe box projection (_REFLECTION_PROBE_BOX_PROJECTION)
         [ShaderKeywordFilter.RemoveIf(true, keywordNames: ShaderKeywordStrings.ReflectionProbeBoxProjection)]
@@ -204,7 +225,11 @@ namespace FraxinusEngine.Rendering.Ultra
         [SerializeField] private bool _prefilterLightLayers;
         [ShaderKeywordFilter.RemoveIf(true, keywordNames: ShaderKeywordStrings.LightCookies)]
         [SerializeField] private bool _prefilterLightCookies;
-        [ShaderKeywordFilter.RemoveIf(true, keywordNames: new[] { ShaderKeywordStrings.LightmapShadowMixing, ShaderKeywordStrings.ShadowsShadowMask })]
+        [ShaderKeywordFilter.RemoveIf(PrefilteringMode.Remove, keywordNames: ShaderKeywordStrings.AreaLights)]
+        [ShaderKeywordFilter.SelectIf(PrefilteringMode.Select, keywordNames: new[] { "", ShaderKeywordStrings.AreaLights })]
+        [ShaderKeywordFilter.SelectIf(PrefilteringMode.SelectOnly, keywordNames: ShaderKeywordStrings.AreaLights)]
+        [SerializeField] private PrefilteringMode _prefilteringModeAreaLights = PrefilteringMode.Select;
+        [ShaderKeywordFilter.RemoveIf(true, keywordNames: new[] { ShaderKeywordStrings.LightmapShadowMixing, ShaderKeywordStrings.ShadowsShadowMask, ShaderKeywordStrings.MixedLightingSubtractive })]
         [SerializeField] private bool _prefilterMixedLighting;
 
         /// <summary>
@@ -219,11 +244,13 @@ namespace FraxinusEngine.Rendering.Ultra
             public PrefilteringModeAdditionalLights additionalLightsPrefilteringMode;
             public PrefilteringMode additionalLightsShadowsPrefilteringMode;
             public PrefilteringMode screenSpaceOcclusionPrefilteringMode;
+            public PrefilteringMode areaLightsPrefilteringMode;
             public bool useLegacyLightmaps;
 
             public bool stripXRKeywords;
             public bool stripHDRKeywords;
             public bool stripAlphaOutputKeywords;
+            public bool stripTerrainHoles;
             public bool stripDebugDisplay;
             public bool stripScreenCoordOverride;
             public bool stripWriteRenderingLayers;
@@ -234,6 +261,8 @@ namespace FraxinusEngine.Rendering.Ultra
             public bool stripSoftShadowsQualityLow;
             public bool stripSoftShadowsQualityMedium;
             public bool stripSoftShadowsQualityHigh;
+            public bool stripSHMixed;
+            public bool stripSHVertex;
 
             public bool stripSSAOBlueNoise;
             public bool stripSSAOInterleaved;
@@ -253,6 +282,7 @@ namespace FraxinusEngine.Rendering.Ultra
             public bool stripLightCookies;
             public bool stripMixedLighting;
             public bool stripReflectionProbeBlending;
+            public bool requireReflectionProbeBlending;
             public bool stripReflectionProbeBoxProjection;
 
             public static ShaderPrefilteringData GetDefault()
@@ -265,6 +295,7 @@ namespace FraxinusEngine.Rendering.Ultra
                     additionalLightsPrefilteringMode = PrefilteringModeAdditionalLights.SelectAll,
                     additionalLightsShadowsPrefilteringMode = PrefilteringMode.Select,
                     screenSpaceOcclusionPrefilteringMode = PrefilteringMode.Select,
+                    areaLightsPrefilteringMode = PrefilteringMode.Select,
                 };
             }
         }
@@ -281,11 +312,13 @@ namespace FraxinusEngine.Rendering.Ultra
             _prefilteringModeAdditionalLight = prefilteringData.additionalLightsPrefilteringMode;
             _prefilteringModeAdditionalLightShadows = prefilteringData.additionalLightsShadowsPrefilteringMode;
             _prefilteringModeScreenSpaceOcclusion = prefilteringData.screenSpaceOcclusionPrefilteringMode;
+            _prefilteringModeAreaLights = prefilteringData.areaLightsPrefilteringMode;
             _prefilterUseLegacyLightmaps = prefilteringData.useLegacyLightmaps;
 
             _prefilterXRKeywords = prefilteringData.stripXRKeywords;
             _prefilterHDROutput = prefilteringData.stripHDRKeywords;
             _prefilterAlphaOutput = prefilteringData.stripAlphaOutputKeywords;
+            _prefilterTerrainHoles = prefilteringData.stripTerrainHoles;
             _prefilterDebugKeywords = prefilteringData.stripDebugDisplay;
             _prefilterWriteRenderingLayers = prefilteringData.stripWriteRenderingLayers;
             _prefilterScreenCoord = prefilteringData.stripScreenCoordOverride;
@@ -298,6 +331,8 @@ namespace FraxinusEngine.Rendering.Ultra
             _prefilterSoftShadowsQualityMedium = prefilteringData.stripSoftShadowsQualityMedium;
             _prefilterSoftShadowsQualityHigh = prefilteringData.stripSoftShadowsQualityHigh;
             _prefilterSoftShadows = prefilteringData.stripSoftShadows;
+            _prefilterSHMixed = prefilteringData.stripSHMixed;
+            _prefilterSHVertex = prefilteringData.stripSHVertex;
 
             //m_PrefilterSSAOBlueNoise = prefilteringData.stripSSAOBlueNoise;
             //m_PrefilterSSAOInterleaved = prefilteringData.stripSSAOInterleaved;
@@ -316,6 +351,8 @@ namespace FraxinusEngine.Rendering.Ultra
             _prefilterLightCookies = prefilteringData.stripLightCookies;
             _prefilterMixedLighting = prefilteringData.stripMixedLighting;
             _prefilterReflectionProbeBlending = prefilteringData.stripReflectionProbeBlending;
+            _prefilterReflectionProbeBlendingRequired = prefilteringData.requireReflectionProbeBlending &&
+                !prefilteringData.stripReflectionProbeBlending;
             _prefilterReflectionProbeBoxProjection = prefilteringData.stripReflectionProbeBoxProjection;
         }
     }

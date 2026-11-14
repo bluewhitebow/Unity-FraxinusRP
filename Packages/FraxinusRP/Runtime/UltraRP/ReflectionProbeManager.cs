@@ -53,6 +53,7 @@ namespace FraxinusEngine.Rendering.Ultra
         Vector4[] _boxMin;
         Vector4[] _probePosition;
         Vector4[] _mipScaleOffset;
+        int _preparedProbeCount;
 
         public RenderTexture atlasRT => _atlasTexture0;
         public RTHandle atlasRTHandle => _atlasTexture0Handle;
@@ -111,6 +112,14 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public unsafe void UpdateGpuData(CommandBuffer cmd, ref CullingResults cullResults)
         {
+            PrepareGpuData(ref cullResults);
+            UploadGpuData(cmd);
+        }
+
+        // Allocate before RenderGraph imports the atlas so its descriptor and
+        // handle refer to the texture that the lighting shaders will sample.
+        public unsafe void PrepareGpuData(ref CullingResults cullResults)
+        {
             var probes = cullResults.visibleReflectionProbes;
             var probeCount = math.min(probes.Length, UltraRenderPipeline.maxVisibleReflectionProbes);
             var frameIndex = Time.renderedFrameCount;
@@ -156,11 +165,23 @@ namespace FraxinusEngine.Rendering.Ultra
                 var probe = probes[probeIndex];
 
                 var texture = probe.texture;
+                if (!probe.reflectionProbe || !texture)
+                    continue;
                 var id = probe.reflectionProbe.GetInstanceID();
                 var wasCached = _cache.TryGetValue(id, out var cachedProbe);
 
-                if (!texture)
-                    continue;
+                // A custom/baked probe can replace its cubemap without changing
+                // the component ID or updateCount. Reallocate using the current
+                // texture's size and upload it even when both counts are equal.
+                if (wasCached && (cachedProbe.texture != texture || cachedProbe.size != texture.width))
+                {
+                    for (int mip = 0; mip < k_maxMipCount; ++mip)
+                        if (cachedProbe.dataIndices[mip] != -1)
+                            _atlasAllocator.Free(new BuddyAllocation(cachedProbe.levels[mip], cachedProbe.dataIndices[mip]));
+                    _cache.Remove(id);
+                    wasCached = false;
+                    cachedProbe = default;
+                }
 
                 if (!wasCached)
                 {
@@ -248,20 +269,26 @@ namespace FraxinusEngine.Rendering.Ultra
                         Graphics.Blit(_atlasTexture0, _atlasTexture1, (float2)_resolution / requiredAtlasSize, Vector2.zero);
                 }
 
+                _atlasTexture0Handle.Release();
                 _atlasTexture0.Release();
                 (_atlasTexture0, _atlasTexture1) = (_atlasTexture1, _atlasTexture0);
+                _atlasTexture0Handle = RTHandles.Alloc(_atlasTexture0);
                 _resolution = requiredAtlasSize;
             }
 
-            var skipCount = 0;
+            _preparedProbeCount = probeCount;
+            Array.Clear(_probePosition, 0, _probePosition.Length);
             for (var probeIndex = 0; probeIndex < probeCount; probeIndex++)
             {
                 var probe = probes[probeIndex];
+                if (!probe.reflectionProbe)
+                    continue;
                 var id = probe.reflectionProbe.GetInstanceID();
-                var dataIndex = probeIndex - skipCount;
+                // Keep the same slot as the CPU cluster masks. A missing or
+                // rejected probe has position.w == 0 and is skipped in HLSL.
+                var dataIndex = probeIndex;
                 if (!_cache.TryGetValue(id, out var cachedProbe) || !probe.texture)
                 {
-                    skipCount++;
                     continue;
                 }
 
@@ -275,6 +302,10 @@ namespace FraxinusEngine.Rendering.Ultra
             if (showFullWarning)
                 Debug.LogWarning("A number of reflection probes have been skipped due to the reflection probe atlas being full.\nTo fix this, you can decrease the number or resolution of probes.");
 
+        }
+
+        public unsafe void UploadGpuData(CommandBuffer cmd)
+        {
             using (new ProfilingScope(cmd, ProfilingSampler.Get(UltraRPProfileId.UpdateReflectionProbeAtlas)))
             {
                 cmd.SetRenderTarget(_atlasTexture0);
@@ -298,7 +329,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 cmd.SetGlobalVectorArray(ShaderProperties._BoxMax, _boxMax);
                 cmd.SetGlobalVectorArray(ShaderProperties._ProbePosition, _probePosition);
                 cmd.SetGlobalVectorArray(ShaderProperties._MipScaleOffset, _mipScaleOffset);
-                cmd.SetGlobalFloat(ShaderProperties._Count, probeCount - skipCount);
+                cmd.SetGlobalFloat(ShaderProperties._Count, _preparedProbeCount);
                 cmd.SetGlobalTexture(ShaderProperties._Atlas, _atlasTexture0);
             }
 

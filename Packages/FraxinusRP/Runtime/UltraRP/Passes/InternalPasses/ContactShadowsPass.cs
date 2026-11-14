@@ -38,13 +38,17 @@ namespace FraxinusEngine.Rendering.Ultra
 
         protected override void OnDispose() { }
 
-        internal bool PrepareFrame(RenderGraph graph, ContextContainer frame)
+        public override void ResetFrame(RenderGraph graph, ContextContainer frame)
         {
             var data = frame.GetOrCreate<ContactShadowsData>();
             data.Reset();
             frame.Get<ResourceData>().contactShadowsTexture = TextureHandle.nullHandle;
             ResetGlobals(graph);
+        }
 
+        public override bool PrepareFrame(RenderGraph graph, ContextContainer frame)
+        {
+            var data = frame.GetOrCreate<ContactShadowsData>();
             var camera = frame.Get<CameraData>();
             if (!IsCameraSupported(camera) || !HasActiveMainInjection(camera.renderer, frame))
                 return false;

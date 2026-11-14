@@ -323,6 +323,8 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
     [loop] while (ClusterNext(it, probeIndex) && totalWeight < 0.99f)
     {
         probeIndex -= ULTRA_FP_PROBES_BEGIN;
+        if (probeIndex >= (uint)ultraRP_ReflProbes_Count || ultraRP_ReflProbes_ProbePosition[probeIndex].w == 0.0)
+            continue;
 
         float weight = CalculateProbeWeight(positionWS, ultraRP_ReflProbes_BoxMin[probeIndex], ultraRP_ReflProbes_BoxMax[probeIndex]);
         weight = min(weight, 1.0f - totalWeight);
@@ -524,6 +526,14 @@ half3 GlobalIllumination(BRDFData brdfData, BRDFData brdfDataClearCoat, float cl
     return GlobalIllumination(brdfData, brdfDataClearCoat, clearCoatMask, bakedGI, occlusion, positionWS, normalWS, viewDirectionWS, float2(0.0f, 0.0f));
 }
 #endif
+
+half3 GlobalIllumination(BRDFData brdfData, half3 bakedGI, half occlusion, float3 positionWS,
+    half3 normalWS, half3 viewDirectionWS, float2 normalizedScreenSpaceUV)
+{
+    const BRDFData noClearCoat = (BRDFData)0;
+    return GlobalIllumination(brdfData, noClearCoat, 0.0, bakedGI, occlusion,
+        positionWS, normalWS, viewDirectionWS, normalizedScreenSpaceUV);
+}
 
 // Backwards compatiblity
 half3 GlobalIllumination(BRDFData brdfData, half3 bakedGI, half occlusion, float3 positionWS, half3 normalWS, half3 viewDirectionWS)

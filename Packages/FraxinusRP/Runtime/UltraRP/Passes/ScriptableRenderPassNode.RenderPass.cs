@@ -117,7 +117,7 @@ namespace FraxinusEngine.Rendering.Ultra
             var state = frameData.GetOrCreate<ContextStateManager>();
             var filters = isBefore ? _beforeScopeFilters : _afterScopeFilters;
             for (int i = 0; i < passes.Count; i++)
-                if (state.TryBeginInjection(passes[i], filters[i]))
+                if (graph.IsInjectPassEnabled(passes[i].GetType()) && state.TryBeginInjection(passes[i], filters[i]))
                     passes[i].Execute(renderGraph, context, frameData);
             if (isBefore)
                 _injectionFallbackRenderer?.ProcessFallbackInjections(renderGraph, context, frameData);

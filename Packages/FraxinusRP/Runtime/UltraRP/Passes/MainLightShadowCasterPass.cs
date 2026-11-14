@@ -90,6 +90,13 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public override void Execute(RenderGraph renderGraph, ScriptableRenderContext context, ContextContainer frameData)
         {
+            ConfigurePortValue(mainLightShadow, Render(renderGraph, frameData));
+        }
+
+        // Also used by depth-target cameras, which draw material Forward passes
+        // without executing the renderer graph's nodes.
+        internal TextureHandle Render(RenderGraph renderGraph, ContextContainer frameData)
+        {
             ShadowData shadowData = frameData.Get<ShadowData>();
             CameraData cameraData = frameData.Get<CameraData>();
             LightData lightData = frameData.Get<LightData>();
@@ -115,8 +122,6 @@ namespace FraxinusEngine.Rendering.Ultra
                     else
                         shadowTexture = renderGraph.defaultResources.defaultShadowTexture;
 
-                    ConfigurePortValue(mainLightShadow, shadowTexture);
-
                     builder.AllowGlobalStateModification(true);
                     if (shadowTexture.IsValid())
                         builder.SetGlobalTextureAfterPass(shadowTexture, MainLightShadowConstantBuffer._MainLightShadowmapID);
@@ -135,7 +140,9 @@ namespace FraxinusEngine.Rendering.Ultra
                         }
                     });
                 }
+                return shadowTexture;
             }
+            return TextureHandle.nullHandle;
         }
 
         bool Setup(ShadowData shadowData, CameraData cameraData, LightData lightData, RenderingData renderingData)

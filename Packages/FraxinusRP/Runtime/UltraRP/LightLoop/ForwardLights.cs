@@ -20,6 +20,7 @@ namespace FraxinusEngine.Rendering.Ultra
             public static int _MainLightColor = Shader.PropertyToID("_MainLightColor");
             public static int _MainLightOcclusionProbesChannel = Shader.PropertyToID("_MainLightOcclusionProbes");
             public static int _MainLightLayerMask = Shader.PropertyToID("_MainLightLayerMask");
+            public static int _MainLightFraxinusParams = Shader.PropertyToID("_MainLightFraxinusParams");
 
             public static int _AdditionalLightsCount = Shader.PropertyToID("_AdditionalLightsCount");
             public static int _AdditionalLightsPosition = Shader.PropertyToID("_AdditionalLightsPosition");
@@ -28,6 +29,7 @@ namespace FraxinusEngine.Rendering.Ultra
             public static int _AdditionalLightsSpotDir = Shader.PropertyToID("_AdditionalLightsSpotDir");
             public static int _AdditionalLightOcclusionProbeChannel = Shader.PropertyToID("_AdditionalLightsOcclusionProbes");
             public static int _AdditionalLightsLayerMasks = Shader.PropertyToID("_AdditionalLightsLayerMasks");
+            public static int _AdditionalLightsFraxinusParams = Shader.PropertyToID("_AdditionalLightsFraxinusParams");
 
             public static int _AdditionalLightsBuffer = Shader.PropertyToID("_AdditionalLightsBuffer");
             public static int _AdditionalLightsIndices = Shader.PropertyToID("_AdditionalLightsIndices");
@@ -69,6 +71,7 @@ namespace FraxinusEngine.Rendering.Ultra
         Vector4[] _additionalLightSpotDirections;
         Vector4[] _additionalLightOcclusionProbeChannels;
         float[] _additionalLightsLayerMasks;
+        Vector4[] _additionalLightsFraxinusParams;
 
         bool _useStructuredBuffer;
         bool _useForwardPlus;
@@ -78,9 +81,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
         JobHandle _cullingHandle;
         NativeArray<uint> _zBins;
-        GraphicsBuffer _zBinsBuffer;
         NativeArray<uint> _tileMasks;
-        GraphicsBuffer _tileMasksBuffer;
 
         int _wordsPerTile;
         float _zBinScale;
@@ -123,6 +124,7 @@ namespace FraxinusEngine.Rendering.Ultra
             _additionalLightSpotDirections = new Vector4[maxLights];
             _additionalLightOcclusionProbeChannels = new Vector4[maxLights];
             _additionalLightsLayerMasks = new float[maxLights];
+            _additionalLightsFraxinusParams = new Vector4[maxLights];
 
             if (_useForwardPlus)
                 CreateForwardPlusBuffers();
@@ -148,10 +150,23 @@ namespace FraxinusEngine.Rendering.Ultra
             internal CameraData cameraData;
             internal LightData lightData;
             internal ForwardLights forwardLights;
+            internal ForwardPlusFrameData forwardPlus;
+            internal bool usesForwardPlus;
         };
 
-        internal void SetupRenderGraphLights(RenderGraph renderGraph, RenderingData renderingData, CameraData cameraData, LightData lightData)
+        internal void SetupRenderGraphLights(RenderGraph renderGraph, ContextContainer frameData)
         {
+            var renderingData = frameData.Get<RenderingData>();
+            var cameraData = frameData.Get<CameraData>();
+            var lightData = frameData.Get<LightData>();
+            useforwardLight = renderingData.usesForwardPlusLightLists;
+            ForwardPlusFrameData forwardPlus = null;
+            if (_useForwardPlus)
+            {
+                forwardPlus = PrepareLightLists(renderGraph, frameData);
+                _reflectionProbeManager.PrepareGpuData(ref renderingData.cullResults);
+                forwardPlus.reflectionProbeAtlas = renderGraph.ImportTexture(_reflectionProbeManager.atlasRTHandle);
+            }
             _lightCookieManager?.PrepareRenderGraphTextures(renderGraph, lightData);
             using (var builder = renderGraph.AddUnsafePass<SetupLightPassData>(s_setupForwardLights.name, out var passData, s_setupForwardLights))
             {
@@ -159,6 +174,15 @@ namespace FraxinusEngine.Rendering.Ultra
                 passData.cameraData = cameraData;
                 passData.lightData = lightData;
                 passData.forwardLights = this;
+                passData.forwardPlus = forwardPlus;
+                passData.usesForwardPlus = _useForwardPlus;
+
+                if (forwardPlus != null)
+                {
+                    builder.UseBuffer(forwardPlus.zBins, AccessFlags.Write);
+                    builder.UseBuffer(forwardPlus.tileMasks, AccessFlags.Write);
+                    builder.UseTexture(forwardPlus.reflectionProbeAtlas, AccessFlags.ReadWrite);
+                }
 
                 if (_lightCookieManager != null)
                 {
@@ -170,10 +194,13 @@ namespace FraxinusEngine.Rendering.Ultra
                 }
 
                 builder.AllowPassCulling(false);
+                builder.AllowGlobalStateModification(true);
 
                 builder.SetRenderFunc((SetupLightPassData data, UnsafeGraphContext rgContext) =>
                 {
-                    data.forwardLights.SetupLights(rgContext.cmd, data.renderingData, data.cameraData, data.lightData);
+                    if (data.forwardPlus != null)
+                        UploadLightLists(rgContext.cmd, data.forwardPlus);
+                    data.forwardLights.SetupLights(rgContext.cmd, data.renderingData, data.cameraData, data.lightData, data.usesForwardPlus);
                 });
             }
         }
@@ -182,6 +209,7 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             _cullingHandle.Complete();
             ReleseForwardPlusBuffers();
+            _reflectionProbeManager.Dispose();
 
             _lightCookieManager?.Dispose();
             _lightCookieManager = null;
@@ -189,19 +217,112 @@ namespace FraxinusEngine.Rendering.Ultra
         void CreateForwardPlusBuffers()
         {
             _zBins = new NativeArray<uint>(UltraRenderPipeline.maxZBinWords, Allocator.Persistent);
-            _zBinsBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Constant, UltraRenderPipeline.maxZBinWords / 4, UnsafeUtility.SizeOf<float4>());
-            _zBinsBuffer.name = "UltraRP z-Bin Buffer";
             _tileMasks = new NativeArray<uint>(UltraRenderPipeline.maxTileWords, Allocator.Persistent);
-            _tileMasksBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Constant, UltraRenderPipeline.maxTileWords / 4, UnsafeUtility.SizeOf<float4>());
-            _tileMasksBuffer.name = "UltraRP Tile Buffer";
         }
 
         void ReleseForwardPlusBuffers()
         {
-            if (_zBins != null) _zBins.Dispose();
-            if (_zBinsBuffer != null) _zBinsBuffer.Dispose();
-            if (_tileMasks != null) _tileMasks.Dispose();
-            if (_tileMasksBuffer != null) _tileMasksBuffer.Dispose();
+            _cullingHandle.Complete();
+            if (_zBins.IsCreated) _zBins.Dispose();
+            if (_tileMasks.IsCreated) _tileMasks.Dispose();
+            _zBins = default;
+            _tileMasks = default;
+        }
+
+        ForwardPlusFrameData PrepareLightLists(RenderGraph graph, ContextContainer frame)
+        {
+            var data = frame.GetOrCreate<ForwardPlusFrameData>();
+            data.Reset();
+            PreSetup(frame.Get<RenderingData>(), frame.Get<CameraData>(), frame.Get<LightData>());
+            using (new ProfilingScope(_profilingSamplerFPComplete))
+                _cullingHandle.Complete();
+
+            int zBinElements = _zBins.Length / 4;
+            int tileElements = _tileMasks.Length / 4;
+            if (data.zBinUpload == null || data.zBinUpload.Length != zBinElements)
+                data.zBinUpload = new float4[zBinElements];
+            if (data.tileMaskUpload == null || data.tileMaskUpload.Length != tileElements)
+                data.tileMaskUpload = new float4[tileElements];
+            _zBins.Reinterpret<float4>(sizeof(uint)).CopyTo(data.zBinUpload);
+            _tileMasks.Reinterpret<float4>(sizeof(uint)).CopyTo(data.tileMaskUpload);
+            data.zBins = graph.CreateBuffer(new BufferDesc(zBinElements, 16, GraphicsBuffer.Target.Constant) { name = "Forward+ Z Bins" });
+            data.tileMasks = graph.CreateBuffer(new BufferDesc(tileElements, 16, GraphicsBuffer.Target.Constant) { name = "Forward+ Tile Masks" });
+            var camera = frame.Get<CameraData>();
+            data.parameters0 = new Vector4(_zBinScale, _zBinOffset, _lightCount, _directionalLightCount);
+            data.parameters1 = new Vector4(camera.pixelWidth / (float)_actualTileWidth,
+                camera.pixelHeight / (float)_actualTileWidth, _tileResolution.x, _wordsPerTile);
+            data.parameters2 = new Vector4(_binCount, _tileResolution.x * _tileResolution.y, 0, 0);
+            return data;
+        }
+
+        static void UploadLightLists(UnsafeCommandBuffer cmd, ForwardPlusFrameData data)
+        {
+            using (new ProfilingScope(_profilingSamplerFPUpload))
+            {
+                cmd.SetBufferData((GraphicsBuffer)data.zBins, data.zBinUpload);
+                cmd.SetBufferData((GraphicsBuffer)data.tileMasks, data.tileMaskUpload);
+                BindLightLists(CommandBufferHelpers.GetNativeCommandBuffer(cmd), data);
+            }
+        }
+
+        internal static ForwardPlusFrameData UseLightingResources(IBaseRenderGraphBuilder builder, ContextContainer frame)
+        {
+            if (!frame.Get<RenderingData>().usesForwardPlusLightLists || !frame.Contains<ForwardPlusFrameData>())
+                return null;
+            var data = frame.Get<ForwardPlusFrameData>();
+            if (!data.isValid)
+                throw new InvalidOperationException("Forward+ light lists must be prepared before recording a lighting pass.");
+            builder.UseBuffer(data.zBins, AccessFlags.Read);
+            builder.UseBuffer(data.tileMasks, AccessFlags.Read);
+            if (data.reflectionProbeAtlas.IsValid())
+                builder.UseTexture(data.reflectionProbeAtlas, AccessFlags.Read);
+            return data;
+        }
+
+        internal static void BindLightLists(RasterCommandBuffer cmd, ForwardPlusFrameData data)
+        {
+            if (data == null)
+                return;
+            cmd.SetGlobalConstantBuffer((GraphicsBuffer)data.zBins, "ultraRP_ZBinBuffer", 0, data.zBinUpload.Length * 16);
+            cmd.SetGlobalConstantBuffer((GraphicsBuffer)data.tileMasks, "ultraRP_TileBuffer", 0, data.tileMaskUpload.Length * 16);
+            cmd.SetGlobalVector("_FPParams0", data.parameters0);
+            cmd.SetGlobalVector("_FPParams1", data.parameters1);
+            cmd.SetGlobalVector("_FPParams2", data.parameters2);
+        }
+
+        static void BindLightLists(CommandBuffer cmd, ForwardPlusFrameData data)
+        {
+            cmd.SetGlobalConstantBuffer((GraphicsBuffer)data.zBins, "ultraRP_ZBinBuffer", 0, data.zBinUpload.Length * 16);
+            cmd.SetGlobalConstantBuffer((GraphicsBuffer)data.tileMasks, "ultraRP_TileBuffer", 0, data.tileMaskUpload.Length * 16);
+            cmd.SetGlobalVector("_FPParams0", data.parameters0);
+            cmd.SetGlobalVector("_FPParams1", data.parameters1);
+            cmd.SetGlobalVector("_FPParams2", data.parameters2);
+        }
+
+        class ContextLightListPassData { internal ForwardPlusFrameData lights; }
+
+        internal void RenderContextLightLists(RenderGraph graph, ContextContainer frame, TextureHandle reflectionProbeAtlas)
+        {
+            var data = PrepareLightLists(graph, frame);
+            // Child contexts use the same visible lights/probes and probe atlas;
+            // only screen-space tile membership changes with their projection.
+            data.reflectionProbeAtlas = reflectionProbeAtlas;
+            using var builder = graph.AddUnsafePass<ContextLightListPassData>("Forward+ Context Light Lists", out var pass);
+            pass.lights = data;
+            builder.UseBuffer(data.zBins, AccessFlags.Write);
+            builder.UseBuffer(data.tileMasks, AccessFlags.Write);
+            builder.AllowPassCulling(false);
+            builder.AllowGlobalStateModification(true);
+            builder.SetRenderFunc((ContextLightListPassData p, UnsafeGraphContext ctx) => UploadLightLists(ctx.cmd, p.lights));
+        }
+
+        internal static void RestoreContextLightLists(RenderGraph graph, ContextContainer frame)
+        {
+            using var builder = graph.AddRasterRenderPass<ContextLightListPassData>("Restore Forward+ Context Light Lists", out var pass);
+            pass.lights = UseLightingResources(builder, frame);
+            builder.AllowPassCulling(false);
+            builder.AllowGlobalStateModification(true);
+            builder.SetRenderFunc((ContextLightListPassData p, RasterGraphContext ctx) => BindLightLists(ctx.cmd, p.lights));
         }
 
         static int AlignByteCount(int count, int align) => align * ((count + align - 1) / align);
@@ -229,15 +350,12 @@ namespace FraxinusEngine.Rendering.Ultra
             {
                 using var _ = new ProfilingScope(_profilingSamplerFPSetup);
 
-                if (!_cullingHandle.IsCompleted)
-                    throw new InvalidOperationException("Forward+ jobs have not completed yet.");
+                _cullingHandle.Complete();
 
-                if (_tileMasks.Length != UltraRenderPipeline.maxTileWords)
+                if (!_tileMasks.IsCreated || _tileMasks.Length != UltraRenderPipeline.maxTileWords ||
+                    !_zBins.IsCreated || _zBins.Length != UltraRenderPipeline.maxZBinWords)
                 {
-                    _zBins.Dispose();
-                    _zBinsBuffer.Dispose();
-                    _tileMasks.Dispose();
-                    _tileMasksBuffer.Dispose();
+                    ReleseForwardPlusBuffers();
                     CreateForwardPlusBuffers();
                 }
                 else
@@ -254,7 +372,10 @@ namespace FraxinusEngine.Rendering.Ultra
                 var screenResolution = math.int2(cameraData.pixelWidth, cameraData.pixelHeight);
                 var viewCount = 1;
 
-                _lightCount = lightData.visibleLights.Length;
+                // Disabled additional lights must also disappear from the masks;
+                // otherwise those indices read constants left by the last camera.
+                _lightCount = lightData.additionalLightsCount == 0 ? 0 : math.min(lightData.visibleLights.Length,
+                    lightData.additionalLightsCount + (lightData.mainLightIndex >= 0 ? 1 : 0));
                 var lightOffset = 0;
                 while (lightOffset < _lightCount && lightData.visibleLights[lightOffset].lightType == LightType.Directional)
                     lightOffset++;
@@ -363,9 +484,6 @@ namespace FraxinusEngine.Rendering.Ultra
                 GetViewParams(camera, viewToClips[0], out float viewPlaneBottom0, out float viewPlaneTop0, out float4 viewToViewportScaleBias0);
                 GetViewParams(camera, viewToClips[1], out float viewPlaneBottom1, out float viewPlaneTop1, out float4 viewToViewportScaleBias1);
 
-                // We want to calculate `fovHalfHeight = tan(fov / 2)`
-                // `projection[1][1]` contains `1 / tan(fov / 2)`
-                var fovHalfHeights = new Fixed2<float>(1.0f / viewToClips[0][1][1], 1.0f / viewToClips[1][1][1]);
                 // Each light needs 1 range for Y, and a range per row. Align to 128-bytes to avoid false sharing.
                 var rangesPerItem = AlignByteCount((1 + _tileResolution.y) * UnsafeUtility.SizeOf<InclusiveRange>(), 128) / UnsafeUtility.SizeOf<InclusiveRange>();
                 var tileRanges = new NativeArray<InclusiveRange>(rangesPerItem * itemsPerTile * viewCount, Allocator.TempJob);
@@ -377,11 +495,11 @@ namespace FraxinusEngine.Rendering.Ultra
                     itemsPerTile = itemsPerTile,
                     rangesPerItem = rangesPerItem,
                     worldToViews = worldToViews,
-                    centerOffset = float4.zero,
                     tileScale = (float2)screenResolution / _actualTileWidth,
                     tileScaleInv = _actualTileWidth / (float2)screenResolution,
-                    viewPlaneHalfSizes = new Fixed2<float2>(fovHalfHeights[0] * math.float2(cameraData.aspectRatio, 1), fovHalfHeights[1] * math.float2(cameraData.aspectRatio, 1)),
-                    viewPlaneHalfSizeInvs = new Fixed2<float2>(math.rcp(fovHalfHeights[0] * math.float2(cameraData.aspectRatio, 1)), math.rcp(fovHalfHeights[1] * math.float2(cameraData.aspectRatio, 1))),
+                    viewPlaneBottoms = new Fixed2<float>(viewPlaneBottom0, viewPlaneBottom1),
+                    viewPlaneTops = new Fixed2<float>(viewPlaneTop0, viewPlaneTop1),
+                    viewToViewportScaleBiases = new Fixed2<float4>(viewToViewportScaleBias0, viewToViewportScaleBias1),
                     tileCount = _tileResolution,
                     near = camera.nearClipPlane,
                     isOrthographic = camera.orthographic
@@ -408,8 +526,9 @@ namespace FraxinusEngine.Rendering.Ultra
             }
         }
 
-        internal void SetupLights(UnsafeCommandBuffer cmd, RenderingData renderingData, CameraData cameraData, LightData lightData)
+        internal void SetupLights(UnsafeCommandBuffer cmd, RenderingData renderingData, CameraData cameraData, LightData lightData, bool usesForwardPlus)
         {
+            _useForwardPlus = usesForwardPlus;
             int additionalLightsCount = lightData.additionalLightsCount;
             bool additionalLightsPerVertex = lightData.shadeAdditionalLightsPerVertex;
 
@@ -417,22 +536,7 @@ namespace FraxinusEngine.Rendering.Ultra
             {
                 if (_useForwardPlus)
                 {
-                    _reflectionProbeManager.UpdateGpuData(CommandBufferHelpers.GetNativeCommandBuffer(cmd), ref renderingData.cullResults);
-
-                    using (new ProfilingScope(_profilingSamplerFPComplete))
-                        _cullingHandle.Complete();
-
-                    using (new ProfilingScope(_profilingSamplerFPUpload))
-                    {
-                        _zBinsBuffer.SetData(_zBins.Reinterpret<float4>(UnsafeUtility.SizeOf<uint>()));
-                        _tileMasksBuffer.SetData(_tileMasks.Reinterpret<float4>(UnsafeUtility.SizeOf<uint>()));
-                        cmd.SetGlobalConstantBuffer(_zBinsBuffer, "ultraRP_ZBinBuffer", 0, UltraRenderPipeline.maxZBinWords * 4);
-                        cmd.SetGlobalConstantBuffer(_tileMasksBuffer, "ultraRP_TileBuffer", 0, UltraRenderPipeline.maxTileWords * 4);
-                    }
-
-                    cmd.SetGlobalVector("_FPParams0", math.float4(_zBinScale, _zBinOffset, _lightCount, _directionalLightCount));
-                    cmd.SetGlobalVector("_FPParams1", math.float4(cameraData.pixelRect.size / _actualTileWidth, _tileResolution.x, _wordsPerTile));
-                    cmd.SetGlobalVector("_FPParams2", math.float4(_binCount, _tileResolution.x * _tileResolution.y, 0, 0));
+                    _reflectionProbeManager.UploadGpuData(CommandBufferHelpers.GetNativeCommandBuffer(cmd));
                 }
 
                 SetupShaderLightConstants(cmd, ref renderingData.cullResults, lightData);
@@ -509,6 +613,8 @@ namespace FraxinusEngine.Rendering.Ultra
             cmd.SetGlobalVector(LightConstantBuffer._MainLightPosition, lightPos);
             cmd.SetGlobalVector(LightConstantBuffer._MainLightColor, lightColor);
             cmd.SetGlobalVector(LightConstantBuffer._MainLightOcclusionProbesChannel, lightOcclusionChannel);
+            cmd.SetGlobalVector(LightConstantBuffer._MainLightFraxinusParams,
+                GetFraxinusLightParameters(lightData.visibleLights, lightData.mainLightIndex));
 
             if (supportsLightLayers)
                 cmd.SetGlobalInt(LightConstantBuffer._MainLightLayerMask, (int)lightLayerMask);
@@ -518,14 +624,13 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             bool supportsLightLayers = lightData.supportsLightLayers;
             var lights = lightData.visibleLights;
-            int maxAdditionalLightsCount = UltraRenderPipeline.maxVisibleAdditionalLights;
             int additionalLightsCount = SetupPerObjectLightIndices(cullResults, lightData);
             if (additionalLightsCount > 0)
             {
                 if (_useStructuredBuffer)
                 {
                     NativeArray<ShaderInput.LightData> additionalLightsData = new NativeArray<ShaderInput.LightData>(additionalLightsCount, Allocator.Temp);
-                    for (int i = 0, lightIter = 0; i < lights.Length && lightIter < maxAdditionalLightsCount; ++i)
+                    for (int i = 0, lightIter = 0; i < lights.Length && lightIter < additionalLightsCount; ++i)
                     {
                         if (lightData.mainLightIndex != i)
                         {
@@ -533,7 +638,9 @@ namespace FraxinusEngine.Rendering.Ultra
                             InitializeLightConstants(lights, i, supportsLightLayers,
                                 out data.position, out data.color, out data.attenuation,
                                 out data.spotDirection, out data.occlusionProbeChannels,
-                                out data.layerMask, out _);
+                                out data.layerMask, out var isSubtractive);
+                            data.color.w = isSubtractive ? 1f : 0f;
+                            _additionalLightsFraxinusParams[lightIter] = GetFraxinusLightParameters(lights, i);
                             additionalLightsData[lightIter] = data;
                             lightIter++;
                         }
@@ -552,7 +659,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 }
                 else
                 {
-                    for (int i = 0, lightIter = 0; i < lights.Length && lightIter < maxAdditionalLightsCount; ++i)
+                    for (int i = 0, lightIter = 0; i < lights.Length && lightIter < additionalLightsCount; ++i)
                     {
                         if (lightData.mainLightIndex != i)
                         {
@@ -572,6 +679,7 @@ namespace FraxinusEngine.Rendering.Ultra
                                 _additionalLightsLayerMasks[lightIter] = math.asfloat(lightLayerMask);
 
                             _additionalLightColors[lightIter].w = isSubtractive ? 1f : 0f;
+                            _additionalLightsFraxinusParams[lightIter] = GetFraxinusLightParameters(lights, i);
                             lightIter++;
                         }
                     }
@@ -586,6 +694,7 @@ namespace FraxinusEngine.Rendering.Ultra
                         cmd.SetGlobalFloatArray(LightConstantBuffer._AdditionalLightsLayerMasks, _additionalLightsLayerMasks);
                 }
 
+                cmd.SetGlobalVectorArray(LightConstantBuffer._AdditionalLightsFraxinusParams, _additionalLightsFraxinusParams);
                 cmd.SetGlobalVector(LightConstantBuffer._AdditionalLightsCount, new Vector4(lightData.maxPerObjectAdditionalLightsCount, 0.0f, 0.0f, 0.0f));
             }
             else
@@ -607,11 +716,11 @@ namespace FraxinusEngine.Rendering.Ultra
 
             ref VisibleLight lightData = ref lights.UnsafeElementAtMutable(lightIndex);
             Light light = lightData.light;
-            var lightBakingOutput = light.bakingOutput;
-            isSubtractive = lightBakingOutput.isBaked && lightBakingOutput.lightmapBakeType == LightmapBakeType.Mixed && lightBakingOutput.mixedLightingMode == MixedLightingMode.Subtractive;
-
             if (light == null)
                 return;
+
+            var lightBakingOutput = light.bakingOutput;
+            isSubtractive = lightBakingOutput.isBaked && lightBakingOutput.lightmapBakeType == LightmapBakeType.Mixed && lightBakingOutput.mixedLightingMode == MixedLightingMode.Subtractive;
 
             if (lightBakingOutput.lightmapBakeType == LightmapBakeType.Mixed &&
                 lightData.light.shadows != LightShadows.None &&
@@ -692,6 +801,21 @@ namespace FraxinusEngine.Rendering.Ultra
 
             perObjectLightIndexMap.Dispose();
             return additionalLightsCount;
+        }
+
+        static Vector4 GetFraxinusLightParameters(NativeArray<VisibleLight> lights, int index)
+        {
+            if (index < 0 || lights[index].light == null)
+                return new Vector4(1f, 0f, 0f, 0f);
+            var additional = lights[index].light.GetOrMigrateAdditionalLightData();
+            if (additional == null)
+                return new Vector4(1f, 0f, 0f, 0f);
+            bool directional = lights[index].lightType == LightType.Directional;
+            float maxSmoothness = directional
+                ? Mathf.Clamp01(1.35f / (1f + Mathf.Pow(1.15f * (0.0315f * additional.angularDiameter + 0.4f), 2f)) - 0.11f)
+                : Mathf.Clamp01(1.1725f / (1.01f + Mathf.Pow(additional.shapeRadius + 0.1f, 2f)) - 0.15f);
+            float roughness = 1f - maxSmoothness;
+            return new Vector4(directional ? 1f : additional.baseContribution, roughness * roughness, 0f, 0f);
         }
     }
 }

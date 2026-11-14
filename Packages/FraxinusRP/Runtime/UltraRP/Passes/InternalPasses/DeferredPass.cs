@@ -72,7 +72,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
         internal void Render(RenderGraph renderGraph, ContextContainer frameData, 
             TextureHandle color, TextureHandle depth, TextureHandle[] gbuffer,
-            TextureHandle mainShadowsTexture, TextureHandle additionalShadowsTexture, bool isCluster)
+            TextureHandle mainShadowsTexture, TextureHandle additionalShadowsTexture)
         {
             ResourceData resourceData   = frameData.Get<ResourceData>();
             CameraData cameraData       = frameData.Get<CameraData>();
@@ -85,7 +85,15 @@ namespace FraxinusEngine.Rendering.Ultra
                 RenderGraphUtils.TextureHandlesEqual(color, resourceData.activeColorTexture) &&
                 RenderGraphUtils.TextureHandlesEqual(depth, resourceData.activeDepthTexture);
 
-            bool clusterLighting = isCluster;
+            var renderingData = frameData.Get<RenderingData>();
+            if (renderingData.hasDeferredPlus)
+            {
+                RenderDeferredPlus(renderGraph, frameData, color, depth, gbuffer,
+                    mainShadowsTexture, additionalShadowsTexture, deferredLights, contactShadowsEnabled);
+                return;
+            }
+
+            bool clusterLighting = renderingData.hasDeferredCluster;
             if (clusterLighting && deferredLights.useClusterRaster)
             {
                 RenderClusterRaster(renderGraph, frameData, color, depth, gbuffer,

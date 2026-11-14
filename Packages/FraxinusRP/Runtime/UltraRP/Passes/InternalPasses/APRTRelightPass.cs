@@ -82,6 +82,9 @@ namespace FraxinusEngine.Rendering.Ultra
                 cameraData.cameraType == CameraType.Reflection || cameraData.cameraType == CameraType.Preview)
                 return false;
 
+            if (cameraData.renderer == null || !cameraData.renderer.graph.IsInjectPassEnabled(typeof(APRTRelightPass)))
+                return false;
+
             var target = cameraData.camera.targetTexture;
             if (cameraData.cameraTargetDescriptor.dimension == TextureDimension.Cube ||
                 cameraData.cameraTargetDescriptor.dimension == TextureDimension.CubeArray)
@@ -115,10 +118,17 @@ namespace FraxinusEngine.Rendering.Ultra
                 stack?.GetComponent<APRTOptions>());
         }
 
-        internal static void PrepareSkyEnvironment(Camera camera)
+        internal static void PrepareSkyEnvironment(Camera camera, ScriptableRenderer renderer)
         {
             if (!CanPrepareSkyEnvironment(camera)) return;
             var volume = APRTProbeReferenceVolume.instance;
+            if (renderer == null || !renderer.graph.IsInjectPassEnabled(typeof(APRTRelightPass)))
+            {
+                // An enabled Overlay on another renderer must not revive this
+                // disabled Base camera's result from a previous frame.
+                volume.InvalidateCameraSampling();
+                return;
+            }
             var contexts = volume.GetRenderingBakingSetRuntimes(camera);
             Light sun = null;
             bool sunResolved = false;

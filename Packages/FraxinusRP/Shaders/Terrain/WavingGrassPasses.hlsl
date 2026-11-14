@@ -28,7 +28,7 @@ struct GrassVertexOutput
 
     half4 fogFactorAndVertexLight   : TEXCOORD5; // x: fogFactor, yzw: vertex light
 
-#if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
+#if !defined(TERRAIN_GBUFFER) && defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
     float4 shadowCoord              : TEXCOORD6;
 #endif
     half4 color                     : TEXCOORD7;
@@ -56,9 +56,11 @@ void InitializeInputData(GrassVertexOutput input, out InputData inputData)
     inputData.normalWS = NormalizeNormalPerPixel(input.normal);
     inputData.viewDirectionWS = viewDirWS;
 
-#if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
+    // Deferred grass writes surface data and baked GI; it does not sample realtime shadows.
+
+#if !defined(TERRAIN_GBUFFER) && defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
     inputData.shadowCoord = input.shadowCoord;
-#elif defined(MAIN_LIGHT_CALCULATE_SHADOWS)
+#elif !defined(TERRAIN_GBUFFER) && defined(MAIN_LIGHT_CALCULATE_SHADOWS)
     inputData.shadowCoord = TransformWorldToShadowCoord(inputData.positionWS);
 #else
     inputData.shadowCoord = float4(0, 0, 0, 0);
@@ -138,7 +140,7 @@ void InitializeVertData(GrassVertexInput input, inout GrassVertexOutput vertData
 #endif
     vertData.fogFactorAndVertexLight = half4(fogFactor, vertexLight);
 
-#if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
+#if !defined(TERRAIN_GBUFFER) && defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
     vertData.shadowCoord = GetShadowCoord(vertexInput);
 #endif
 }

@@ -81,6 +81,9 @@ Shader "Ultra Render Pipeline/Lit"
         // material work with both Ultra Render Pipeline and Builtin Unity Pipeline
         Tags
         {
+            "FraxinusShadowRules" = "Standard"
+            "FraxinusPassRules" = "Standard"
+            "FraxinusLightmapRules" = "Standard"
             "RenderType" = "Opaque"
             "RenderPipeline" = "UltraPipeline"
             "UltraMaterialType" = "Lit"
@@ -243,6 +246,7 @@ Shader "Ultra Render Pipeline/Lit"
             Cull[_Cull]
 
             HLSLPROGRAM
+            #pragma multi_compile _ _FORWARD_PLUS
             #pragma target 4.5
 
             // Deferred Rendering Path does not support the OpenGL-based graphics API:

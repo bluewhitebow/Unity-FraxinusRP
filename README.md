@@ -20,7 +20,7 @@ In the graph, shadow maps and the color-grading LUT connect to the nodes that co
 
 The same graph controls the rendering workflow. To draw a group of ForwardOnly materials after deferred lighting, connect a DrawObjects node, configure its shader tags, render queue and layer mask, then pass color and depth targets to the following stages. Connections, draw settings and stage outputs can be inspected together. Custom nodes and pass injection provide extension points for project-specific processing.
 
-Renderer Graph supports Forward, Forward+, Stencil Deferred and Clustered Deferred. **Nested contexts** create separate color, depth and frame data for intermediate results at different resolutions, then explicitly composite them into the parent target. They share the same camera view. Fraxinus Core's underlying RenderGraph manages pass and resource dependencies, while the graph editor organizes the rendering stages. [Renderer Graph and contexts](Packages/FraxinusRP/Documentation~/ScriptableNode.md)
+Renderer Graph supports Forward, Forward+, Stencil Deferred, Deferred+ and GPU Clustered Deferred. **Nested contexts** create separate color, depth and frame data for intermediate results at different resolutions, then explicitly composite them into the parent target. They share the same camera view. Fraxinus Core's underlying RenderGraph manages pass and resource dependencies, while the graph editor organizes the rendering stages. [Renderer Graph and contexts](Packages/FraxinusRP/Documentation~/ScriptableNode.md)
 
 ## How UltraRP compares with URP and HDRP
 

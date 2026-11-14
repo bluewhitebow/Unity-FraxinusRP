@@ -179,6 +179,7 @@ namespace FraxinusEngine.Rendering.Ultra
         public static GlobalKeyword RenderPassEnabled;
         public static GlobalKeyword BillboardFaceCameraPos;
         public static GlobalKeyword LightCookies;
+        public static GlobalKeyword AreaLights;
         public static GlobalKeyword DepthNoMsaa;
         public static GlobalKeyword DepthMsaa2;
         public static GlobalKeyword DepthMsaa4;
@@ -262,6 +263,7 @@ namespace FraxinusEngine.Rendering.Ultra
             ShaderGlobalKeywords.RenderPassEnabled = GlobalKeyword.Create(ShaderKeywordStrings.RenderPassEnabled);
             ShaderGlobalKeywords.BillboardFaceCameraPos = GlobalKeyword.Create(ShaderKeywordStrings.BillboardFaceCameraPos);
             ShaderGlobalKeywords.LightCookies = GlobalKeyword.Create(ShaderKeywordStrings.LightCookies);
+            ShaderGlobalKeywords.AreaLights = GlobalKeyword.Create(ShaderKeywordStrings.AreaLights);
             ShaderGlobalKeywords.DepthNoMsaa = GlobalKeyword.Create(ShaderKeywordStrings.DepthNoMsaa);
             ShaderGlobalKeywords.DepthMsaa2 = GlobalKeyword.Create(ShaderKeywordStrings.DepthMsaa2);
             ShaderGlobalKeywords.DepthMsaa4 = GlobalKeyword.Create(ShaderKeywordStrings.DepthMsaa4);
@@ -387,6 +389,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
         /// <summary> Keyword used for Light Cookies. </summary>
         public const string LightCookies = "_LIGHT_COOKIES";
+        public const string AreaLights = "_FRAXINUS_AREA_LIGHTS";
 
         /// <summary> Keyword used for no Multi Sampling Anti-Aliasing (MSAA). </summary>
         public const string DepthNoMsaa = "_DEPTH_NO_MSAA";
@@ -873,10 +876,12 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             if (isHdrEnabled)
             {
-                if (!needsAlpha && requestHDRColorBufferPrecision != HDRColorBufferPrecision._64Bits && RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.B10G11R11_UFloatPack32, GraphicsFormatUsage.Linear | GraphicsFormatUsage.Render))
+                // Match URP's HDR color-target requirement. Unity 2022 can report Linear
+                // unsupported for packed HDR even when rendering, blending and filtering work.
+                if (!needsAlpha && requestHDRColorBufferPrecision != HDRColorBufferPrecision._64Bits && RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.B10G11R11_UFloatPack32, GraphicsFormatUsage.Blend))
                     return GraphicsFormat.B10G11R11_UFloatPack32;
 
-                if (RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R16G16B16A16_SFloat, GraphicsFormatUsage.Linear | GraphicsFormatUsage.Render))
+                if (RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R16G16B16A16_SFloat, GraphicsFormatUsage.Blend))
                     return GraphicsFormat.R16G16B16A16_SFloat;
 
                 return SystemInfo.GetGraphicsFormat(DefaultFormat.HDR); // This might actually be a LDR format on old devices.

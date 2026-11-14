@@ -9,7 +9,7 @@ using UnityEngine.Rendering;
 namespace FraxinusEditor.Rendering.Ultra
 {
     // Opt-in contract: runtime-created Volume components must also be represented
-    // by a VolumeProfile asset, or postprocess stripping must remain disabled.
+    // by a VolumeProfile asset, or postprocess effect stripping must remain disabled.
     // Use Core's interfaces explicitly: the source Engine also defines unrelated
     // interfaces with the same short names in this namespace.
     internal sealed class UltraRPPostProcessShaderStripper :
@@ -53,41 +53,46 @@ namespace FraxinusEditor.Rendering.Ultra
         static readonly string[] s_buildLocalKeywordNames =
         {
             "HDR_INPUT", "HDR_ENCODING", "HDR_COLORSPACE_CONVERSION", "HDR_COLORSPACE_CONVERSION_AND_ENCODING",
-            "_EASU_RCAS_AND_HDR_INPUT", "_GAMMA_20_AND_HDR_INPUT"
+            "_EASU_RCAS_AND_HDR_INPUT", "_GAMMA_20_AND_HDR_INPUT", "_ENABLE_ALPHA_OUTPUT"
         };
 
         UltraRPBuildData _buildData;
+        UltraRPShaderBuildFeatures.Snapshot _shaderFeatures;
+        readonly UltraRPShaderVariantRules _ordinaryShaderRules = new UltraRPShaderVariantRules();
+        readonly UltraRPShaderPassRules _passRules = new UltraRPShaderPassRules();
+        UltraRPShaderPassRules.BuildPolicy _passPolicy;
         Features _supported = Features.All;
         bool _canStrip;
+        bool _canStripPostProcessing;
         bool _canStripDeferred;
         bool _isOwnedDeferredShader;
+        bool _canStripDeferredPlus;
+        bool _isOwnedDeferredPlusShader;
+        bool _ownsOutputRules;
         PostShader _shaderKind;
         LocalKeyword[] _keywords;
         ShaderKeyword[] _buildGlobalKeywords;
         bool[] _buildGlobalKeywordPresent;
         LocalKeyword[] _buildLocalKeywords;
+        readonly Dictionary<(PassIdentifier, ShaderCompilerPlatform), int> _outputDeclarations = new();
         bool _stripScreenCoordOverride;
         bool _stripRuntimeDebug;
         bool _allowHDROutput;
+        bool _allowAlphaOutput = true;
         int _examined;
         int _removed;
 
         // Core discovers public parameterless constructors, including on internal types.
         public UltraRPPostProcessShaderStripper() { }
 
-        public bool active
-        {
-            get
-            {
-                var settings = GetBuildSettings();
-                return settings != null && (settings.stripUnusedPostProcessingVariants || settings.stripUnusedVariants);
-            }
-        }
+        // Core can cache its discovered stripper list across consecutive bundle
+        // writes. Register for this pipeline even when the switches are OFF;
+        // PrepareBuild rechecks them for each build-session identity.
+        public bool active => UltraRPShaderBuildSession.isBuildingForUltraRP;
 
         static UltraRenderPipelineShaderStrippingSetting GetBuildSettings()
         {
-            if (!BuildPipeline.isBuildingPlayer ||
-                !UltraRPBuildData.instance.buildingPlayerForUltraRenderPipeline)
+            if (!UltraRPShaderBuildSession.isBuildingForUltraRP)
                 return null;
 
             var globalSettings = GraphicsSettings.GetSettingsForRenderPipeline<UltraRenderPipeline>()
@@ -106,19 +111,46 @@ namespace FraxinusEditor.Rendering.Ultra
                 return;
 
             _buildData = buildData;
+            _shaderFeatures = null;
+            _passPolicy = default;
             _supported = Features.All;
             _canStrip = false;
+            _canStripPostProcessing = false;
             _canStripDeferred = false;
+            _canStripDeferredPlus = false;
             var ultraSettings = GetBuildSettings();
             if (ultraSettings == null)
                 return;
 
+            // Build-wide feature proof is independent of postprocess opt-in and
+            // is shared with the earlier native keyword prefiltering layer.
+            _shaderFeatures = UltraRPShaderBuildFeatures.Gather(
+                buildData.allRenderPipelineAssets, ultraSettings.stripUnusedVariants);
+
+            var globalSettings = GraphicsSettings.GetSettingsForRenderPipeline<UltraRenderPipeline>()
+                as UltraRenderPipelineGlobalSettings;
+            var coreSettings = RenderPipelineGraphicsSettingsCompatibility
+                .GetRenderPipelineSettings<ShaderStrippingSetting>(globalSettings);
+            // Explicit build settings do not depend on discovering VolumeProfiles.
+            // With unused-variant stripping enabled, retain this fallback even if
+            // effect stripping is disabled or profile discovery cannot prove usage.
+            _stripScreenCoordOverride = ultraSettings.stripScreenCoordOverrideVariants;
+            _stripRuntimeDebug = coreSettings != null && coreSettings.stripRuntimeDebugShaders;
+            _allowHDROutput = PlayerSettings.allowHDRDisplaySupport;
+            _canStrip = ultraSettings.stripUnusedVariants;
+            _shaderFeatures = UltraRPShaderBuildFeatures.WithBuildSettings(
+                _shaderFeatures, _stripRuntimeDebug, _stripScreenCoordOverride);
+            _allowAlphaOutput = !_shaderFeatures.CanStripKeyword(ShaderKeywordStrings._ENABLE_ALPHA_OUTPUT);
+
             // This decision is independent of VolumeProfiles and postprocess opt-in.
             if (ultraSettings.stripUnusedVariants)
             {
-                bool known = TryAnalyzeDeclaredBuild(CoreBuildData.instance.renderPipelineAssets,
+                bool known = TryAnalyzeDeclaredBuild(buildData.allRenderPipelineAssets,
                     out RendererGraphUsage usage, out int graphCount, out string graphReason);
                 _canStripDeferred = known && ShouldStripDeferredShader(true, new[] { usage });
+                _canStripDeferredPlus = known && ShouldStripDeferredPlusShader(true, new[] { usage });
+                _passPolicy = UltraRPShaderPassRules.GatherPolicy(buildData.allRenderPipelineAssets,
+                    true, known && usage == RendererGraphUsage.ForwardOnly);
                 Debug.Log("UltraRP StencilDeferred stripping: " + (_canStripDeferred ? "remove" : "retain") +
                     ", declared renderer graphs examined: " + graphCount +
                     ". " + graphReason + ". Undeclared runtime graphs or lighting modes require stripUnusedVariants=false.");
@@ -132,16 +164,9 @@ namespace FraxinusEditor.Rendering.Ultra
                 return;
             }
 
-            var globalSettings = GraphicsSettings.GetSettingsForRenderPipeline<UltraRenderPipeline>()
-                as UltraRenderPipelineGlobalSettings;
-            var coreSettings = RenderPipelineGraphicsSettingsCompatibility
-                .GetRenderPipelineSettings<ShaderStrippingSetting>(globalSettings);
-            // Honor explicit build settings. Missing settings retain the variants.
-            // Do not infer these flags from the current camera or Debug.isDebugBuild.
-            _stripScreenCoordOverride = ultraSettings != null && ultraSettings.stripScreenCoordOverrideVariants;
-            _stripRuntimeDebug = coreSettings != null && coreSettings.stripRuntimeDebugShaders;
-            _allowHDROutput = PlayerSettings.allowHDRDisplaySupport;
+            // Preserve the postprocess-only opt-in when general stripping is off.
             _canStrip = true;
+            _canStripPostProcessing = true;
             Debug.Log("UltraRP postprocess stripping: " + profileCount + " VolumeProfiles, retained effects: " + _supported +
                 ". Runtime-only effects must be declared by a VolumeProfile asset or this opt-in setting must be disabled. " +
                 "Internal HDR grading, off variants, and all declared Bloom modes remain available. " +
@@ -155,35 +180,36 @@ namespace FraxinusEditor.Rendering.Ultra
             ForwardOnly = 0,
             Stencil = 1 << 0,
             Clustered = 1 << 1,
-            Deferred = Stencil | Clustered,
             Unknown = 1 << 2,
+            DeferredPlus = 1 << 3,
+            Deferred = Stencil | Clustered | DeferredPlus,
         }
 
         internal static RendererGraphUsage ClassifyRendererGraph(Type graphType, IEnumerable<Type> nodeTypes)
         {
             if (nodeTypes == null)
                 return RendererGraphUsage.Unknown;
-            var nodes = new List<(Type type, bool? cluster)>();
+            var nodes = new List<(Type type, DeferredLightingMode? mode)>();
             foreach (Type type in nodeTypes)
                 nodes.Add((type, null));
             return ClassifyRendererGraph(graphType, nodes);
         }
 
         // Keep disabled and disconnected nodes: scripts may enable or reconnect them.
-        // A runtime change to cluster mode must be represented by another declared graph,
+        // A runtime change to lighting mode must be represented by another declared graph,
         // or unused-variant stripping must remain disabled.
         internal static RendererGraphUsage ClassifyRendererGraphNodes(Type graphType, IEnumerable<FraxinusEngine.Base.BaseNode> nodes)
         {
             if (nodes == null)
                 return RendererGraphUsage.Unknown;
-            var settings = new List<(Type type, bool? cluster)>();
+            var settings = new List<(Type type, DeferredLightingMode? mode)>();
             foreach (var node in nodes)
                 settings.Add((node?.GetType(), node?.GetType() == typeof(DeferredObjectPass)
-                    ? (bool?)((DeferredObjectPass)node).cluster : null));
+                    ? (DeferredLightingMode?)((DeferredObjectPass)node).lightingMode : null));
             return ClassifyRendererGraph(graphType, settings);
         }
 
-        static RendererGraphUsage ClassifyRendererGraph(Type graphType, IEnumerable<(Type type, bool? cluster)> nodes)
+        static RendererGraphUsage ClassifyRendererGraph(Type graphType, IEnumerable<(Type type, DeferredLightingMode? mode)> nodes)
         {
             if (graphType != typeof(UltraRendererGraph))
                 return RendererGraphUsage.Unknown;
@@ -202,8 +228,23 @@ namespace FraxinusEditor.Rendering.Ultra
                 }
                 if (type == typeof(DeferredObjectPass))
                 {
-                    usage |= !node.cluster.HasValue ? RendererGraphUsage.Deferred
-                        : node.cluster.Value ? RendererGraphUsage.Clustered : RendererGraphUsage.Stencil;
+                    switch (node.mode)
+                    {
+                        case DeferredLightingMode.Stencil:
+                            usage |= RendererGraphUsage.Stencil;
+                            break;
+                        case DeferredLightingMode.DeferredPlus:
+                            usage |= RendererGraphUsage.DeferredPlus;
+                            break;
+                        case DeferredLightingMode.GPUCluster:
+                            usage |= RendererGraphUsage.Clustered;
+                            break;
+                        case null:
+                            usage |= RendererGraphUsage.Deferred;
+                            break;
+                        default:
+                            return RendererGraphUsage.Unknown;
+                    }
                     continue;
                 }
                 // Exact types only: derived, new built-in, subgraph and custom callback nodes
@@ -212,10 +253,11 @@ namespace FraxinusEditor.Rendering.Ultra
                     type != typeof(DrawObjectsPass) && type != typeof(ContextEndNode) &&
                     type != typeof(TextureBlitNode) && type != typeof(PostProcessPass) &&
                     type != typeof(MainLightShadowCasterPass) && type != typeof(AdditionalLightsShadowCasterPass) &&
-                    type != typeof(ColorGradingLutPass))
+                    type != typeof(ColorGradingLutPass) && type != typeof(DecalRenderPassNode) &&
+                    type != typeof(DrawSkyboxPass))
                     return RendererGraphUsage.Unknown;
             }
-            // GBuffer without a known lighting consumer is not proof that either
+            // GBuffer without a known lighting consumer is not proof that any
             // deferred implementation is unused.
             return !anyNode ? RendererGraphUsage.Unknown
                 : gbuffer && usage == RendererGraphUsage.ForwardOnly ? RendererGraphUsage.Deferred : usage;
@@ -226,6 +268,9 @@ namespace FraxinusEditor.Rendering.Ultra
 
         internal static bool ShouldStripClusteredCompute(bool stripUnusedVariants, IEnumerable<RendererGraphUsage> graphUsages)
             => CanStripLightingPath(stripUnusedVariants, graphUsages, RendererGraphUsage.Clustered);
+
+        internal static bool ShouldStripDeferredPlusShader(bool stripUnusedVariants, IEnumerable<RendererGraphUsage> graphUsages)
+            => CanStripLightingPath(stripUnusedVariants, graphUsages, RendererGraphUsage.DeferredPlus);
 
         static bool CanStripLightingPath(bool stripUnusedVariants, IEnumerable<RendererGraphUsage> graphUsages, RendererGraphUsage required)
         {
@@ -276,6 +321,9 @@ namespace FraxinusEditor.Rendering.Ultra
             reason = null;
             if (assets == null)
                 return ForwardProofFailed(out reason, "Pipeline asset collection is missing");
+            if (!UltraRPShaderScreenShadowUsage.AreModulesKnown(
+                UltraRPShaderScreenShadowUsage.DiscoveredModules(), false, out reason))
+                return false;
             var usages = new List<RendererGraphUsage>();
             int unityNullBlitOverrides = 0;
             foreach (var asset in assets)
@@ -334,11 +382,15 @@ namespace FraxinusEditor.Rendering.Ultra
                             foreach (var entry in entries)
                             {
                                 Type type = entry?.passType;
-                                if (type != typeof(BloomPass) && type != typeof(DepthOfFieldPass) &&
-                                    type != typeof(MotionBlurPass) && type != typeof(AutoExposurePass) && type != typeof(SMAAPass) &&
-                                    type != typeof(TAAPass) && type != typeof(FraxinusEngine.Rendering.Ultra.LensFlare))
+                                if (!IsKnownPostPassType(type))
                                     return ForwardProofFailed(out reason, "Unknown PostProcessPass entry in graph " + graph.name + ": " + (type?.FullName ?? "<missing>"));
                             }
+                            // SetupPostPasses also instantiates discovered pass types that were
+                            // not serialized in the graph. Their Init/Setup hooks are extensions
+                            // even when their newly registered entry starts disabled.
+                            foreach (var type in TypeCache.GetTypesDerivedFrom<BasePostPass>())
+                                if (!type.IsAbstract && !type.IsInterface && !IsKnownPostPassType(type))
+                                    return ForwardProofFailed(out reason, "Unknown registered postprocess pass: " + type.FullName);
                             var effects = ((PostProcessPass)node).uberEffectEntries;
                             if (effects == null)
                                 return ForwardProofFailed(out reason, "Missing Uber effect entries in graph: " + graph.name);
@@ -379,10 +431,22 @@ namespace FraxinusEditor.Rendering.Ultra
             return false;
         }
 
+        internal static bool IsKnownPostPassType(Type type)
+            => type == typeof(BloomPass) || type == typeof(DepthOfFieldPass) ||
+                type == typeof(MotionBlurPass) || type == typeof(AutoExposurePass) ||
+                type == typeof(SMAAPass) || type == typeof(TAAPass) ||
+                type == typeof(FraxinusEngine.Rendering.Ultra.LensFlare) || type == typeof(PaniniProjectionPass);
+
         internal static bool IsOwnedDeferredShader(string path, string shaderName)
         {
             return shaderName == "Hidden/Ultra Render Pipeline/StencilDeferred" &&
                 string.Equals(path?.Replace('\\', '/'), UltraRenderPipelineAsset.packagePath + "/Shaders/Utils/StencilDeferred.shader", StringComparison.Ordinal);
+        }
+
+        internal static bool IsOwnedDeferredPlusShader(string path, string shaderName)
+        {
+            return shaderName == "Hidden/Ultra Render Pipeline/DeferredPlus" &&
+                string.Equals(path?.Replace('\\', '/'), UltraRenderPipelineAsset.packagePath + "/Shaders/Lighting/DeferredPlus.shader", StringComparison.Ordinal);
         }
 
         internal static bool TryCollectProjectFeatures(out Features supported, out int profileCount, out string reason)
@@ -449,6 +513,43 @@ namespace FraxinusEditor.Rendering.Ultra
             return string.Equals(path?.Replace('\\', '/'), expected, StringComparison.Ordinal) ? kind : PostShader.Unowned;
         }
 
+        internal static bool IsOwnedOutputShader(string path, string shaderName)
+        {
+            if (IdentifyShader(path, shaderName) != PostShader.Unowned) return true;
+            string relative;
+            switch (shaderName)
+            {
+                case "Hidden/Ultra Render Pipeline/LutBuilderHdr": relative = "PostProcessing/LutBuilderHdr.shader"; break;
+                case "Hidden/Fraxinus/BlitHDROverlay": relative = "Utils/BlitHDROverlay.shader"; break;
+                case "Hidden/Fraxinus/HDRDebugView": relative = "Debug/HDRDebugView.shader"; break;
+                case "Hidden/Ultra Render Pipeline/XR/XRMirrorView": relative = "XR/XRMirrorView.shader"; break;
+                default: return false;
+            }
+            return string.Equals(path?.Replace('\\', '/'), UltraRenderPipelineAsset.packagePath + "/Shaders/" + relative,
+                StringComparison.Ordinal);
+        }
+
+        internal static bool DeclaresOutputKeyword(Shader shader, PassIdentifier pass, ShaderType stage,
+            ShaderCompilerPlatform platform, string name)
+        {
+            if (shader == null || !UltraRPShaderPassRules.IncludesFragmentProgram(stage, platform)) return false;
+            var keyword = shader.keywordSpace.FindKeyword(name);
+            return keyword.isValid && ShaderUtil.PassHasKeyword(shader, pass, keyword, ShaderType.Fragment, platform);
+        }
+
+        int GetOutputDeclarations(Shader shader, ShaderSnippetData snippet, ShaderCompilerPlatform platform)
+        {
+            var key = (snippet.pass, platform);
+            if (_outputDeclarations.TryGetValue(key, out int mask)) return mask;
+            for (int i = 0; i < s_buildGlobalKeywordNames.Length; ++i)
+                if (DeclaresOutputKeyword(shader, snippet.pass, ShaderType.Fragment, platform, s_buildGlobalKeywordNames[i])) mask |= 1 << i;
+            for (int i = 0; i < s_buildLocalKeywordNames.Length; ++i)
+                if (DeclaresOutputKeyword(shader, snippet.pass, ShaderType.Fragment, platform, s_buildLocalKeywordNames[i]))
+                    mask |= 1 << (i + s_buildGlobalKeywordNames.Length);
+            _outputDeclarations.Add(key, mask);
+            return mask;
+        }
+
         internal static bool ShouldRemoveKeyword(Features supported, string keyword)
         {
             Features required;
@@ -469,12 +570,13 @@ namespace FraxinusEditor.Rendering.Ultra
         }
 
         internal static bool ShouldRemoveBuildKeyword(string keyword, bool stripScreenCoordOverride,
-            bool stripRuntimeDebug, bool allowHDROutput)
+            bool stripRuntimeDebug, bool allowHDROutput, bool allowAlphaOutput = true)
         {
             switch (keyword)
             {
                 case "SCREEN_COORD_OVERRIDE": return stripScreenCoordOverride;
                 case "DEBUG_DISPLAY": return stripRuntimeDebug;
+                case "_ENABLE_ALPHA_OUTPUT": return !allowAlphaOutput;
                 case "HDR_INPUT":
                 case "HDR_ENCODING":
                 case "HDR_COLORSPACE_CONVERSION":
@@ -500,16 +602,25 @@ namespace FraxinusEditor.Rendering.Ultra
         public void BeforeShaderStripping(Shader shader)
         {
             PrepareBuild();
+            _ordinaryShaderRules.BeforeShaderStripping(shader,
+                UltraRPShaderBuildSession.isBuildingForUltraRP && _shaderFeatures != null && _shaderFeatures.CanStrip,
+                _shaderFeatures?.ForbiddenGlobalKeywords, _shaderFeatures?.RequiredGlobalKeywords,
+                _shaderFeatures?.AllowedLightingStates ?? UltraRPShaderBuildFeatures.AllLightingStates,
+                _shaderFeatures?.RequireMainLightShadows ?? false);
+            _passRules.BeforeShaderStripping(shader, _passPolicy);
             _examined = 0;
             _removed = 0;
             string path = AssetDatabase.GetAssetPath(shader);
             _shaderKind = IdentifyShader(path, shader.name);
+            _ownsOutputRules = IsOwnedOutputShader(path, shader.name);
             _isOwnedDeferredShader = IsOwnedDeferredShader(path, shader.name);
+            _isOwnedDeferredPlusShader = IsOwnedDeferredPlusShader(path, shader.name);
             _keywords = null;
             _buildGlobalKeywords = null;
             _buildGlobalKeywordPresent = null;
             _buildLocalKeywords = null;
-            if (_canStrip && _shaderKind != PostShader.Unowned)
+            _outputDeclarations.Clear();
+            if (_canStrip && _ownsOutputRules)
             {
                 _buildGlobalKeywords = new ShaderKeyword[s_buildGlobalKeywordNames.Length];
                 _buildGlobalKeywordPresent = new bool[s_buildGlobalKeywordNames.Length];
@@ -523,7 +634,7 @@ namespace FraxinusEditor.Rendering.Ultra
                 for (int i = 0; i < _buildLocalKeywords.Length; ++i)
                     _buildLocalKeywords[i] = shader.keywordSpace.FindKeyword(s_buildLocalKeywordNames[i]);
             }
-            if (_canStrip && _shaderKind == PostShader.UberPost)
+            if (_canStripPostProcessing && _shaderKind == PostShader.UberPost)
             {
                 _keywords = new LocalKeyword[s_effectKeywords.Length];
                 for (int i = 0; i < _keywords.Length; ++i)
@@ -533,29 +644,56 @@ namespace FraxinusEditor.Rendering.Ultra
 
         public bool CanRemoveVariant(Shader shader, ShaderSnippetData snippet, ShaderCompilerData data)
         {
+            // Core uses All() across registered strippers; ordinary and postprocess
+            // rules are OR-composed here inside the same registered implementation.
+            if (_ordinaryShaderRules.CanRemoveVariant(shader, snippet, data))
+                return RecordDecision(true, _ordinaryShaderRules.lastRemovalReason == UltraRPShaderVariantRules.RemovalReason.LightingCombination ?
+                    UltraRPShaderBuildReport.Decision.LightingCombination : _ordinaryShaderRules.lastRemovalWasRequired ?
+                    UltraRPShaderBuildReport.Decision.RequiredGlobal : UltraRPShaderBuildReport.Decision.ForbiddenGlobal);
+            if (_passRules.CanRemoveVariant(shader, snippet, data))
+            {
+                var reason = _passRules.lastRemovalReason;
+                bool wholePass = reason == UltraRPShaderPassRules.RemovalReason.UnusedGBufferPass ||
+                    reason == UltraRPShaderPassRules.RemovalReason.UnusedShadowCasterPass ||
+                    reason == UltraRPShaderPassRules.RemovalReason.UnusedMetaPass ||
+                    reason == UltraRPShaderPassRules.RemovalReason.EditorOnlyPass;
+                return RecordDecision(true, wholePass ? UltraRPShaderBuildReport.Decision.UnusedPass :
+                    UltraRPShaderBuildReport.Decision.InvalidCombination);
+            }
             if (_isOwnedDeferredShader)
             {
                 ++_examined;
                 if (_canStripDeferred) ++_removed;
-                return _canStripDeferred;
+                return RecordDecision(_canStripDeferred, UltraRPShaderBuildReport.Decision.DeferredPath);
             }
-            if (!_canStrip || _shaderKind == PostShader.Unowned)
-                return false;
+
+            if (_isOwnedDeferredPlusShader)
+            {
+                ++_examined;
+                if (_canStripDeferredPlus) ++_removed;
+                return RecordDecision(_canStripDeferredPlus, UltraRPShaderBuildReport.Decision.DeferredPath);
+            }
+            if (!_canStrip || !_ownsOutputRules)
+                return RecordDecision(false, UltraRPShaderBuildReport.Decision.Retained);
 
             ++_examined;
-            bool remove = ShouldRemoveWholeShader(_supported, _shaderKind);
-            if (!remove && snippet.shaderType == ShaderType.Fragment)
+            bool remove = _canStripPostProcessing && ShouldRemoveWholeShader(_supported, _shaderKind);
+            var decision = UltraRPShaderBuildReport.Decision.PostEffect;
+            bool includesFragment = UltraRPShaderPassRules.IncludesFragmentProgram(snippet.shaderType, data.shaderCompilerPlatform);
+            if (!remove && includesFragment)
             {
+                int declarations = GetOutputDeclarations(shader, snippet, data.shaderCompilerPlatform);
                 // DEBUG_DISPLAY/SCREEN_COORD_OVERRIDE are global multi_compile keywords.
                 // HDR output keywords are declared multi_compile_local in these shaders.
                 for (int i = 0; i < _buildGlobalKeywords.Length && !remove; ++i)
-                    remove = _buildGlobalKeywordPresent[i] && data.shaderKeywordSet.IsEnabled(_buildGlobalKeywords[i]) &&
+                    remove = (declarations & (1 << i)) != 0 && _buildGlobalKeywordPresent[i] && data.shaderKeywordSet.IsEnabled(_buildGlobalKeywords[i]) &&
                         ShouldRemoveBuildKeyword(s_buildGlobalKeywordNames[i], _stripScreenCoordOverride, _stripRuntimeDebug, _allowHDROutput);
                 for (int i = 0; i < _buildLocalKeywords.Length && !remove; ++i)
-                    remove = _buildLocalKeywords[i].isValid && data.shaderKeywordSet.IsEnabled(_buildLocalKeywords[i]) &&
-                        ShouldRemoveBuildKeyword(s_buildLocalKeywordNames[i], _stripScreenCoordOverride, _stripRuntimeDebug, _allowHDROutput);
+                    remove = (declarations & (1 << (i + s_buildGlobalKeywordNames.Length))) != 0 && _buildLocalKeywords[i].isValid && data.shaderKeywordSet.IsEnabled(_buildLocalKeywords[i]) &&
+                        ShouldRemoveBuildKeyword(s_buildLocalKeywordNames[i], _stripScreenCoordOverride, _stripRuntimeDebug, _allowHDROutput, _allowAlphaOutput);
+                if (remove) decision = UltraRPShaderBuildReport.Decision.OutputSettings;
             }
-            if (!remove && _shaderKind == PostShader.UberPost && snippet.shaderType == ShaderType.Fragment)
+            if (!remove && _canStripPostProcessing && _shaderKind == PostShader.UberPost && includesFragment)
             {
                 for (int i = 0; i < _keywords.Length; ++i)
                 {
@@ -568,11 +706,19 @@ namespace FraxinusEditor.Rendering.Ultra
                 }
             }
             if (remove) ++_removed;
-            return remove;
+            return RecordDecision(remove, decision);
+        }
+
+        static bool RecordDecision(bool removed, UltraRPShaderBuildReport.Decision reason)
+        {
+            UltraRPShaderBuildReport.RecordDecision(removed ? reason : UltraRPShaderBuildReport.Decision.Retained);
+            return removed;
         }
 
         public void AfterShaderStripping(Shader shader)
         {
+            _ordinaryShaderRules.AfterShaderStripping(shader);
+            _passRules.AfterShaderStripping(shader);
             if (_removed > 0)
                 Debug.Log("UltraRP shader stripping: " + shader.name + ", removed " + _removed + " / " + _examined + " variants.");
         }

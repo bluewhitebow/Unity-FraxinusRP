@@ -44,7 +44,18 @@ Shader "Hidden/Ultra Render Pipeline/Terrain/Lit (Add Pass)"
 
     SubShader
     {
-        Tags { "Queue" = "Geometry-99" "RenderType" = "Opaque" "RenderPipeline" = "UltraPipeline" "UltraMaterialType" = "Lit" "IgnoreProjector" = "True"}
+        Tags
+        {
+            "FraxinusTerrainHoles" = "True"
+            "FraxinusShadowRules" = "Standard"
+            "FraxinusPassRules" = "Standard"
+            "FraxinusLightmapRules" = "Standard"
+            "Queue" = "Geometry-99"
+            "RenderType" = "Opaque"
+            "RenderPipeline" = "UltraPipeline"
+            "UltraMaterialType" = "Lit"
+            "IgnoreProjector" = "True"
+        }
 
         Pass
         {
@@ -116,6 +127,7 @@ Shader "Hidden/Ultra Render Pipeline/Terrain/Lit (Add Pass)"
             ColorMask 0 6
 
             HLSLPROGRAM
+            #pragma multi_compile _ _FORWARD_PLUS
             #pragma target 4.5
 
             // Deferred Rendering Path does not support the OpenGL-based graphics API:

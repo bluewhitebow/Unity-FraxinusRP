@@ -65,6 +65,7 @@ namespace FraxinusEngine.Rendering.Ultra
         private CameraData _cachedSubCameraData;
         private readonly RenderingData _subRenderingData = new();
         private readonly GPULightsOutPassData _subGPULights = new();
+        private readonly ForwardPlusFrameData _subForwardPlus = new();
         private readonly DeferredClassifyDebugBuffersData _subClassifyDebug = new();
         private readonly ContextData _subContextData = new();
         
@@ -82,6 +83,8 @@ namespace FraxinusEngine.Rendering.Ultra
             var resourceData = frameData.Get<ResourceData>();
             var cameraData = frameData.Get<CameraData>();
             var renderingData = frameData.Get<RenderingData>();
+            var reflectionProbeAtlas = renderingData.usesForwardPlusLightLists
+                ? frameData.Get<ForwardPlusFrameData>().reflectionProbeAtlas : TextureHandle.nullHandle;
             var parentTarget = inCameraTarget.value;
             if (!parentTarget.IsValid())
                 parentTarget = new CameraTargetBuffer(resourceData.activeColorTexture, resourceData.activeDepthTexture);
@@ -100,8 +103,10 @@ namespace FraxinusEngine.Rendering.Ultra
             _subContextData.Set(_cachedSubCameraData);
             _subContextData.Set(_subRenderingData);
             _subGPULights.Reset();
+            _subForwardPlus.Reset();
             _subClassifyDebug.Reset();
             _subContextData.Set(_subGPULights);
+            _subContextData.Set(_subForwardPlus);
             _subContextData.Set(_subClassifyDebug);
             state.PushContext(parent);
             state.EnterSubContext(new ContextInfo
@@ -120,6 +125,8 @@ namespace FraxinusEngine.Rendering.Ultra
                 ClearSubContextTextures(renderGraph, _cachedSubResourceData, cameraData);
 
             cameraData.renderer.SetupRenderGraphCameraProperties(renderGraph, false);
+            if (_subRenderingData.usesForwardPlusLightLists)
+                cameraData.renderer.GetModule<ForwardLights>().RenderContextLightLists(renderGraph, frameData, reflectionProbeAtlas);
             RenderForwardPrepass(renderGraph, frameData, _subRenderingData, _cachedSubResourceData, cameraData.renderer);
             ContextRenderState.PublishTextures(renderGraph, _cachedSubResourceData);
             if (_subRenderingData.hasDeferredCluster)
@@ -138,7 +145,7 @@ namespace FraxinusEngine.Rendering.Ultra
             target.requiresDepthPrepass = source.requiresDepthPrepass;
             target.hasForwardPlus = source.hasForwardPlus;
             target.hasDeferred = source.hasDeferred;
-            target.hasDeferredCluster = source.hasDeferredCluster;
+            target.deferredLightingMode = source.deferredLightingMode;
             target.clusterLightingMode = source.clusterLightingMode;
             // Occlusion history belongs to the main camera's depth surface.
             target.needsOccluderUpdate = false;

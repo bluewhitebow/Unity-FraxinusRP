@@ -21,6 +21,20 @@ namespace FraxinusEngine.Rendering.Ultra
 
         private ComputeShader _computeShader;
 
+        sealed class PreparedSampling : ContextItem
+        {
+            internal GraphicsBuffer resultBuffer;
+            internal Vector2 coordinates;
+            internal bool active;
+
+            public override void Reset()
+            {
+                resultBuffer = null;
+                coordinates = default;
+                active = false;
+            }
+        }
+
         public ProbeVolumeDebugPass(): base()
         {
             if (RenderPipelineGraphicsSettingsCompatibility.TryGetRenderPipelineSettings<UltraPipelineDebugShaders>(out var debugShaders))
@@ -30,6 +44,34 @@ namespace FraxinusEngine.Rendering.Ultra
         protected override void OnCameraCleanup(CommandBuffer cmd){ }
 
         protected override void OnDispose() { }
+
+        public override void ResetFrame(RenderGraph renderGraph, ContextContainer frameData)
+        {
+            frameData.GetOrCreate<PreparedSampling>().Reset();
+        }
+
+        public override bool PrepareFrame(RenderGraph renderGraph, ContextContainer frameData)
+        {
+            if (UltraRenderPipeline.asset == null || !UltraRenderPipeline.asset.supportProbeVolume || _computeShader == null)
+                return false;
+            var volume = ProbeReferenceVolumeProvider.instance;
+            if (!volume.isInitialized)
+                return false;
+
+            var prepared = frameData.GetOrCreate<PreparedSampling>();
+            // Query once: the provider consumes single-update debug requests.
+            // Execution uses this snapshot after its required textures are ready.
+            prepared.active = volume.GetProbeSamplingDebugResources(frameData.Get<CameraData>().camera,
+                out prepared.resultBuffer, out prepared.coordinates);
+            if (prepared.active)
+            {
+                var rendering = frameData.Get<RenderingData>();
+                rendering.renderPassInputs.requiresDepthTexture = true;
+                rendering.renderPassInputs.requiresNormalsTexture = true;
+                rendering.renderPassInputs.requiresDepthPrepass = true;
+            }
+            return false;
+        }
 
         public override bool IsEligibleToInject(ScriptableRenderer renderer, ScriptableRenderPassNode node)
         {
@@ -53,41 +95,39 @@ namespace FraxinusEngine.Rendering.Ultra
             if (UltraRenderPipeline.asset == null || !UltraRenderPipeline.asset.supportProbeVolume)
                 return;
 
-            CameraData cameraData       = frameData.Get<CameraData>();
             ResourceData resourceData   = frameData.Get<ResourceData>();
 
             TextureHandle cameraDepthTexture = resourceData.cameraDepthTexture;
             TextureHandle cameraNormalsTexture = resourceData.cameraNormalsTexture;
 
-            if (!ProbeReferenceVolumeProvider.instance.isInitialized)
+            var prepared = frameData.GetOrCreate<PreparedSampling>();
+            if (!prepared.active || !cameraDepthTexture.IsValid() || !cameraNormalsTexture.IsValid())
                 return;
+            prepared.active = false;
 
-            if (ProbeReferenceVolumeProvider.instance.GetProbeSamplingDebugResources(cameraData.camera, out var resultBuffer, out Vector2 coords))
+            using (var builder = renderGraph.AddComputePass<WriteApvData>(_passName, out var passData, _profilingSampler))
             {
-                using (var builder = renderGraph.AddComputePass<WriteApvData>(_passName, out var passData, _profilingSampler))
+                passData.clickCoordinates = prepared.coordinates;
+                passData.computeShader = _computeShader;
+
+                passData.resultBuffer = renderGraph.ImportBuffer(prepared.resultBuffer);
+                passData.depthBuffer = cameraDepthTexture;
+                passData.normalBuffer = cameraNormalsTexture;
+
+                builder.UseBuffer(passData.resultBuffer, AccessFlags.Write);
+                builder.UseTexture(passData.depthBuffer, AccessFlags.Read);
+                builder.UseTexture(passData.normalBuffer, AccessFlags.Read);
+
+                builder.SetRenderFunc((WriteApvData data, ComputeGraphContext ctx) =>
                 {
-                    passData.clickCoordinates = coords;
-                    passData.computeShader = _computeShader;
+                    int kernel = data.computeShader.FindKernel("ComputePositionNormal");
 
-                    passData.resultBuffer = renderGraph.ImportBuffer(resultBuffer);
-                    passData.depthBuffer = cameraDepthTexture;
-                    passData.normalBuffer = cameraNormalsTexture;
-
-                    builder.UseBuffer(passData.resultBuffer, AccessFlags.Write);
-                    builder.UseTexture(passData.depthBuffer, AccessFlags.Read);
-                    builder.UseTexture(passData.normalBuffer, AccessFlags.Read);
-
-                    builder.SetRenderFunc((WriteApvData data, ComputeGraphContext ctx) =>
-                    {
-                        int kernel = data.computeShader.FindKernel("ComputePositionNormal");
-
-                        ctx.cmd.SetComputeTextureParam(data.computeShader, kernel, "_CameraDepthTexture", data.depthBuffer);
-                        ctx.cmd.SetComputeTextureParam(data.computeShader, kernel, "_NormalBufferTexture", data.normalBuffer);
-                        ctx.cmd.SetComputeVectorParam(data.computeShader, "_positionSS", new Vector4(data.clickCoordinates.x, data.clickCoordinates.y, 0.0f, 0.0f));
-                        ctx.cmd.SetComputeBufferParam(data.computeShader, kernel, "_ResultBuffer", data.resultBuffer);
-                        ctx.cmd.DispatchCompute(data.computeShader, kernel, 1, 1, 1);
-                    });
-                }
+                    ctx.cmd.SetComputeTextureParam(data.computeShader, kernel, "_CameraDepthTexture", data.depthBuffer);
+                    ctx.cmd.SetComputeTextureParam(data.computeShader, kernel, "_NormalBufferTexture", data.normalBuffer);
+                    ctx.cmd.SetComputeVectorParam(data.computeShader, "_positionSS", new Vector4(data.clickCoordinates.x, data.clickCoordinates.y, 0.0f, 0.0f));
+                    ctx.cmd.SetComputeBufferParam(data.computeShader, kernel, "_ResultBuffer", data.resultBuffer);
+                    ctx.cmd.DispatchCompute(data.computeShader, kernel, 1, 1, 1);
+                });
             }
         }
     }

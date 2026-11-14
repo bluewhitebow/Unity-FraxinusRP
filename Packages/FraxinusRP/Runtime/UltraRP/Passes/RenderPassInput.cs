@@ -2,15 +2,15 @@
 {
     public struct RenderPassInputSummary
     {
-        internal bool requiresIntermediateTexture;
-        internal bool requiresDepthTexture;
-        internal bool requiresColorTexture;
-        internal bool requiresColorTextureCreated;
-        internal bool requiresMotionVectors;
-        internal bool requiresNormalsTexture;
-        internal bool requiresDepthPrepass;
+        public bool requiresIntermediateTexture;
+        public bool requiresDepthTexture;
+        public bool requiresColorTexture;
+        public bool requiresColorTextureCreated;
+        public bool requiresMotionVectors;
+        public bool requiresNormalsTexture;
+        public bool requiresDepthPrepass;
         // Early screen-space consumers need all opaque depth, including deferred materials.
-        internal bool requiresFullDepthPrepass;
-        internal bool disableFramebufferFetch;
+        public bool requiresFullDepthPrepass;
+        public bool disableFramebufferFetch;
     }
 }

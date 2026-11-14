@@ -14,6 +14,11 @@
 #pragma multi_compile _ _LIGHT_LAYERS
 #pragma multi_compile _ _GBUFFER_NORMALS_OCT
 
+// Compute kernels need a stage-neutral declaration. Suppress the fragment-only
+// declaration when the shared Lighting.hlsl is included below.
+#pragma multi_compile _ _FRAXINUS_AREA_LIGHTS
+#define FRAXINUS_AREA_LIGHT_KEYWORDS_INCLUDED
+
 #define _GPU_LIGHTS_CLUSTER
 
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"

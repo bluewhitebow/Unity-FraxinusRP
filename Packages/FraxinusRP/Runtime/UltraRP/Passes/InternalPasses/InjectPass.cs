@@ -56,6 +56,19 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public abstract void Execute(RenderGraph renderGraph, ScriptableRenderContext context, ContextContainer frameData);
 
+        /// <summary>
+        /// Clears per-camera resources and shader state, including when this pass is disabled.
+        /// Do not request input textures from this hook.
+        /// </summary>
+        public virtual void ResetFrame(RenderGraph renderGraph, ContextContainer frameData) { }
+
+        /// <summary>
+        /// Called once per camera for enabled, bound passes before texture allocation.
+        /// Merge texture requirements into RenderingData.renderPassInputs here.
+        /// Return true when this effect requires an intermediate camera target and final blit.
+        /// </summary>
+        public virtual bool PrepareFrame(RenderGraph renderGraph, ContextContainer frameData) => false;
+
         public virtual bool IsEligibleToInject(ScriptableRenderer renderer, ScriptableRenderPassNode node)
         {
             return true;

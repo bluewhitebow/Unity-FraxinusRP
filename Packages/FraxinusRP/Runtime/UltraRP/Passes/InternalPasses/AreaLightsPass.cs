@@ -24,6 +24,7 @@ namespace FraxinusEngine.Rendering.Ultra
             // capture a renderer-owned mutable array in a delayed render function.
             internal readonly AreaLightManager.Snapshot lights = new AreaLightManager.Snapshot();
             internal bool ready;
+            internal bool areaLightsEnabled;
         }
 
         public AreaLightsPass() { }
@@ -37,6 +38,10 @@ namespace FraxinusEngine.Rendering.Ultra
             using (var builder = graph.AddRasterRenderPass<PassData>("Prepare Area Lights and FGD", out var pass))
             {
                 pass.lights.count = 0;
+                // Match the pipeline's build capability, including cameras with
+                // zero area lights. Count-based keyword toggling would require
+                // keeping an unnecessary OFF variant in enabled-only builds.
+                pass.areaLightsEnabled = UltraRenderPipeline.asset?.supportsAreaLights ?? false;
                 pass.ready = AreaLightSystem.instance.isAvailable && SystemInfo.graphicsShaderLevel >= 35;
                 if (pass.ready)
                 {
@@ -51,13 +56,15 @@ namespace FraxinusEngine.Rendering.Ultra
                         builder.SetGlobalTextureAfterPass(resources.ltc, s_Ltc);
                         builder.SetGlobalTextureAfterPass(resources.fgd,
                             PreIntegratedFGD.ShaderConstants._PreIntegratedFGD_GGXDisneyDiffuse);
-                        _manager.Prepare(frame.Get<CameraData>(), frame.Get<LightData>(), pass.lights);
+                        if (pass.areaLightsEnabled)
+                            _manager.Prepare(frame.Get<CameraData>(), frame.Get<LightData>(), pass.lights);
                     }
                 }
                 resources.lightCount = pass.lights.count;
                 builder.AllowGlobalStateModification(true);
                 builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
                 {
+                    context.cmd.SetKeyword(ShaderGlobalKeywords.AreaLights, data.areaLightsEnabled);
                     context.cmd.SetGlobalInt(s_Ready, data.ready ? 1 : 0);
                     context.cmd.SetGlobalInt(s_Count, data.lights.count);
                     if (data.lights.count == 0)

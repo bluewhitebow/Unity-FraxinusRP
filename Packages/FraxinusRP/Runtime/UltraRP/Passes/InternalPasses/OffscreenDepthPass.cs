@@ -22,16 +22,23 @@ namespace FraxinusEngine.Rendering.Ultra
             internal RendererListHandle opaque, transparent;
             internal Rect viewport;
             internal bool clearDepth, alphaToMask;
+            internal ForwardPlusFrameData forwardPlus;
         }
 
         internal static void Render(RenderGraph graph, ContextContainer frameData, TextureHandle depth,
-            LayerMask opaqueLayers, LayerMask transparentLayers)
+            LayerMask opaqueLayers, LayerMask transparentLayers,
+            TextureHandle mainShadows, TextureHandle additionalShadows)
         {
             var camera = frameData.Get<CameraData>();
             var rendering = frameData.Get<RenderingData>();
             var lights = frameData.Get<LightData>();
             using (var builder = graph.AddRasterRenderPass<PassData>("Offscreen Depth", out var data, s_Sampler))
             {
+                data.forwardPlus = ForwardLights.UseLightingResources(builder, frameData);
+                if (mainShadows.IsValid())
+                    builder.UseTexture(mainShadows, AccessFlags.Read);
+                if (additionalShadows.IsValid())
+                    builder.UseTexture(additionalShadows, AccessFlags.Read);
                 var drawing = RenderingUtils.CreateDrawingSettings(s_Tags, rendering, camera, lights, camera.defaultOpaqueSortFlags);
                 data.opaque = graph.CreateRendererList(new RendererListParams(rendering.cullResults, drawing,
                     new FilteringSettings(RenderQueueRange.opaque, opaqueLayers)));
@@ -50,6 +57,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 builder.AllowGlobalStateModification(true);
                 builder.SetRenderFunc(static (PassData pass, RasterGraphContext context) =>
                 {
+                    ForwardLights.BindLightLists(context.cmd, pass.forwardPlus);
                     if (pass.clearDepth)
                         context.cmd.ClearRenderTarget(RTClearFlags.DepthStencil, Color.clear, 1, 0);
                     context.cmd.SetViewport(pass.viewport);
