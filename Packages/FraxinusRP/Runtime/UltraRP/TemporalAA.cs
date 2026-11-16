@@ -241,11 +241,11 @@ namespace FraxinusEngine.Rendering.Ultra
             taaDesc.bindMS = false;
             taaDesc.useDynamicScale = false;
 
-            if (!GraphicsFormatCompatibility.IsFormatSupported(taaDesc.graphicsFormat, GraphicsFormatUsage.Render))
+            if (!RenderingUtils.SupportsGraphicsFormat(taaDesc.graphicsFormat, GraphicsFormatUsage.Render))
             {
                 taaDesc.graphicsFormat = GraphicsFormat.None;
                 for (int i = 0; i < accumulationFormatList.Length; i++)
-                    if (GraphicsFormatCompatibility.IsFormatSupported(accumulationFormatList[i], GraphicsFormatUsage.Render))
+                    if (RenderingUtils.SupportsGraphicsFormat(accumulationFormatList[i], GraphicsFormatUsage.Render))
                     {
                         taaDesc.graphicsFormat = accumulationFormatList[i];
                         break;

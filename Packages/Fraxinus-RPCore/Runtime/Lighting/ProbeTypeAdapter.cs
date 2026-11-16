@@ -125,13 +125,15 @@ namespace UnityEngine.Rendering
                 {
                     types = assembly.GetTypes();
                 }
-                catch
+                catch (ReflectionTypeLoadException exception)
                 {
-                    continue;
+                    types = exception.Types;
                 }
 
                 foreach (var type in types)
                 {
+                    if (type == null || type.ContainsGenericParameters)
+                        continue;
                     foreach (var method in type.GetMethods(k_StaticMethods))
                     {
                         if (method.IsDefined(typeof(ProbeRuntimeResourceHandlerAttribute), false))
@@ -143,7 +145,7 @@ namespace UnityEngine.Rendering
 
         static void TryRegisterHandlerMethod(MethodInfo method)
         {
-            if (method.ReturnType != typeof(void))
+            if (method.ContainsGenericParameters || method.ReturnType != typeof(void))
                 return;
 
             var parameters = method.GetParameters();
@@ -152,27 +154,26 @@ namespace UnityEngine.Rendering
 
             var dataLocationType = parameters[0].ParameterType;
             var resourceType = parameters[1].ParameterType;
-            if (resourceType.IsByRef)
-                resourceType = resourceType.GetElementType();
+            if (!resourceType.IsByRef)
+                return;
+            resourceType = resourceType.GetElementType();
 
             if (!dataLocationType.IsValueType || !resourceType.IsValueType)
+                return;
+            if (dataLocationType.IsByRefLike || resourceType.IsByRefLike ||
+                Nullable.GetUnderlyingType(dataLocationType) != null || Nullable.GetUnderlyingType(resourceType) != null)
                 return;
             if (!typeof(IRuntimeResources).IsAssignableFrom(resourceType))
                 return;
             if (s_RegisterHandlerOpenGeneric == null)
                 return;
 
-            try
-            {
-                var delegateType = typeof(TypedHandler<,>).MakeGenericType(resourceType, dataLocationType);
-                var handler = Delegate.CreateDelegate(delegateType, method);
-                s_RegisterHandlerOpenGeneric.MakeGenericMethod(resourceType, dataLocationType).Invoke(null, new object[] { handler });
-                Debug.Log($"[ProbeRuntimeResourceHandler] Registered: {method.DeclaringType}.{method.Name}<{resourceType.Name}, {dataLocationType.Name}>");
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning($"Failed to create delegate for method {method.DeclaringType}.{method.Name}: {e.Message}");
-            }
+            var delegateType = typeof(TypedHandler<,>).MakeGenericType(resourceType, dataLocationType);
+            var handler = Delegate.CreateDelegate(delegateType, method, throwOnBindFailure: false);
+            if (handler == null)
+                return;
+            s_RegisterHandlerOpenGeneric.MakeGenericMethod(resourceType, dataLocationType).Invoke(null, new object[] { handler });
+            Debug.Log($"[ProbeRuntimeResourceHandler] Registered: {method.DeclaringType}.{method.Name}<{resourceType.Name}, {dataLocationType.Name}>");
         }
 
         static ProbeRuntimeResourcesTypeAdapter()

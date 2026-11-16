@@ -522,9 +522,9 @@ public static class APVStandaloneSmoke
         Require(Read(s_BakingProvider, "activeOrNull") == null, "Baker cache was not released.");
         Invoke(s_Volume, "SetEnableStateFromSRP", false);
         Require(!(bool)Read(s_Volume, "enabledBySRP"), "APV must be disabled for clear regression.");
-        var tab = Activator.CreateInstance(FindType("UnityEngine.Rendering.ProbeVolumeLightingTab"), true);
-        Invoke(Read(tab, "m_ActiveSet"), "Set", s_Set);
-        Require((bool)Invoke(tab, "ClearBakedData"), "Selected-set UI clear failed.");
+        var workflow = Activator.CreateInstance(FindType("UnityEngine.Rendering.ProbeVolumeBakingWorkflow"), true);
+        Invoke(Read(workflow, "m_ActiveSet"), "Set", s_Set);
+        Require((bool)Invoke(workflow, "ClearBakedData"), "Selected-set UI clear failed.");
         AssertCleared(targetFiles);
         Require(targetData.bakingSet == null && targetScene.isDirty, "Target scene binding was not cleared and marked dirty.");
         Require(foreignData.bakingSet == foreignSet, "Foreign scene binding was cleared.");

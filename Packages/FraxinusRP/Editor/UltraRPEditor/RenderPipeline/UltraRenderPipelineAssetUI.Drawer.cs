@@ -67,7 +67,7 @@ namespace FraxinusEditor.Rendering.Ultra
                 var lightingModeError = !HasCorrectLightingModes(serialized.asset);
                 var staticBatchingWarning = PlayerSettings.GetStaticBatchingForPlatform(EditorUserBuildSettings.activeBuildTarget);
 
-                if ((GPUResidentDrawerMode)serialized.gpuResidentDrawerMode.intValue != GPUResidentDrawerMode.Disabled)
+                if ((UltraGPUResidentDrawerMode)serialized.gpuResidentDrawerMode.intValue != UltraGPUResidentDrawerMode.Disabled)
                 {
                     ++EditorGUI.indentLevel;
                     serialized.smallMeshScreenPercentage.floatValue = Mathf.Clamp(EditorGUILayout.FloatField(Styles.smallMeshScreenPercentage, serialized.smallMeshScreenPercentage.floatValue), 0.0f, 20.0f);
@@ -83,7 +83,7 @@ namespace FraxinusEditor.Rendering.Ultra
                 }
 #else
                 using (new EditorGUI.DisabledScope(true))
-                    EditorGUILayout.EnumPopup(Styles.gpuResidentDrawerMode, GPUResidentDrawerMode.Disabled);
+                    EditorGUILayout.EnumPopup(Styles.gpuResidentDrawerMode, UltraGPUResidentDrawerMode.Disabled);
                 EditorGUILayout.HelpBox("Unity's native GPU Resident Drawer is unavailable in Unity 2022. Standard renderer drawing remains active.", MessageType.Info);
 #endif
             }
@@ -226,7 +226,7 @@ namespace FraxinusEditor.Rendering.Ultra
             if (!serialized.reflectionProbeBlendingProp.boolValue)
                 serialized.reflectionProbeAtlasProp.boolValue = false;
 
-            if ((GPUResidentDrawerMode)serialized.gpuResidentDrawerMode.intValue != GPUResidentDrawerMode.Disabled)
+            if ((UltraGPUResidentDrawerMode)serialized.gpuResidentDrawerMode.intValue != UltraGPUResidentDrawerMode.Disabled)
             {
                 if (!serialized.reflectionProbeBlendingProp.boolValue || !serialized.reflectionProbeAtlasProp.boolValue)
                     EditorGUILayout.HelpBox(Styles.reflectionProbeBlendingGpuResidentDrawerWarningText.text, MessageType.Warning, true);
@@ -242,7 +242,7 @@ namespace FraxinusEditor.Rendering.Ultra
             if (!serialized.reflectionProbeBlendingProp.boolValue)
                 serialized.reflectionProbeAtlasProp.boolValue = false;
 
-            if ((GPUResidentDrawerMode)serialized.gpuResidentDrawerMode.intValue != GPUResidentDrawerMode.Disabled)
+            if ((UltraGPUResidentDrawerMode)serialized.gpuResidentDrawerMode.intValue != UltraGPUResidentDrawerMode.Disabled)
             {
                 if (!serialized.reflectionProbeBlendingProp.boolValue || !serialized.reflectionProbeAtlasProp.boolValue)
                     EditorGUILayout.HelpBox(Styles.reflectionProbeBlendingGpuResidentDrawerWarningText.text, MessageType.Warning, true);

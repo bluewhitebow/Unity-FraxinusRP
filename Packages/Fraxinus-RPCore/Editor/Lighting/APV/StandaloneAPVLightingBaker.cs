@@ -281,7 +281,7 @@ namespace UnityEngine.Rendering
             // are unbiased in the limit.
             try
             {
-                var lightingSettings = ProbeVolumeLightingTab.GetLightingSettings();
+                var lightingSettings = ProbeVolumeBakingWorkflow.GetLightingSettings();
                 m_EnvironmentImportanceSampling = lightingSettings != null &&
                     lightingSettings.environmentImportanceSampling;
                 m_MinBounces = lightingSettings != null
@@ -708,7 +708,7 @@ namespace UnityEngine.Rendering
             MixedLightingMode mixedLightingMode = MixedLightingMode.IndirectOnly;
             try
             {
-                var settings = ProbeVolumeLightingTab.GetLightingSettings();
+                var settings = ProbeVolumeBakingWorkflow.GetLightingSettings();
                 if (settings != null)
                     mixedLightingMode = settings.mixedBakeMode;
             }

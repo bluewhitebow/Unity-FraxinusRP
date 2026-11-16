@@ -46,7 +46,7 @@ namespace FraxinusEngine.Rendering.Ultra
             internal uint batchLayerMask;
             internal bool isActiveTargetBackBuffer;
             internal bool contactShadowsEnabled;
-            internal ForwardPlusFrameData forwardPlus;
+            internal CpuLightListFrameData cpuLightLists;
 
             internal RendererListHandle rendererListHdl;
             internal RendererListHandle objectsWithErrorRendererListHdl;
@@ -270,16 +270,16 @@ namespace FraxinusEngine.Rendering.Ultra
                 for (int passIndex = 0; passIndex < passCount; ++passIndex)
                 {
                     uint batchLayerMask = uint.MaxValue;
+#if UNITY_6000_0_OR_NEWER
                     if (needsOccluderUpdate)
                     {
                         // first pass: test everything against previous frame final depth pyramid
                         // second pass: re-test culled against current frame intermediate depth pyramid
-                        OcclusionTest occlusionTest = (passIndex) == 0 ? OcclusionTest.TestAll : OcclusionTest.TestCulled;
+                        OcclusionTest occlusionTest = (passIndex == 0) ? OcclusionTest.TestAll : OcclusionTest.TestCulled;
                         UltraRenderer.InstanceOcclusionTest(renderGraph, cameraData, occlusionTest);
-#if UNITY_6000_0_OR_NEWER
                         batchLayerMask = occlusionTest.GetBatchLayerMask();
-#endif
                     }
+#endif
 
                     if (renderinglayerSetting.renderingLayerProvidesRenderObjectPass)
                     {
@@ -301,9 +301,11 @@ namespace FraxinusEngine.Rendering.Ultra
                     {
                         // first pass: make current frame intermediate depth pyramid
                         // second pass: make current frame final depth pyramid, set occlusion test results for later passes
-                        UltraRenderer.UpdateInstanceOccluders(renderGraph, cameraData, resourceData.activeDepthTexture);
+                        GPUResidentDrawerBridge.UpdateOccluders(renderGraph, cameraData, resourceData.activeDepthTexture);
+#if UNITY_6000_0_OR_NEWER
                         if (passIndex != 0)
                             UltraRenderer.InstanceOcclusionTest(renderGraph, cameraData, OcclusionTest.TestAll);
+#endif
                     }
                 }
 
@@ -330,7 +332,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 builder.UseAllGlobalTextures(true);
                 APRTRelightPass.UseLightingResources(builder, frameData);
                 AreaLightsPass.UseLightingResources(builder, frameData);
-                passData.forwardPlus = ForwardLights.UseLightingResources(builder, frameData);
+                passData.cpuLightLists = ForwardLights.UseLightingResources(builder, frameData);
                 GroundTruthAmbientOcclusionPass.UseLightingResources(builder, frameData);
 
                 InitPassData(cameraData, ref passData, batchLayerMask, resourceData.isActiveTargetBackBuffer);
@@ -367,7 +369,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 builder.AllowGlobalStateModification(true);
                 builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
                 {
-                    ForwardLights.BindLightLists(context.cmd, data.forwardPlus);
+                    ForwardLights.BindLightLists(context.cmd, data.cpuLightLists);
                     bool yFlip = data.cameraData.IsRenderTargetProjectionMatrixFlipped(data.albedoHdl);
                     ExecutePass(context.cmd, data, data.rendererListHdl, data.objectsWithErrorRendererListHdl, yFlip);
                 });
@@ -383,7 +385,7 @@ namespace FraxinusEngine.Rendering.Ultra
             {
                 APRTRelightPass.UseLightingResources(builder, frameData);
                 AreaLightsPass.UseLightingResources(builder, frameData);
-                passData.basePassData.forwardPlus = ForwardLights.UseLightingResources(builder, frameData);
+                passData.basePassData.cpuLightLists = ForwardLights.UseLightingResources(builder, frameData);
                 GroundTruthAmbientOcclusionPass.UseLightingResources(builder, frameData);
                 ResourceData resourceData   = frameData.Get<ResourceData>();
                 RenderingData renderingData = frameData.Get<RenderingData>();
@@ -424,7 +426,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 builder.SetRenderFunc((RenderingLayersPassData data, RasterGraphContext context) =>
                 {
-                    ForwardLights.BindLightLists(context.cmd, data.basePassData.forwardPlus);
+                    ForwardLights.BindLightLists(context.cmd, data.basePassData.cpuLightLists);
                     // Enable Rendering Layers
                     context.cmd.SetKeyword(ShaderGlobalKeywords.WriteRenderingLayers, true);
 

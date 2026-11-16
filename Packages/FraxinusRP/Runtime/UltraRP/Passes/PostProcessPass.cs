@@ -235,11 +235,11 @@ namespace FraxinusEngine.Rendering.Ultra
                 _defaultColorFormatIsAlpha = requestAlpha;
 
                 const GraphicsFormatUsage usage = GraphicsFormatUsage.Blend;
-                if (GraphicsFormatCompatibility.IsFormatSupported(requestColorFormat, usage))    // Typically, RGBA16Float.
+                if (RenderingUtils.SupportsGraphicsFormat(requestColorFormat, usage))    // Typically, RGBA16Float.
                 {
                     _defaultColorFormat = requestColorFormat;
                 }
-                else if (GraphicsFormatCompatibility.IsFormatSupported(GraphicsFormat.B10G11R11_UFloatPack32, usage)) // HDR fallback
+                else if (RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.B10G11R11_UFloatPack32, usage)) // HDR fallback
                 {
                     // NOTE: Technically request format can be with alpha, however if it's not supported and we fall back here
                     // , we assume no alpha. Post-process default format follows the back buffer format.
@@ -669,42 +669,33 @@ namespace FraxinusEngine.Rendering.Ultra
 
             foreach (var type in passTypes)
             {
-                try
+                var typeName = type.AssemblyQualifiedName;
+                typeNames.Add(typeName);
+
+                var existingEntry = _postPassEntries.Find(e => e.typeName == typeName);
+
+                if (existingEntry != null)
                 {
-                    var typeName = type.AssemblyQualifiedName;
-                    typeNames.Add(typeName);
-                    
-                    var existingEntry = _postPassEntries.Find(e => e.typeName == typeName);
-                    
-                    if (existingEntry != null)
-                    {
-                        // Update instance, preserve enabled state
-                        var instance = Activator.CreateInstance(type) as BasePostPass;
-                        instance?.Init(this);
-                        existingEntry.passType = type;
-                        existingEntry.passInstance = instance;
-                    }
-                    else
-                    {
-                        var instance = Activator.CreateInstance(type) as BasePostPass;
-                        if (instance != null)
-                        {
-                            instance.Init(this);
-                            _postPassEntries.Add(new PostPassEntry
-                            {
-                                passType = type,
-                                passInstance = instance,
-                                // Exposure is controlled by its default-off Volume component.
-                                enabled = type == typeof(AutoExposurePass) || type == typeof(PaniniProjectionPass)
-                            });
-                        }
-                    }
+                    // Update instance, preserve enabled state
+                    var instance = Activator.CreateInstance(type) as BasePostPass;
+                    instance?.Init(this);
+                    existingEntry.passType = type;
+                    existingEntry.passInstance = instance;
                 }
-                catch (Exception ex)
+                else
                 {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-                    Debug.LogWarning($"Failed to auto-register pass {type.Name}: {ex.Message}");
-#endif
+                    var instance = Activator.CreateInstance(type) as BasePostPass;
+                    if (instance != null)
+                    {
+                        instance.Init(this);
+                        _postPassEntries.Add(new PostPassEntry
+                        {
+                            passType = type,
+                            passInstance = instance,
+                            // Exposure is controlled by its default-off Volume component.
+                            enabled = type == typeof(AutoExposurePass) || type == typeof(PaniniProjectionPass)
+                        });
+                    }
                 }
             }
             
@@ -747,19 +738,10 @@ namespace FraxinusEngine.Rendering.Ultra
             
             foreach (var type in processorTypes)
             {
-                try
+                var processor = Activator.CreateInstance(type) as IUberEffectProcessor;
+                if (processor != null)
                 {
-                    var processor = Activator.CreateInstance(type) as IUberEffectProcessor;
-                    if (processor != null)
-                    {
-                        discoveredProcessors[processor.componentType] = processor;
-                    }
-                }
-                catch (Exception ex)
-                {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-                    Debug.LogWarning($"Failed to instantiate effect processor {type.Name}: {ex.Message}");
-#endif
+                    discoveredProcessors[processor.componentType] = processor;
                 }
             }
 
@@ -800,15 +782,13 @@ namespace FraxinusEngine.Rendering.Ultra
 
         IEnumerable<Type> GetTypesFromAssemblies<T>(bool includeInterfaces = true)
         {
-            return AppDomain.CurrentDomain.GetAssemblies()
-                .SelectMany(a => {
-                    try { return a.GetTypes(); }
-                    catch { return Type.EmptyTypes; }
-                })
+            return AppDomain.CurrentDomain.GetAllTypes()
                 .Where(t => typeof(T).IsAssignableFrom(t) 
                             && !t.IsAbstract
+                            && !t.ContainsGenericParameters
                             && (includeInterfaces || !t.IsInterface)
-                            && t != typeof(T));
+                            && t != typeof(T)
+                            && (t.IsValueType || t.GetConstructor(Type.EmptyTypes) != null));
         }
         
 

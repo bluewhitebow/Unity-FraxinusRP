@@ -60,7 +60,7 @@ namespace UnityEngine.Rendering
 
         static bool Foldout(GUIContent label, Expandable area, bool title, Action<Rect> contextMenu = null)
         {
-            bool expanded = ProbeVolumeLightingTab.Foldout(label, s_Foldouts[area], title, contextMenu);
+            bool expanded = ProbeVolumeBakingPanel.Foldout(label, s_Foldouts[area], title, contextMenu);
             s_Foldouts.SetExpandedAreas(area, expanded);
             return expanded;
         }
@@ -189,7 +189,7 @@ namespace UnityEngine.Rendering
                     break;
                 }
                 default:
-                    ProbeVolumeLightingTab.DrawListWithIndent(m_MaskList);
+                    ProbeVolumeBakingPanel.DrawListWithIndent(m_MaskList);
                     break;
             }
         }
@@ -273,7 +273,7 @@ namespace UnityEngine.Rendering
 
             using var scope = new EditorGUI.IndentLevelScope();
 
-            var lightmapper = ProbeVolumeLightingTab.GetLightingSettings().lightmapper;
+            var lightmapper = ProbeVolumeBakingWorkflow.GetLightingSettings().lightmapper;
             bool cpuLightmapperSelected = lightmapper == LightingSettings.Lightmapper.ProgressiveCPU;
             if (cpuLightmapperSelected)
             {

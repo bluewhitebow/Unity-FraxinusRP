@@ -81,6 +81,11 @@ namespace UnityEngine.Rendering
         }
 #endif
 
+        public T GetSettings<T>() where T : class, IRenderPipelineGraphicsSettings
+        {
+            return TryGet(typeof(T), out var settings) ? settings as T : null;
+        }
+
         /// <summary>
         /// Active Global Settings asset. If the value is `null` then no `TGlobalRenderPipelineSettings` is registered to the Graphics Settings with the `TRenderPipeline`.
         /// </summary>

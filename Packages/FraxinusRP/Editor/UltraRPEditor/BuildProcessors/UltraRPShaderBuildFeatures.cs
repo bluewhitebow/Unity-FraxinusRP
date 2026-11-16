@@ -374,10 +374,8 @@ namespace FraxinusEditor.Rendering.Ultra
             if (!UnityEditor.Rendering.BuildTargetExtensions.TryGetRenderPipelineAssets(EditorUserBuildSettings.activeBuildTarget, assets))
                 return Merge(Array.Empty<AssetFeatures>(), true);
             var settings = GraphicsSettings.GetSettingsForRenderPipeline<UltraRenderPipeline>() as UltraRenderPipelineGlobalSettings;
-            var stripping = settings == null ? null : RenderPipelineGraphicsSettingsCompatibility
-                .GetRenderPipelineSettings<UltraRenderPipelineShaderStrippingSetting>(settings);
-            var core = settings == null ? null : RenderPipelineGraphicsSettingsCompatibility
-                .GetRenderPipelineSettings<ShaderStrippingSetting>(settings);
+            var stripping = settings == null ? null : settings.GetSettings<UltraRenderPipelineShaderStrippingSetting>();
+            var core = settings == null ? null : settings.GetSettings<ShaderStrippingSetting>();
             return WithBuildSettings(Gather(assets, stripping != null && stripping.stripUnusedVariants),
                 core != null && core.stripRuntimeDebugShaders, stripping != null && stripping.stripScreenCoordOverrideVariants);
         }

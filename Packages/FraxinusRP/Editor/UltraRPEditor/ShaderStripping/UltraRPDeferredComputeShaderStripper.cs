@@ -43,8 +43,7 @@ namespace FraxinusEditor.Rendering.Ultra
                 as UltraRenderPipelineGlobalSettings;
             if (globalSettings == null)
                 return false;
-            var settings = RenderPipelineGraphicsSettingsCompatibility
-                .GetRenderPipelineSettings<UltraRenderPipelineShaderStrippingSetting>(globalSettings);
+            var settings = globalSettings.GetSettings<UltraRenderPipelineShaderStrippingSetting>();
             return settings != null && settings.stripUnusedVariants;
         }
 

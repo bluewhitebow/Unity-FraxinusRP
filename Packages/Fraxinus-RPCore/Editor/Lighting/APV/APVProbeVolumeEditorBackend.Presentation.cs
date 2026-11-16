@@ -13,7 +13,7 @@ namespace UnityEngine.Rendering
 
         internal override bool DrawVolumeWarnings()
         {
-            if (ProbeVolumeLightingTab.GetLightingSettings().realtimeGI)
+            if (ProbeVolumeBakingWorkflow.GetLightingSettings().realtimeGI)
             {
                 EditorGUILayout.HelpBox("Adaptive Probe Volumes are not supported when using Realtime Global Illumination (Enlighten).", MessageType.Warning, wide: true);
                 return false;

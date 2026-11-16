@@ -100,8 +100,7 @@ namespace FraxinusEditor.Rendering.Ultra
             if (globalSettings == null)
                 return null;
 
-            return RenderPipelineGraphicsSettingsCompatibility
-                .GetRenderPipelineSettings<UltraRenderPipelineShaderStrippingSetting>(globalSettings);
+            return globalSettings.GetSettings<UltraRenderPipelineShaderStrippingSetting>();
         }
 
         void PrepareBuild()
@@ -129,8 +128,7 @@ namespace FraxinusEditor.Rendering.Ultra
 
             var globalSettings = GraphicsSettings.GetSettingsForRenderPipeline<UltraRenderPipeline>()
                 as UltraRenderPipelineGlobalSettings;
-            var coreSettings = RenderPipelineGraphicsSettingsCompatibility
-                .GetRenderPipelineSettings<ShaderStrippingSetting>(globalSettings);
+            var coreSettings = globalSettings == null ? null : globalSettings.GetSettings<ShaderStrippingSetting>();
             // Explicit build settings do not depend on discovering VolumeProfiles.
             // With unused-variant stripping enabled, retain this fallback even if
             // effect stripping is disabled or profile discovery cannot prove usage.

@@ -259,6 +259,7 @@ namespace FraxinusEngine.Rendering.Ultra
             DeferredLightingMode? deferredMode = null;
             LayerMask opaqueLayerMask = 0;
             RenderPassInputSummary inputSummary = new RenderPassInputSummary();
+            var drivenNode = graph.drivenNode;
             for (int i = 0; i < _sortedNodes.Count; ++i)
             {
                 var node = _sortedNodes[i];
@@ -279,7 +280,7 @@ namespace FraxinusEngine.Rendering.Ultra
                     inputSummary.requiresColorTexture |= needsColor;
                     inputSummary.requiresMotionVectors |= needsMotion;
 
-                    bool mainContext = graph.drivenNode == null || IsSameContext(pass, graph.drivenNode);
+                    bool mainContext = drivenNode == null || IsSameContext(pass, drivenNode);
                     if (!(pass is DeferredObjectPass) || mainContext)
                         _renderingMode |= pass.RequestRenderingMode();
                     // GBuffer layout and lighting mode are camera-wide. Child
@@ -322,7 +323,7 @@ namespace FraxinusEngine.Rendering.Ultra
             // TODO: PerObjectCulling also affect reflection probes. Enabling it for now.
             // if (asset.additionalLightsRenderingMode == LightRenderingMode.Disabled ||
             //     asset.maxAdditionalLightsCount == 0)
-            if (internalData.usesForwardPlusLightLists && UltraRenderPipeline.asset.reflectionProbeBlending)
+            if (internalData.usesCpuLightLists && UltraRenderPipeline.asset.reflectionProbeBlending)
                 cullingParameters.cullingOptions |= CullingOptions.DisablePerObjectCulling;
 
             // We disable shadow casters if both shadow casting modes are turned off
@@ -332,7 +333,7 @@ namespace FraxinusEngine.Rendering.Ultra
             if (isShadowCastingDisabled || isShadowDistanceZero)
                 cullingParameters.cullingOptions &= ~CullingOptions.ShadowCasters;
 
-            if (internalData.usesForwardPlusLightLists)
+            if (internalData.usesCpuLightLists)
             {
                 // We don't add one to the maximum light because mainlight is treated as any other light.
                 cullingParameters.maximumVisibleLights = UltraRenderPipeline.maxVisibleAdditionalLights;
@@ -393,8 +394,8 @@ namespace FraxinusEngine.Rendering.Ultra
             {
                 // This path still draws material Forward passes, including on the
                 // first camera with no visible lights. RenderDrivenPass is skipped,
-                // so establish its lighting policy and Forward+ resources here.
-                _forwardLights.useforwardLight = renderingData.usesForwardPlusLightLists;
+                // so establish its lighting policy and CPU light-list resources here.
+                _forwardLights.usesCpuLightLists = renderingData.usesCpuLightLists;
                 _forwardLights.SetupRenderGraphLights(renderGraph, frameData);
                 ImportOffscreenDepthTarget(renderGraph, resourceData, cameraData);
                 OnOffscreenDepthTextureRendering(renderGraph, context, resourceData, cameraData);
@@ -544,11 +545,11 @@ namespace FraxinusEngine.Rendering.Ultra
         }
 
         public override bool isForwardPlus => (_renderingMode & RenderingMode.ForwardPlus) != 0; 
-        public override bool usesForwardPlusLightLists => (_renderingMode & (RenderingMode.ForwardPlus | RenderingMode.DeferredPlus)) != 0;
+        public override bool usesCpuLightLists => (_renderingMode & (RenderingMode.ForwardPlus | RenderingMode.DeferredPlus)) != 0;
 
         private void SetupRenderGraphLights(RenderGraph renderGraph, RenderingData renderingData, CameraData cameraData, LightData lightData)
         {
-            _forwardLights.useforwardLight = renderingData.usesForwardPlusLightLists;
+            _forwardLights.usesCpuLightLists = renderingData.usesCpuLightLists;
             _forwardLights.SetupRenderGraphLights(renderGraph, frameData);
             if (renderingData.hasDeferred)
             {
@@ -959,7 +960,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
             var requireColorTexture = graph.intermediateTextureMode == IntermediateTextureMode.Always;
             requireColorTexture |= renderingData.renderPassInputs.requiresIntermediateTexture;
-            requireColorTexture |= Application.isEditor && usesForwardPlusLightLists;
+            requireColorTexture |= Application.isEditor && usesCpuLightLists;
             requireColorTexture |= RequiresIntermediateColorTexture(cameraData, ref renderingData.renderPassInputs);
 #if ENABLE_VIRTUALTEXTURES
             // Feedback is an MRT attachment and must match an ordinary offscreen color/depth target.
@@ -1275,6 +1276,7 @@ namespace FraxinusEngine.Rendering.Ultra
             return renderGraph.CreateTexture(rgDesc);
         }
 
+#if UNITY_6000_0_OR_NEWER
         internal static void InstanceOcclusionTest(RenderGraph renderGraph, CameraData cameraData, OcclusionTest occlusionTest)
         {
             bool isSinglePassXR = false;
@@ -1294,35 +1296,7 @@ namespace FraxinusEngine.Rendering.Ultra
             }
             GPUResidentDrawer.InstanceOcclusionTest(renderGraph, settings, subviewOcclusionTests);
         }
-
-        internal static void UpdateInstanceOccluders(RenderGraph renderGraph, CameraData cameraData, TextureHandle depthTexture)
-        {
-            int scaledWidth = (int)(cameraData.pixelWidth * cameraData.renderScale);
-            int scaledHeight = (int)(cameraData.pixelHeight * cameraData.renderScale);
-            bool isSinglePassXR = false;
-            var occluderParams = new OccluderParameters(cameraData.camera.GetInstanceID())
-            {
-                subviewCount = isSinglePassXR ? 2 : 1,
-                depthTexture = depthTexture,
-                depthSize = new Vector2Int(scaledWidth, scaledHeight),
-                depthIsArray = isSinglePassXR,
-            };
-            Span<OccluderSubviewUpdate> occluderSubviewUpdates = stackalloc OccluderSubviewUpdate[occluderParams.subviewCount];
-            for (int subviewIndex = 0; subviewIndex < occluderParams.subviewCount; ++subviewIndex)
-            {
-                var viewMatrix = cameraData.GetViewMatrix(subviewIndex);
-                var projMatrix = cameraData.GetProjectionMatrix(subviewIndex);
-                occluderSubviewUpdates[subviewIndex] = new OccluderSubviewUpdate(subviewIndex)
-                {
-                    depthSliceIndex = subviewIndex,
-                    viewMatrix = viewMatrix,
-                    invViewMatrix = viewMatrix.inverse,
-                    gpuProjMatrix = GL.GetGPUProjectionMatrix(projMatrix, true),
-                    viewOffsetWorldSpace = Vector3.zero,
-                };
-            }
-            GPUResidentDrawer.UpdateInstanceOccluders(renderGraph, occluderParams, occluderSubviewUpdates);
-        }
+#endif
 
         internal static bool PlatformRequiresExplicitMsaaResolve()
         {

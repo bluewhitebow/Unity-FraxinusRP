@@ -13,7 +13,7 @@ namespace UnityEngine.Rendering
         internal override bool supportsBaking => true;
         internal override ProbeVolumeBaking CreateBaking(TProbeReferenceVolumeBase volume, ProbeVolumeBakingSet bakingSet) =>
             bakingSet != null && volume is APRTProbeReferenceVolume aprt ? new APRTProbeVolumeBaking(aprt, bakingSet) : null;
-        internal override bool PrepareBaking() => ProbeVolumeLightingTab.PrepareBake();
+        internal override bool PrepareBaking() => ProbeVolumeBakingWorkflow.PrepareBake();
         internal override bool CanFreezePlacement(TProbeReferenceVolumeBase volume, ProbeVolumeBakingSet bakingSet) =>
             volume is APRTProbeReferenceVolume aprt && APRTProbeVolumeBaking.CanFreezePlacement(aprt, bakingSet);
         internal override ProbeVolumeBakingSettingsEditor CreateBakingSettings(SerializedObject serializedObject) =>

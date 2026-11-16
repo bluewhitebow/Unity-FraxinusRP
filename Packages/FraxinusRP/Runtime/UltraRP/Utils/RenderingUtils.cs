@@ -292,13 +292,60 @@ namespace FraxinusEngine.Rendering.Ultra
             return support;
         }
 
+        /// <summary>
+        /// Returns whether a format supports every requested Unity 6 usage
+        /// flag. Unity 2022 exposes only single <see cref="FormatUsage"/>
+        /// queries, so combined flags are evaluated one by one.
+        /// </summary>
+        private static bool QueryGraphicsFormatSupport(GraphicsFormat format, GraphicsFormatUsage usage)
+        {
+#if UNITY_6000_0_OR_NEWER
+            return SystemInfo.IsFormatSupported(format, usage);
+#else
+            var remaining = usage;
+            if (!IsLegacyUsageSupported(format, GraphicsFormatUsage.Sample, FormatUsage.Sample, ref remaining) ||
+                !IsLegacyUsageSupported(format, GraphicsFormatUsage.Linear, FormatUsage.Linear, ref remaining) ||
+                !IsLegacyUsageSupported(format, GraphicsFormatUsage.Sparse, FormatUsage.Sparse, ref remaining) ||
+                !IsLegacyUsageSupported(format, GraphicsFormatUsage.Render, FormatUsage.Render, ref remaining) ||
+                !IsLegacyUsageSupported(format, GraphicsFormatUsage.Blend, FormatUsage.Blend, ref remaining) ||
+                !IsLegacyUsageSupported(format, GraphicsFormatUsage.GetPixels, FormatUsage.GetPixels, ref remaining) ||
+                !IsLegacyUsageSupported(format, GraphicsFormatUsage.SetPixels, FormatUsage.SetPixels, ref remaining) ||
+                !IsLegacyUsageSupported(format, GraphicsFormatUsage.SetPixels32, FormatUsage.SetPixels32, ref remaining) ||
+                !IsLegacyUsageSupported(format, GraphicsFormatUsage.ReadPixels, FormatUsage.ReadPixels, ref remaining) ||
+                !IsLegacyUsageSupported(format, GraphicsFormatUsage.LoadStore, FormatUsage.LoadStore, ref remaining) ||
+                !IsLegacyUsageSupported(format, GraphicsFormatUsage.MSAA2x, FormatUsage.MSAA2x, ref remaining) ||
+                !IsLegacyUsageSupported(format, GraphicsFormatUsage.MSAA4x, FormatUsage.MSAA4x, ref remaining) ||
+                !IsLegacyUsageSupported(format, GraphicsFormatUsage.MSAA8x, FormatUsage.MSAA8x, ref remaining) ||
+                !IsLegacyUsageSupported(format, GraphicsFormatUsage.StencilSampling, FormatUsage.StencilSampling, ref remaining))
+                return false;
+
+            // Reject unknown future bits instead of silently claiming support.
+            return remaining == GraphicsFormatUsage.None;
+#endif
+        }
+
+#if !UNITY_6000_0_OR_NEWER
+        private static bool IsLegacyUsageSupported(
+            GraphicsFormat format,
+            GraphicsFormatUsage flag,
+            FormatUsage legacyUsage,
+            ref GraphicsFormatUsage remaining)
+        {
+            if ((remaining & flag) == 0)
+                return true;
+
+            remaining &= ~flag;
+            return SystemInfo.IsFormatSupported(format, legacyUsage);
+        }
+#endif
+
         public static bool SupportsGraphicsFormat(GraphicsFormat format, GraphicsFormatUsage usage)
         {
             bool support = false;
             if (!_graphicsFormatSupport.TryGetValue(format, out var uses))
             {
                 uses = new Dictionary<GraphicsFormatUsage, bool>();
-                support = GraphicsFormatCompatibility.IsFormatSupported(format, usage);
+                support = QueryGraphicsFormatSupport(format, usage);
                 uses.Add(usage, support);
                 _graphicsFormatSupport.Add(format, uses);
             }
@@ -306,7 +353,7 @@ namespace FraxinusEngine.Rendering.Ultra
             {
                 if (!uses.TryGetValue(usage, out support))
                 {
-                    support = GraphicsFormatCompatibility.IsFormatSupported(format, usage);
+                    support = QueryGraphicsFormatSupport(format, usage);
                     uses.Add(usage, support);
                 }
             }

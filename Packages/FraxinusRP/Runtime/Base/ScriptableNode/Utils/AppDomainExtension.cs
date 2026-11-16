@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace FraxinusEngine.Base
 {
@@ -9,19 +10,22 @@ namespace FraxinusEngine.Base
         {
             foreach (var assembly in domain.GetAssemblies())
             {
-                Type[] types = { };
+                Type[] types;
 
                 try
                 {
                     types = assembly.GetTypes();
                 }
-                catch
+                catch (ReflectionTypeLoadException exception)
                 {
-                    // just ignore it ...
+                    // A third-party assembly can have unavailable dependencies.
+                    // Keep its loadable types so the remaining extensions still register.
+                    types = exception.Types;
                 }
 
                 foreach (var type in types)
-                    yield return type;
+                    if (type != null)
+                        yield return type;
             }
         }
     }

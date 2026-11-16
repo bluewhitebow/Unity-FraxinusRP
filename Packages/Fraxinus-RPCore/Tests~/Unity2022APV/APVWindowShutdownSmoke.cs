@@ -17,7 +17,7 @@ public static class APVWindowShutdownSmoke
     const BindingFlags Flags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
     static readonly List<string> Errors = new List<string>();
     static EditorWindow s_Window;
-    static Type s_WindowType, s_TabType;
+    static Type s_WindowType, s_PanelType, s_WorkflowType;
     static int s_Frame;
     static readonly Report Result = new Report();
 
@@ -38,11 +38,12 @@ public static class APVWindowShutdownSmoke
         EditorApplication.quitting += OnQuitting;
         try
         {
-            s_WindowType = FindType("UnityEngine.Rendering.ProbeVolumeLightingWindow2022");
-            s_TabType = FindType("UnityEngine.Rendering.ProbeVolumeLightingTab");
+            s_WindowType = FindType("UnityEngine.Rendering.ProbeVolumeBakingWindow");
+            s_PanelType = FindType("UnityEngine.Rendering.ProbeVolumeBakingPanel");
+            s_WorkflowType = FindType("UnityEngine.Rendering.ProbeVolumeBakingWorkflow");
             s_Window = EditorWindow.GetWindow(s_WindowType);
-            Require(s_Window != null && s_WindowType.GetField("m_Tab", Flags).GetValue(s_Window) != null,
-                "The Unity 2022 Probe Volumes window did not initialize its tab.");
+            Require(s_Window != null && s_WindowType.GetField("m_Panel", Flags).GetValue(s_Window) != null,
+                "The Probe Volumes window did not initialize its panel.");
             Result.opened = true;
             EditorApplication.update += Tick;
         }
@@ -60,14 +61,16 @@ public static class APVWindowShutdownSmoke
             if (s_Frame == 5)
             {
                 s_Window.Close();
-                Require(s_TabType.GetField("instance", Flags).GetValue(null) == null,
-                    "Normal window close did not release the active tab.");
+                Require(s_PanelType.GetField("instance", Flags).GetValue(null) == null,
+                    "Normal window close did not release the active panel.");
+                Require(s_WorkflowType.GetField("current", Flags).GetValue(null) == null,
+                    "Normal window close did not release the active baking context.");
                 Result.normallyClosed = true;
             }
             if (s_Frame == 10)
             {
                 s_Window = EditorWindow.GetWindow(s_WindowType);
-                Require(s_Window != null && s_WindowType.GetField("m_Tab", Flags).GetValue(s_Window) != null,
+                Require(s_Window != null && s_WindowType.GetField("m_Panel", Flags).GetValue(s_Window) != null,
                     "Reopening the Probe Volumes window failed.");
                 Result.reopened = true;
             }

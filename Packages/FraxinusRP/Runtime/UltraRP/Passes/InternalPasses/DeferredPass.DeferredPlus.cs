@@ -14,7 +14,7 @@ namespace FraxinusEngine.Rendering.Ultra
             internal bool contactShadows;
             internal int mainLightIndex;
             internal DeferredLights.LightingDatas lighting;
-            internal ForwardPlusFrameData forwardPlus;
+            internal CpuLightListFrameData cpuLightLists;
             internal TextureHandle renderingLayers;
             internal TextureHandle shadowMaskTexture;
             internal TextureHandle contactShadowTexture;
@@ -39,7 +39,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 APRTRelightPass.UseLightingResources(builder, frameData);
                 AreaLightsPass.UseLightingResources(builder, frameData);
                 GroundTruthAmbientOcclusionPass.UseLightingResources(builder, frameData);
-                pass.forwardPlus = ForwardLights.UseLightingResources(builder, frameData);
+                pass.cpuLightLists = ForwardLights.UseLightingResources(builder, frameData);
                 pass.material = deferred.deferredPlusMaterial;
                 pass.framebufferFetch = deferred.useFramebufferFetch;
                 pass.mainLightIndex = lights.mainLightIndex;
@@ -112,7 +112,7 @@ namespace FraxinusEngine.Rendering.Ultra
         static void ExecuteDeferredPlus(RasterCommandBuffer cmd, DeferredPlusPassData pass)
         {
             var data = pass.lighting;
-            ForwardLights.BindLightLists(cmd, pass.forwardPlus);
+            ForwardLights.BindLightLists(cmd, pass.cpuLightLists);
             cmd.SetKeyword(ShaderGlobalKeywords.RenderPassEnabled, pass.framebufferFetch);
             cmd.SetKeyword(ShaderGlobalKeywords._DEFERRED_MIXED_LIGHTING, pass.shadowMask);
             cmd.SetGlobalInt("_DeferredPlusMainLightIndex", pass.mainLightIndex);

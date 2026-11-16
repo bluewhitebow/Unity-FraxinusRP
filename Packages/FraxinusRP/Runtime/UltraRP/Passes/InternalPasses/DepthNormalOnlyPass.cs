@@ -62,9 +62,9 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public static GraphicsFormat GetGraphicsFormat()
         {
-            if (GraphicsFormatCompatibility.IsFormatSupported(GraphicsFormat.R8G8B8A8_SNorm, GraphicsFormatUsage.Render))
+            if (RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R8G8B8A8_SNorm, GraphicsFormatUsage.Render))
                 return GraphicsFormat.R8G8B8A8_SNorm; // Preferred format
-            else if (GraphicsFormatCompatibility.IsFormatSupported(GraphicsFormat.R16G16B16A16_SFloat, GraphicsFormatUsage.Render))
+            else if (RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R16G16B16A16_SFloat, GraphicsFormatUsage.Render))
                 return GraphicsFormat.R16G16B16A16_SFloat; // fallback
             else
                 return GraphicsFormat.R32G32B32A32_SFloat; // fallback

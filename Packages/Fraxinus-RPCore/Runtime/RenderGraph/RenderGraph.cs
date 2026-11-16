@@ -1303,7 +1303,7 @@ namespace UnityEngine.Rendering.RenderGraphModule
                 try
                 {
                     if (m_ExecutionExceptionWasRaised && m_ResourcesExecutionBegun)
-                        ReleaseFailedGraphResources();
+                        ReleaseFailedGraphResources(nativeExecutionStarted);
 
                     ClearCompiledGraph(m_CurrentCompiledGraph, m_EnableCompilationCaching);
                 }
@@ -1332,12 +1332,15 @@ namespace UnityEngine.Rendering.RenderGraphModule
             }
         }
 
-        void ReleaseFailedGraphResources()
+        void ReleaseFailedGraphResources(bool nativeExecutionStarted)
         {
             // These independent recovery operations run only after a graph fails.
-            // Resource quarantine must still run if creating a completion marker fails.
+            // Resource quarantine must still run if native closure or a completion marker fails.
             try
             {
+                if (nativeExecutionStarted)
+                    nativeCompiler.CleanupExecution(m_RenderGraphContext);
+
                 PrepareExceptionCompletionFence();
             }
             catch (Exception cleanupException)

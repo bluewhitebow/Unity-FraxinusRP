@@ -92,7 +92,8 @@ namespace FraxinusEngine.Rendering.Ultra
                 }
 #else
                 var globalSettings = UltraRenderPipelineGlobalSettings.Ensure();
-                if (globalSettings != null && RenderPipelineGraphicsSettingsCompatibility.TryGetRenderPipelineSettings<UltraRenderPipelineEditorAssets>(globalSettings, out var rpgs))
+                var rpgs = globalSettings == null ? null : globalSettings.GetSettings<UltraRenderPipelineEditorAssets>();
+                if (rpgs != null)
                 {
                     setting.volumeProfile = CopyVolumeProfileFromResourcesToAssets(rpgs.defaultVolumeProfile);
                     EditorUtility.SetDirty(globalSettings);

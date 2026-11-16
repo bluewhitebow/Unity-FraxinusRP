@@ -480,7 +480,7 @@ namespace UnityEngine.Rendering
                 layerMaskJob.Initialize(bakingSet, sortedPositions.GetSubArray(0, probeCount));
 
                 lightingJob = new StandaloneAPVLightingBaker(GetStandaloneBakeSettings());
-                lightingJob.Initialize(ProbeVolumeLightingTab.GetLightingSettings().mixedBakeMode != MixedLightingMode.IndirectOnly, sortedPositions);
+                lightingJob.Initialize(ProbeVolumeBakingWorkflow.GetLightingSettings().mixedBakeMode != MixedLightingMode.IndirectOnly, sortedPositions);
 
                 cellIndex = 0;
 

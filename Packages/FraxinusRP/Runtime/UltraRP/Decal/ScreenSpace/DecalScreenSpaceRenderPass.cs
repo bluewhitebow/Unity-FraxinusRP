@@ -48,14 +48,14 @@ namespace FraxinusEngine.Rendering.Ultra
             internal bool isGLDevice;
             internal CameraData cameraData;
             internal RendererListHandle rendererList;
-            internal ForwardPlusFrameData forwardPlus;
+            internal CpuLightListFrameData cpuLightLists;
         }
 
         public void Render(RenderGraph renderGraph, ContextContainer frameData, TextureHandle colorTarget, TextureHandle depthTarget)
         {
             using (var builder = renderGraph.AddRasterRenderPass<PassData>("Decal ScreenSpace", out var passData, _profilingSampler))
             {
-                passData.forwardPlus = ForwardLights.UseLightingResources(builder, frameData);
+                passData.cpuLightLists = ForwardLights.UseLightingResources(builder, frameData);
                 ResourceData resourceData = frameData.Get<ResourceData>();
                 RenderingData renderingData = frameData.Get<RenderingData>();
                 CameraData cameraData = frameData.Get<CameraData>();
@@ -86,7 +86,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
                 {
-                    ForwardLights.BindLightLists(context.cmd, data.forwardPlus);
+                    ForwardLights.BindLightLists(context.cmd, data.cpuLightLists);
                     ExecutePass(context.cmd, data);
                 });
             }

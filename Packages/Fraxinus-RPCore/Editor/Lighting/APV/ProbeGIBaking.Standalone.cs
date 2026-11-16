@@ -141,7 +141,7 @@ namespace UnityEngine.Rendering
             if (StandalonePathActive)
                 return false;
 
-            var lightingSettings = ProbeVolumeLightingTab.GetLightingSettings();
+            var lightingSettings = ProbeVolumeBakingWorkflow.GetLightingSettings();
             if (lightingSettings == null)
             {
                 Debug.LogError("Standalone APV baking requires Lighting Settings.");

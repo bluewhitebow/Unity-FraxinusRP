@@ -103,59 +103,51 @@ namespace FraxinusEngine.Base
 
         PushDataDelegate CreatePushDataDelegateForEdge(SerializableEdge edge)
         {
-            try
-            {
 #if ENABLE_IL2CPP
-                return CreateAotPushDataDelegateForEdge(edge);
+            return CreateAotPushDataDelegateForEdge(edge);
 #else
-                // Creation of the delegate to move the data from the input node to the output node:
-                FieldInfo inputField = edge.inputNode.GetType().GetField(edge.inputFieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                FieldInfo outputField = edge.outputNode.GetType().GetField(edge.outputFieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                Type inType, outType;
+            // Creation of the delegate to move the data from the input node to the output node:
+            FieldInfo inputField = edge.inputNode.GetType().GetField(edge.inputFieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            FieldInfo outputField = edge.outputNode.GetType().GetField(edge.outputFieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            Type inType, outType;
 
 #if UNITY_EDITOR
-                if (!BaseGraph.TypesAreConnectable(outputField.FieldType, inputField.FieldType))
-                {
-                    Debug.LogError($"Can't convert from {inputField.FieldType} to {outputField.FieldType}, you must specify a custom port function (i.e CustomPortInput or CustomPortOutput) for non-implicit convertions");
-                    return null;
-                }
+            if (!BaseGraph.TypesAreConnectable(outputField.FieldType, inputField.FieldType))
+            {
+                Debug.LogError($"Can't convert from {inputField.FieldType} to {outputField.FieldType}, you must specify a custom port function (i.e CustomPortInput or CustomPortOutput) for non-implicit convertions");
+                return null;
+            }
 #endif
-                Expression inputParamField = Expression.Field(Expression.Constant(edge.inputNode), inputField);
-                Expression outputParamField = Expression.Field(Expression.Constant(edge.outputNode), outputField);
+            Expression inputParamField = Expression.Field(Expression.Constant(edge.inputNode), inputField);
+            Expression outputParamField = Expression.Field(Expression.Constant(edge.outputNode), outputField);
 
-                // todo：remove
-                //inType = edge.inputPort.portData.displayType ?? inputField.FieldType;
-                //outType = edge.outputPort.portData.displayType ?? outputField.FieldType;
+            // todo：remove
+            //inType = edge.inputPort.portData.displayType ?? inputField.FieldType;
+            //outType = edge.outputPort.portData.displayType ?? outputField.FieldType;
 
-                inType = inputField.FieldType;
-                outType = outputField.FieldType;
+            inType = inputField.FieldType;
+            outType = outputField.FieldType;
 
-                // 有用户层定义的转换function就调用
-                if (TypeAdapter.AreAssignable(outType, inType))
+            // 有用户层定义的转换function就调用
+            if (TypeAdapter.AreAssignable(outType, inType))
+            {
+                MethodCallExpression call = Expression.Call(TypeAdapter.GetConvertionMethod(outType, inType), outputParamField, inputParamField);
+                return Expression.Lambda<PushDataDelegate>(call).Compile();
+            }
+            else
+            {
+                if (inType.IsSubclassOf(typeof(NodeParameter)) || outType.IsSubclassOf(typeof(NodeParameter)))
                 {
-                    MethodCallExpression call = Expression.Call(TypeAdapter.GetConvertionMethod(outType, inType), outputParamField, inputParamField);
-                    return Expression.Lambda<PushDataDelegate>(call).Compile();
-                }
-                else
-                {
-                    if (inType.IsSubclassOf(typeof(NodeParameter)) || outType.IsSubclassOf(typeof(NodeParameter)))
+                    if (inType.IsAssignableFrom(outType))
                     {
-                        if (inType.IsAssignableFrom(outType))
-                        {
-                            MethodCallExpression call = Expression.Call(inputParamField, typeof(NodeParameter).GetMethod("SetParamterValue", BindingFlags.Public | BindingFlags.Instance), outputParamField);
-                            return Expression.Lambda<PushDataDelegate>(call).Compile();
-                        }
+                        MethodCallExpression call = Expression.Call(inputParamField, typeof(NodeParameter).GetMethod("SetParamterValue", BindingFlags.Public | BindingFlags.Instance), outputParamField);
+                        return Expression.Lambda<PushDataDelegate>(call).Compile();
                     }
                 }
+            }
 
-                return null;
+            return null;
 #endif
-            }
-            catch (Exception e)
-            {
-                Debug.LogError(e);
-                return null;
-            }
         }
 
         internal static PushDataDelegate CreateAotPushDataDelegateForEdge(SerializableEdge edge)

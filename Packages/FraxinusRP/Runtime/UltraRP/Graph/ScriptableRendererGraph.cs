@@ -1,7 +1,6 @@
 using FraxinusEngine.Base;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
@@ -153,7 +152,7 @@ namespace FraxinusEngine.Rendering.Ultra
 #if !UNITY_EDITOR
                 if (_drivenNode == null)
 #endif
-                _drivenNode = nodes.FirstOrDefault(n => n is RenderDrivenPass) as RenderDrivenPass;
+                    _drivenNode = FindFirstNode<RenderDrivenPass>();
 
                 return _drivenNode;
             }
@@ -172,12 +171,24 @@ namespace FraxinusEngine.Rendering.Ultra
 #if !UNITY_EDITOR
                 if (_postProcessNode == null)
 #endif
-                    _postProcessNode = nodes.FirstOrDefault(n => n is PostProcessPass) as PostProcessPass;
+                    _postProcessNode = FindFirstNode<PostProcessPass>();
 
                 return _postProcessNode;
             }
 
             internal set => _postProcessNode = value;
+        }
+
+        private T FindFirstNode<T>() where T : BaseNode
+        {
+            // Editor lookups must reflect graph edits without boxing a List enumerator.
+            for (int i = 0; i < nodes.Count; ++i)
+            {
+                if (nodes[i] is T node)
+                    return node;
+            }
+
+            return null;
         }
 
         public PassNodeSettings settings = new PassNodeSettings()

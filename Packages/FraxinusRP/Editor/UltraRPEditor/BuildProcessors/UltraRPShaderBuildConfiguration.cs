@@ -50,8 +50,7 @@ namespace FraxinusEditor.Rendering.Ultra
             }
             var global = GraphicsSettings.GetSettingsForRenderPipeline<UltraRenderPipeline>() as UltraRenderPipelineGlobalSettings;
             AppendAsset(text, global);
-            var settings = global == null ? null : RenderPipelineGraphicsSettingsCompatibility
-                .GetRenderPipelineSettings<UltraRenderPipelineShaderStrippingSetting>(global);
+            var settings = global == null ? null : global.GetSettings<UltraRenderPipelineShaderStrippingSetting>();
             if (settings != null && settings.stripUnusedPostProcessingVariants)
                 foreach (string guid in AssetDatabase.FindAssets("t:VolumeProfile").OrderBy(value => value, StringComparer.Ordinal))
                 {

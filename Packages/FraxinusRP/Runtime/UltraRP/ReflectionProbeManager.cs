@@ -72,7 +72,7 @@ namespace FraxinusEngine.Rendering.Ultra
             // _resolution = math.min((int)reflectionProbeResolution, SystemInfo.maxTextureSize);
             _resolution = 1;
             var format = GraphicsFormat.B10G11R11_UFloatPack32;
-            if (!GraphicsFormatCompatibility.IsFormatSupported(format, GraphicsFormatUsage.Render))
+            if (!RenderingUtils.SupportsGraphicsFormat(format, GraphicsFormatUsage.Render))
                 format = GraphicsFormat.R16G16B16A16_SFloat;
 
             _atlasTexture0 = new RenderTexture(new RenderTextureDescriptor

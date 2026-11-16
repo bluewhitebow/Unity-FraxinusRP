@@ -152,7 +152,7 @@ namespace UnityEditor.Rendering
                     {
                         CoreEditorUtils.DrawFixMeBox("Apply Virtual Offset can be used only if Virtual Offset is enabled for the Baking Set.", MessageType.Warning, "Open", () =>
                         {
-                            ProbeVolumeLightingTab.OpenBakingSet(bakingSet);
+                            ProbeVolumeBakingPanel.OpenBakingSet(bakingSet);
                         });
                     }
                 }
@@ -168,7 +168,7 @@ namespace UnityEditor.Rendering
                     {
                         CoreEditorUtils.DrawFixMeBox("Override Virtual Offset can be used only if Virtual Offset is enabled for the Baking Set.", MessageType.Warning, "Open", () =>
                         {
-                            ProbeVolumeLightingTab.OpenBakingSet(bakingSet);
+                            ProbeVolumeBakingPanel.OpenBakingSet(bakingSet);
                         });
                     }
                 }
@@ -217,7 +217,7 @@ namespace UnityEditor.Rendering
                     {
                         CoreEditorUtils.DrawFixMeBox("Overriding Sky Direction can be used only if Sky Occlusion is enabled for the Baking Set.", MessageType.Warning, "Open", () =>
                         {
-                            ProbeVolumeLightingTab.OpenBakingSet(bakingSet);
+                            ProbeVolumeBakingPanel.OpenBakingSet(bakingSet);
                         });
                     }
                 }
@@ -227,7 +227,7 @@ namespace UnityEditor.Rendering
                     {
                         CoreEditorUtils.DrawFixMeBox("Override Rendering Layer can be used only if Rendering Layers are enabled for the Baking Set.", MessageType.Warning, "Open", () =>
                         {
-                            ProbeVolumeLightingTab.OpenBakingSet(bakingSet);
+                            ProbeVolumeBakingPanel.OpenBakingSet(bakingSet);
                         });
                     }
                     else
@@ -268,7 +268,7 @@ namespace UnityEditor.Rendering
                     using (new EditorGUI.DisabledScope(bakingSet == null))
                     {
                         if (ProbeVolumeBakingProvider.isRunning)
-                            ProbeVolumeLightingTab.BakeProbeVolumeButton();
+                            ProbeVolumeBakingPanel.BakeProbeVolumeButton();
                         else if (GUILayout.Button(Styles.s_RebakeBakingSet))
                         {
                             AdaptiveProbeVolumes.SyncStandaloneBakeConfigurationWithLightingSettings();
@@ -494,7 +494,7 @@ namespace UnityEditor.Rendering
         [MenuItem("CONTEXT/ProbeAdjustmentVolume/Rendering Debugger...")]
         internal static void AddAdjustmentVolumeContextMenu()
         {
-            ProbeVolumeLightingTab.OpenProbeDebugPanel(null, null, 0);
+            ProbeVolumeBakingPanel.OpenProbeDebugPanel(null, null, 0);
         }
     }
 }

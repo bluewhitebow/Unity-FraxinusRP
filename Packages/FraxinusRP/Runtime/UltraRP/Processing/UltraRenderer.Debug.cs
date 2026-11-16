@@ -61,7 +61,7 @@ namespace FraxinusEngine.Rendering.Ultra
             if ((debugHandler != null) && debugHandler.IsActiveForCamera(cameraData.isPreviewCamera))
             {
                 if (debugHandler.TryGetFullscreenDebugMode(out DebugFullScreenMode fullScreenDebugMode, out int textureHeightPercent) &&
-                    (fullScreenDebugMode != DebugFullScreenMode.ReflectionProbeAtlas || usesForwardPlusLightLists) &&
+                    (fullScreenDebugMode != DebugFullScreenMode.ReflectionProbeAtlas || usesCpuLightLists) &&
                     (fullScreenDebugMode != DebugFullScreenMode.STP))
                 {
                     float screenWidth = cameraData.pixelWidth;
@@ -86,7 +86,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
                         var debugDescriptor = cameraData.cameraTargetDescriptor;
                         // Ensure target can hold all source values. Source can be signed for example.
-                        if (GraphicsFormatCompatibility.IsFormatSupported(GraphicsFormat.R16G16B16A16_SFloat, GraphicsFormatUsage.Linear | GraphicsFormatUsage.Render))
+                        if (RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R16G16B16A16_SFloat, GraphicsFormatUsage.Linear | GraphicsFormatUsage.Render))
                             debugDescriptor.graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
 
                         CreateDebugTexture(debugDescriptor);
@@ -191,12 +191,8 @@ namespace FraxinusEngine.Rendering.Ultra
                 {
                     var debugSettings = debugHandler.DebugDisplaySettings.gpuResidentDrawerSettings;
 
-                    GPUResidentDrawer.RenderDebugOcclusionTestOverlay(renderGraph, debugSettings, cameraData.camera.GetInstanceID(), resourceData.activeColorTexture);
-
-                    float screenWidth = (int)(cameraData.pixelHeight * cameraData.renderScale);
-                    float screenHeight = (int)(cameraData.pixelHeight * cameraData.renderScale);
-                    float maxHeight = screenHeight * textureHeightPercent / 100.0f;
-                    GPUResidentDrawer.RenderDebugOccluderOverlay(renderGraph, debugSettings, new Vector2(0.25f * screenWidth, screenHeight - 1.5f * maxHeight), maxHeight, resourceData.activeColorTexture);
+                    GPUResidentDrawerBridge.DrawDebugOverlays(renderGraph, cameraData, resourceData.activeColorTexture,
+                        debugSettings, textureHeightPercent);
                 }
             }
         }

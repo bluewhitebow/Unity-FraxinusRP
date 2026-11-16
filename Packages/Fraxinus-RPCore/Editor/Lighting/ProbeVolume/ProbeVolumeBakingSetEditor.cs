@@ -146,14 +146,14 @@ namespace UnityEditor.Rendering
 
         void ProbePlacementGUI()
         {
-            if (!ProbeVolumeLightingTab.Foldout(Styles.placementTitle, ProbeVolumeLightingTab.Expandable.Placement, true))
+            if (!ProbeVolumeBakingPanel.Foldout(Styles.placementTitle, ProbeVolumeBakingPanel.Expandable.Placement, true))
                 return;
 
             EditorGUI.indentLevel++;
             bool canFreezePlacement = ProbeVolumeBakingProvider.CanFreezePlacement(bakingSet);
-            if (ProbeReferenceVolumeProvider.instance.supportLightingScenarios || ProbeVolumeLightingTab.aprtSelected)
+            if (ProbeReferenceVolumeProvider.instance.supportLightingScenarios || ProbeVolumeBakingWorkflow.aprtSelected)
             {
-                bool incompatibleAPRTPlacement = ProbeVolumeLightingTab.aprtSelected && m_FreezePlacement.boolValue && !canFreezePlacement;
+                bool incompatibleAPRTPlacement = ProbeVolumeBakingWorkflow.aprtSelected && m_FreezePlacement.boolValue && !canFreezePlacement;
                 using (new EditorGUI.DisabledGroupScope(!canFreezePlacement && !incompatibleAPRTPlacement))
                 {
                     EditorGUI.BeginChangeCheck();
@@ -226,7 +226,7 @@ namespace UnityEditor.Rendering
                 EditorGUILayout.Space();
 
                 EditorGUI.indentLevel++;
-                if (ProbeVolumeLightingTab.Foldout(Styles.rendererFilterSettings, ProbeVolumeLightingTab.Expandable.PlacementFilters, false))
+                if (ProbeVolumeBakingPanel.Foldout(Styles.rendererFilterSettings, ProbeVolumeBakingPanel.Expandable.PlacementFilters, false))
                 {
                     EditorGUILayout.PropertyField(m_RenderersLayerMask, Styles.renderersLayerMask);
                     EditorGUILayout.PropertyField(m_MinRendererVolumeSize, Styles.minRendererVolumeSize);
@@ -243,16 +243,16 @@ namespace UnityEditor.Rendering
             if (!ProbeReferenceVolumeProvider.instance.supportLightingScenarios)
                 return;
 
-            if (!ProbeVolumeLightingTab.Foldout(Styles.scenariosTitle, ProbeVolumeLightingTab.Expandable.Scenarios, true))
+            if (!ProbeVolumeBakingPanel.Foldout(Styles.scenariosTitle, ProbeVolumeBakingPanel.Expandable.Scenarios, true))
                 return;
 
             if (m_Scenarios == null)
                 InitializeScenarioList();
 
             using (new EditorGUI.IndentLevelScope())
-                ProbeVolumeLightingTab.DrawListWithIndent(m_Scenarios);
+                ProbeVolumeBakingPanel.DrawListWithIndent(m_Scenarios);
 
-            if (ProbeVolumeLightingTab.aprtSelected)
+            if (ProbeVolumeBakingWorkflow.aprtSelected)
             {
                 using (new EditorGUI.IndentLevelScope())
                 {
@@ -312,7 +312,7 @@ namespace UnityEditor.Rendering
             if (EditorGUI.EndChangeCheck())
                 m_SimplificationLevels.intValue = value;
 
-            ProbeVolumeLightingTab.DrawSimplificationLevelsMarkers(rect, bakingSet.minDistanceBetweenProbes, 2, highestSimplification, value, value);
+            ProbeVolumeBakingPanel.DrawSimplificationLevelsMarkers(rect, bakingSet.minDistanceBetweenProbes, 2, highestSimplification, value, value);
             EditorGUI.EndProperty();
         }
         #endregion
@@ -328,10 +328,10 @@ namespace UnityEditor.Rendering
 
         void SetActiveScenario(string scenario)
         {
-            var volume = ProbeVolumeLightingTab.aprtSelected
+            var volume = ProbeVolumeBakingWorkflow.aprtSelected
                 ? APRTProbeReferenceVolume.instance
                 : ProbeReferenceVolumeProvider.instance;
-            if (ProbeVolumeLightingTab.aprtSelected)
+            if (ProbeVolumeBakingWorkflow.aprtSelected)
                 APRTProbeReferenceVolume.instance.SetActiveBakingSet(bakingSet);
             if (scenario == bakingSet.GetLightingScenario(volume.backendId))
                 return;
@@ -353,7 +353,7 @@ namespace UnityEditor.Rendering
 
                 drawHeaderCallback = (rect) =>
                 {
-                    ProbeVolumeLightingTab.SplitRectInThree(rect, out var left, out var middle, out var right, 70);
+                    ProbeVolumeBakingPanel.SplitRectInThree(rect, out var left, out var middle, out var right, 70);
 
                     EditorGUI.LabelField(left, "Scenario");
                     EditorGUI.LabelField(middle, "Active");
@@ -368,7 +368,7 @@ namespace UnityEditor.Rendering
 
             m_Scenarios.drawElementCallback = (rect, index, active, focused) =>
             {
-                ProbeVolumeLightingTab.SplitRectInThree(rect, out var left, out var middle, out var right, 70);
+                ProbeVolumeBakingPanel.SplitRectInThree(rect, out var left, out var middle, out var right, 70);
                 var scenarioName = bakingSet.m_LightingScenarios[index];
 
                 // Status
@@ -379,7 +379,7 @@ namespace UnityEditor.Rendering
                     bool baked = HasScenarioData(bakingSet, scenarioName, ProbeReferenceVolumeProvider.instance);
 
                     using (new EditorGUI.DisabledScope(true))
-                        GUI.Label(right, baked ? GUIContent.none : ProbeVolumeLightingTab.aprtSelected ? Styles.aprtEmptyLabel : Styles.emptyLabel);
+                        GUI.Label(right, baked ? GUIContent.none : ProbeVolumeBakingWorkflow.aprtSelected ? Styles.aprtEmptyLabel : Styles.emptyLabel);
                 }
 
                 // Label for active scene
@@ -450,7 +450,7 @@ namespace UnityEditor.Rendering
                 try
                 {
                     AssetDatabase.StartAssetEditing();
-                    if (ProbeVolumeLightingTab.aprtSelected)
+                    if (ProbeVolumeBakingWorkflow.aprtSelected)
                         APRTProbeVolumeBakingSettingsEditor.RemoveLightingScenario(bakingSet, scenario);
                     else if (!bakingSet.RemoveScenario(scenario))
                         return;
@@ -459,7 +459,7 @@ namespace UnityEditor.Rendering
                 {
                     AssetDatabase.StopAssetEditing();
                     serializedObject.Update();
-                    SetActiveScenario(ProbeVolumeLightingTab.aprtSelected
+                    SetActiveScenario(ProbeVolumeBakingWorkflow.aprtSelected
                         ? bakingSet.GetLightingScenario(APRTProbeReferenceVolumeBackend.backendId)
                         : bakingSet.m_LightingScenarios[0]);
                 }

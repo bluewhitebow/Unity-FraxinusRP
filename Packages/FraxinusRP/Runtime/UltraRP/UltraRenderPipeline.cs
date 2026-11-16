@@ -48,8 +48,7 @@ namespace FraxinusEngine.Rendering.Ultra
                     result = new CameraMetadataCacheEntry
                     {
                         name = cameraName,
-                        sampler = new ProfilingSampler(
-                            $"{nameof(UltraRenderPipeline)}.{nameof(RenderSingleCameraInternal)}: {cameraName}")
+                        sampler = new ProfilingSampler($"{nameof(UltraRenderPipeline)}.{nameof(RenderSingleCameraInternal)}: {cameraName}")
                     };
                     s_metadataCache.Add(cameraId, result);
                 }
@@ -150,12 +149,14 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 // GLES can be selected as platform on Windows (not a mobile platform) but uniform buffer size so we must use a low light count.
                 // WebGPU's minimal limits are based on mobile rather than desktop, so it will need to assume mobile.
-                bool constrainedGraphicsApi = isMobileOrMobileBuildTarget || SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLCore || SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES3;
+                bool constrainedGraphicsApi = isMobileOrMobileBuildTarget
+                    || SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLCore
+                    || SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES3;
+
 #if UNITY_6000_0_OR_NEWER
                 constrainedGraphicsApi |= SystemInfo.graphicsDeviceType == GraphicsDeviceType.WebGPU;
 #endif
-                return constrainedGraphicsApi
-                    ? ShaderOptions.maxVisibleLightCountMobile : ShaderOptions.maxVisibleLightCountDesktop;
+                return constrainedGraphicsApi ? ShaderOptions.maxVisibleLightCountMobile : ShaderOptions.maxVisibleLightCountDesktop;
             }
         }
 
@@ -440,7 +441,7 @@ namespace FraxinusEngine.Rendering.Ultra
             AdjustUIOverlayOwnership(cameraCount);
             SetupScreenMSAASamplesState(cameraCount);
 
-            GPUResidentDrawer.ReinitializeIfNeeded();
+            GPUResidentDrawerBridge.ReinitializeIfNeeded();
 
             using var profScope = new ProfilingScope(ProfilingSampler.Get(UltraRPProfileId.UltraRenderPipelineTotal));
 
@@ -778,9 +779,9 @@ namespace FraxinusEngine.Rendering.Ultra
                 var data = frameData.Create<RenderingData>();
                 data.cullResults = context.Cull(ref cullingParameters);
 
-                GPUResidentDrawer.PostCullBeginCameraRendering(new RenderRequestBatcherContext { commandBuffer = cmd });
+                GPUResidentDrawerBridge.PostCull(cmd);
 
-                bool isForwardPlus = cameraData.renderer.usesForwardPlusLightLists;
+                bool usesCpuLightLists = cameraData.renderer.usesCpuLightLists;
 
                 // Initialize all the data types required for rendering.
                 LightData lightData;
@@ -789,9 +790,9 @@ namespace FraxinusEngine.Rendering.Ultra
                 {
                     CreateResourceData(frameData);
                     lightData = CreateLightData(frameData, asset, data.cullResults.visibleLights);
-                    shadowData = CreateShadowData(frameData, asset, isForwardPlus);
+                    shadowData = CreateShadowData(frameData, asset, usesCpuLightLists);
                     CreatePostProcessingData(frameData, asset);
-                    CreateRenderingData(frameData, asset, cmd, isForwardPlus, cameraData.renderer);
+                    CreateRenderingData(frameData, asset, cmd, usesCpuLightLists, cameraData.renderer);
                 }
 
                 CheckAndApplyDebugSettings(frameData);
@@ -1275,7 +1276,7 @@ namespace FraxinusEngine.Rendering.Ultra
             cameraData.isLastBaseCamera = isLastBaseCamera;
 
             // enable GPU occlusion culling in game and scene views only
-            cameraData.useGPUOcclusionCulling = GPUResidentDrawer.IsInstanceOcclusionCullingEnabled()
+            cameraData.useGPUOcclusionCulling = GPUResidentDrawerBridge.IsOcclusionCullingEnabled
                 && renderer.supportsGPUOcclusion
                 && camera.cameraType is CameraType.SceneView or CameraType.Game or CameraType.Preview;
 
@@ -1348,19 +1349,19 @@ namespace FraxinusEngine.Rendering.Ultra
             cameraData.isAlphaOutputEnabled = cameraData.isAlphaOutputEnabled && allowAlphaOutput;
         }
 
-        static RenderingData CreateRenderingData(ContextContainer frameData, UltraRenderPipelineAsset settings, CommandBuffer cmd, bool isForwardPlus, ScriptableRenderer renderer)
+        static RenderingData CreateRenderingData(ContextContainer frameData, UltraRenderPipelineAsset settings, CommandBuffer cmd, bool usesCpuLightLists, ScriptableRenderer renderer)
         {
             var lightData = frameData.Get<LightData>();
 
             var data = frameData.Get<RenderingData>();
             data.supportsDynamicBatching = settings.supportsDynamicBatching;
-            data.perObjectData = GetPerObjectLightFlags(lightData.additionalLightsCount, isForwardPlus);
+            data.perObjectData = GetPerObjectLightFlags(lightData.additionalLightsCount, usesCpuLightLists);
             data.commandBuffer = null;
 
             return data;
         }
 
-        static ShadowData CreateShadowData(ContextContainer frameData, UltraRenderPipelineAsset settings, bool isForwardPlus)
+        static ShadowData CreateShadowData(ContextContainer frameData, UltraRenderPipelineAsset settings, bool usesCpuLightLists)
         {
             using var profScope = new ProfilingScope(Profiling.Pipeline.initializeShadowData);
 
@@ -1407,7 +1408,7 @@ namespace FraxinusEngine.Rendering.Ultra
             shadowData.mainLightShadowsEnabled = settings.supportsMainLightShadows && settings.mainLightRenderingMode == LightRenderingMode.PerPixel;
             shadowData.supportsMainLightShadows = SystemInfo.supportsShadows && shadowData.mainLightShadowsEnabled && cameraRenderShadows;
 
-            shadowData.additionalLightShadowsEnabled = settings.supportsAdditionalLightShadows && (settings.additionalLightsRenderingMode == LightRenderingMode.PerPixel || isForwardPlus);
+            shadowData.additionalLightShadowsEnabled = settings.supportsAdditionalLightShadows && (settings.additionalLightsRenderingMode == LightRenderingMode.PerPixel || usesCpuLightLists);
             shadowData.supportsAdditionalLightShadows = SystemInfo.supportsShadows && shadowData.additionalLightShadowsEnabled && !lightData.shadeAdditionalLightsPerVertex && cameraRenderShadows;
 
             // Early out if shadows are not rendered...
@@ -1723,7 +1724,6 @@ namespace FraxinusEngine.Rendering.Ultra
                 case UpscalingFilterSelection.Point:
                 {
                     filter = ImageUpscalingFilter.Point;
-                
                     break;
                 }
                 case UpscalingFilterSelection.FSR:
@@ -1850,7 +1850,7 @@ namespace FraxinusEngine.Rendering.Ultra
             }
         }
 
-        static PerObjectData GetPerObjectLightFlags(int additionalLightsCount, bool isForwardPlus)
+        static PerObjectData GetPerObjectLightFlags(int additionalLightsCount, bool usesCpuLightLists)
         {
             using var profScope = new ProfilingScope(Profiling.Pipeline.getPerObjectLightFlags);
 
@@ -1859,10 +1859,10 @@ namespace FraxinusEngine.Rendering.Ultra
                 | PerObjectData.OcclusionProbe 
                 | PerObjectData.ShadowMask;
 
-            if (!isForwardPlus)
+            if (!usesCpuLightLists)
                 configuration |= PerObjectData.ReflectionProbes | PerObjectData.LightData;
 
-            if (additionalLightsCount > 0 && !isForwardPlus)
+            if (additionalLightsCount > 0 && !usesCpuLightLists)
             {
                 // In this case we also need per-object indices (unity_LightIndices)
                 if (!RenderingUtils.useStructuredBuffer)

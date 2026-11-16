@@ -54,9 +54,9 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             // UUM-41070: We require `Linear | Render` but with the deprecated FormatUsage this was checking `Blend`
             // For now, we keep checking for `Blend` until the performance hit of doing the correct checks is evaluated
-            if (GraphicsFormatCompatibility.IsFormatSupported(GraphicsFormat.R16_UNorm, GraphicsFormatUsage.Blend))
+            if (RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R16_UNorm, GraphicsFormatUsage.Blend))
                 _gaussianCoCFormat = GraphicsFormat.R16_UNorm;
-            else if (GraphicsFormatCompatibility.IsFormatSupported(GraphicsFormat.R16_SFloat, GraphicsFormatUsage.Blend))
+            else if (RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R16_SFloat, GraphicsFormatUsage.Blend))
                 _gaussianCoCFormat = GraphicsFormat.R16_SFloat;
             else // Expect CoC banding
                 _gaussianCoCFormat = GraphicsFormat.R8_UNorm;

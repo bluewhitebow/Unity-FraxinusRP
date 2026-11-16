@@ -60,9 +60,9 @@ namespace FraxinusEngine.Rendering.Ultra
 
         const string k_setupLightConstants = "Setup Light Constants";
         private static readonly ProfilingSampler _profilingSampler = new ProfilingSampler(k_setupLightConstants);
-        private static readonly ProfilingSampler _profilingSamplerFPSetup = new ProfilingSampler("Forward+ Setup");
-        private static readonly ProfilingSampler _profilingSamplerFPComplete = new ProfilingSampler("Forward+ Complete");
-        private static readonly ProfilingSampler _profilingSamplerFPUpload = new ProfilingSampler("Forward+ Upload");
+        private static readonly ProfilingSampler _profilingSamplerCpuLightListSetup = new ProfilingSampler("CPU Light Lists Setup");
+        private static readonly ProfilingSampler _profilingSamplerCpuLightListComplete = new ProfilingSampler("CPU Light Lists Complete");
+        private static readonly ProfilingSampler _profilingSamplerCpuLightListUpload = new ProfilingSampler("CPU Light Lists Upload");
         MixedLightingSetup _mixedLightingSetup;
 
         Vector4[] _additionalLightPositions;
@@ -74,7 +74,7 @@ namespace FraxinusEngine.Rendering.Ultra
         Vector4[] _additionalLightsFraxinusParams;
 
         bool _useStructuredBuffer;
-        bool _useForwardPlus;
+        bool _usesCpuLightLists;
         int _directionalLightCount;
         int _actualTileWidth;
         int2 _tileResolution;
@@ -95,18 +95,19 @@ namespace FraxinusEngine.Rendering.Ultra
         internal LightCookieManager lightCookieManager => _lightCookieManager;
         internal ReflectionProbeManager reflectionProbeManager => _reflectionProbeManager;
 
-        public bool useforwardLight
+        // Forward+ and Deferred+ share the CPU-built z bins and tile masks.
+        public bool usesCpuLightLists
         {
-            get => _useForwardPlus;
+            get => _usesCpuLightLists;
             set
             {
-                if (value != _useForwardPlus)
+                if (value != _usesCpuLightLists)
                 {
-                    _useForwardPlus = value;
-                    if (_useForwardPlus)
-                        CreateForwardPlusBuffers();
+                    _usesCpuLightLists = value;
+                    if (_usesCpuLightLists)
+                        CreateCpuLightListBuffers();
                     else
-                        ReleseForwardPlusBuffers();
+                        ReleaseCpuLightListBuffers();
                 }
             }
         }
@@ -126,8 +127,8 @@ namespace FraxinusEngine.Rendering.Ultra
             _additionalLightsLayerMasks = new float[maxLights];
             _additionalLightsFraxinusParams = new Vector4[maxLights];
 
-            if (_useForwardPlus)
-                CreateForwardPlusBuffers();
+            if (_usesCpuLightLists)
+                CreateCpuLightListBuffers();
 
             _reflectionProbeManager = ReflectionProbeManager.Create();
             _lightCookieManager = initParams.lightCookieManager;
@@ -150,8 +151,8 @@ namespace FraxinusEngine.Rendering.Ultra
             internal CameraData cameraData;
             internal LightData lightData;
             internal ForwardLights forwardLights;
-            internal ForwardPlusFrameData forwardPlus;
-            internal bool usesForwardPlus;
+            internal CpuLightListFrameData cpuLightLists;
+            internal bool usesCpuLightLists;
         };
 
         internal void SetupRenderGraphLights(RenderGraph renderGraph, ContextContainer frameData)
@@ -159,13 +160,13 @@ namespace FraxinusEngine.Rendering.Ultra
             var renderingData = frameData.Get<RenderingData>();
             var cameraData = frameData.Get<CameraData>();
             var lightData = frameData.Get<LightData>();
-            useforwardLight = renderingData.usesForwardPlusLightLists;
-            ForwardPlusFrameData forwardPlus = null;
-            if (_useForwardPlus)
+            usesCpuLightLists = renderingData.usesCpuLightLists;
+            CpuLightListFrameData cpuLightLists = null;
+            if (_usesCpuLightLists)
             {
-                forwardPlus = PrepareLightLists(renderGraph, frameData);
+                cpuLightLists = PrepareLightLists(renderGraph, frameData);
                 _reflectionProbeManager.PrepareGpuData(ref renderingData.cullResults);
-                forwardPlus.reflectionProbeAtlas = renderGraph.ImportTexture(_reflectionProbeManager.atlasRTHandle);
+                cpuLightLists.reflectionProbeAtlas = renderGraph.ImportTexture(_reflectionProbeManager.atlasRTHandle);
             }
             _lightCookieManager?.PrepareRenderGraphTextures(renderGraph, lightData);
             using (var builder = renderGraph.AddUnsafePass<SetupLightPassData>(s_setupForwardLights.name, out var passData, s_setupForwardLights))
@@ -174,14 +175,14 @@ namespace FraxinusEngine.Rendering.Ultra
                 passData.cameraData = cameraData;
                 passData.lightData = lightData;
                 passData.forwardLights = this;
-                passData.forwardPlus = forwardPlus;
-                passData.usesForwardPlus = _useForwardPlus;
+                passData.cpuLightLists = cpuLightLists;
+                passData.usesCpuLightLists = _usesCpuLightLists;
 
-                if (forwardPlus != null)
+                if (cpuLightLists != null)
                 {
-                    builder.UseBuffer(forwardPlus.zBins, AccessFlags.Write);
-                    builder.UseBuffer(forwardPlus.tileMasks, AccessFlags.Write);
-                    builder.UseTexture(forwardPlus.reflectionProbeAtlas, AccessFlags.ReadWrite);
+                    builder.UseBuffer(cpuLightLists.zBins, AccessFlags.Write);
+                    builder.UseBuffer(cpuLightLists.tileMasks, AccessFlags.Write);
+                    builder.UseTexture(cpuLightLists.reflectionProbeAtlas, AccessFlags.ReadWrite);
                 }
 
                 if (_lightCookieManager != null)
@@ -198,9 +199,9 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 builder.SetRenderFunc((SetupLightPassData data, UnsafeGraphContext rgContext) =>
                 {
-                    if (data.forwardPlus != null)
-                        UploadLightLists(rgContext.cmd, data.forwardPlus);
-                    data.forwardLights.SetupLights(rgContext.cmd, data.renderingData, data.cameraData, data.lightData, data.usesForwardPlus);
+                    if (data.cpuLightLists != null)
+                        UploadLightLists(rgContext.cmd, data.cpuLightLists);
+                    data.forwardLights.SetupLights(rgContext.cmd, data.renderingData, data.cameraData, data.lightData, data.usesCpuLightLists);
                 });
             }
         }
@@ -208,19 +209,19 @@ namespace FraxinusEngine.Rendering.Ultra
         private void Cleanup()
         {
             _cullingHandle.Complete();
-            ReleseForwardPlusBuffers();
+            ReleaseCpuLightListBuffers();
             _reflectionProbeManager.Dispose();
 
             _lightCookieManager?.Dispose();
             _lightCookieManager = null;
         }
-        void CreateForwardPlusBuffers()
+        void CreateCpuLightListBuffers()
         {
             _zBins = new NativeArray<uint>(UltraRenderPipeline.maxZBinWords, Allocator.Persistent);
             _tileMasks = new NativeArray<uint>(UltraRenderPipeline.maxTileWords, Allocator.Persistent);
         }
 
-        void ReleseForwardPlusBuffers()
+        void ReleaseCpuLightListBuffers()
         {
             _cullingHandle.Complete();
             if (_zBins.IsCreated) _zBins.Dispose();
@@ -229,12 +230,12 @@ namespace FraxinusEngine.Rendering.Ultra
             _tileMasks = default;
         }
 
-        ForwardPlusFrameData PrepareLightLists(RenderGraph graph, ContextContainer frame)
+        CpuLightListFrameData PrepareLightLists(RenderGraph graph, ContextContainer frame)
         {
-            var data = frame.GetOrCreate<ForwardPlusFrameData>();
+            var data = frame.GetOrCreate<CpuLightListFrameData>();
             data.Reset();
             PreSetup(frame.Get<RenderingData>(), frame.Get<CameraData>(), frame.Get<LightData>());
-            using (new ProfilingScope(_profilingSamplerFPComplete))
+            using (new ProfilingScope(_profilingSamplerCpuLightListComplete))
                 _cullingHandle.Complete();
 
             int zBinElements = _zBins.Length / 4;
@@ -245,8 +246,8 @@ namespace FraxinusEngine.Rendering.Ultra
                 data.tileMaskUpload = new float4[tileElements];
             _zBins.Reinterpret<float4>(sizeof(uint)).CopyTo(data.zBinUpload);
             _tileMasks.Reinterpret<float4>(sizeof(uint)).CopyTo(data.tileMaskUpload);
-            data.zBins = graph.CreateBuffer(new BufferDesc(zBinElements, 16, GraphicsBuffer.Target.Constant) { name = "Forward+ Z Bins" });
-            data.tileMasks = graph.CreateBuffer(new BufferDesc(tileElements, 16, GraphicsBuffer.Target.Constant) { name = "Forward+ Tile Masks" });
+            data.zBins = graph.CreateBuffer(new BufferDesc(zBinElements, 16, GraphicsBuffer.Target.Constant) { name = "CPU Light Lists Z Bins" });
+            data.tileMasks = graph.CreateBuffer(new BufferDesc(tileElements, 16, GraphicsBuffer.Target.Constant) { name = "CPU Light Lists Tile Masks" });
             var camera = frame.Get<CameraData>();
             data.parameters0 = new Vector4(_zBinScale, _zBinOffset, _lightCount, _directionalLightCount);
             data.parameters1 = new Vector4(camera.pixelWidth / (float)_actualTileWidth,
@@ -255,9 +256,9 @@ namespace FraxinusEngine.Rendering.Ultra
             return data;
         }
 
-        static void UploadLightLists(UnsafeCommandBuffer cmd, ForwardPlusFrameData data)
+        static void UploadLightLists(UnsafeCommandBuffer cmd, CpuLightListFrameData data)
         {
-            using (new ProfilingScope(_profilingSamplerFPUpload))
+            using (new ProfilingScope(_profilingSamplerCpuLightListUpload))
             {
                 cmd.SetBufferData((GraphicsBuffer)data.zBins, data.zBinUpload);
                 cmd.SetBufferData((GraphicsBuffer)data.tileMasks, data.tileMaskUpload);
@@ -265,13 +266,13 @@ namespace FraxinusEngine.Rendering.Ultra
             }
         }
 
-        internal static ForwardPlusFrameData UseLightingResources(IBaseRenderGraphBuilder builder, ContextContainer frame)
+        internal static CpuLightListFrameData UseLightingResources(IBaseRenderGraphBuilder builder, ContextContainer frame)
         {
-            if (!frame.Get<RenderingData>().usesForwardPlusLightLists || !frame.Contains<ForwardPlusFrameData>())
+            if (!frame.Get<RenderingData>().usesCpuLightLists || !frame.Contains<CpuLightListFrameData>())
                 return null;
-            var data = frame.Get<ForwardPlusFrameData>();
+            var data = frame.Get<CpuLightListFrameData>();
             if (!data.isValid)
-                throw new InvalidOperationException("Forward+ light lists must be prepared before recording a lighting pass.");
+                throw new InvalidOperationException("CPU light lists must be prepared before recording a lighting pass.");
             builder.UseBuffer(data.zBins, AccessFlags.Read);
             builder.UseBuffer(data.tileMasks, AccessFlags.Read);
             if (data.reflectionProbeAtlas.IsValid())
@@ -279,7 +280,7 @@ namespace FraxinusEngine.Rendering.Ultra
             return data;
         }
 
-        internal static void BindLightLists(RasterCommandBuffer cmd, ForwardPlusFrameData data)
+        internal static void BindLightLists(RasterCommandBuffer cmd, CpuLightListFrameData data)
         {
             if (data == null)
                 return;
@@ -290,7 +291,7 @@ namespace FraxinusEngine.Rendering.Ultra
             cmd.SetGlobalVector("_FPParams2", data.parameters2);
         }
 
-        static void BindLightLists(CommandBuffer cmd, ForwardPlusFrameData data)
+        static void BindLightLists(CommandBuffer cmd, CpuLightListFrameData data)
         {
             cmd.SetGlobalConstantBuffer((GraphicsBuffer)data.zBins, "ultraRP_ZBinBuffer", 0, data.zBinUpload.Length * 16);
             cmd.SetGlobalConstantBuffer((GraphicsBuffer)data.tileMasks, "ultraRP_TileBuffer", 0, data.tileMaskUpload.Length * 16);
@@ -299,7 +300,7 @@ namespace FraxinusEngine.Rendering.Ultra
             cmd.SetGlobalVector("_FPParams2", data.parameters2);
         }
 
-        class ContextLightListPassData { internal ForwardPlusFrameData lights; }
+        class ContextLightListPassData { internal CpuLightListFrameData lights; }
 
         internal void RenderContextLightLists(RenderGraph graph, ContextContainer frame, TextureHandle reflectionProbeAtlas)
         {
@@ -307,7 +308,7 @@ namespace FraxinusEngine.Rendering.Ultra
             // Child contexts use the same visible lights/probes and probe atlas;
             // only screen-space tile membership changes with their projection.
             data.reflectionProbeAtlas = reflectionProbeAtlas;
-            using var builder = graph.AddUnsafePass<ContextLightListPassData>("Forward+ Context Light Lists", out var pass);
+            using var builder = graph.AddUnsafePass<ContextLightListPassData>("CPU Light Lists for Context", out var pass);
             pass.lights = data;
             builder.UseBuffer(data.zBins, AccessFlags.Write);
             builder.UseBuffer(data.tileMasks, AccessFlags.Write);
@@ -318,7 +319,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
         internal static void RestoreContextLightLists(RenderGraph graph, ContextContainer frame)
         {
-            using var builder = graph.AddRasterRenderPass<ContextLightListPassData>("Restore Forward+ Context Light Lists", out var pass);
+            using var builder = graph.AddRasterRenderPass<ContextLightListPassData>("Restore CPU Light Lists for Context", out var pass);
             pass.lights = UseLightingResources(builder, frame);
             builder.AllowPassCulling(false);
             builder.AllowGlobalStateModification(true);
@@ -346,17 +347,17 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public void PreSetup(RenderingData renderingData, CameraData cameraData, LightData lightData)
         {
-            if (_useForwardPlus) 
+            if (_usesCpuLightLists)
             {
-                using var _ = new ProfilingScope(_profilingSamplerFPSetup);
+                using var _ = new ProfilingScope(_profilingSamplerCpuLightListSetup);
 
                 _cullingHandle.Complete();
 
                 if (!_tileMasks.IsCreated || _tileMasks.Length != UltraRenderPipeline.maxTileWords ||
                     !_zBins.IsCreated || _zBins.Length != UltraRenderPipeline.maxZBinWords)
                 {
-                    ReleseForwardPlusBuffers();
-                    CreateForwardPlusBuffers();
+                    ReleaseCpuLightListBuffers();
+                    CreateCpuLightListBuffers();
                 }
                 else
                 {
@@ -526,15 +527,15 @@ namespace FraxinusEngine.Rendering.Ultra
             }
         }
 
-        internal void SetupLights(UnsafeCommandBuffer cmd, RenderingData renderingData, CameraData cameraData, LightData lightData, bool usesForwardPlus)
+        internal void SetupLights(UnsafeCommandBuffer cmd, RenderingData renderingData, CameraData cameraData, LightData lightData, bool usesCpuLightLists)
         {
-            _useForwardPlus = usesForwardPlus;
+            _usesCpuLightLists = usesCpuLightLists;
             int additionalLightsCount = lightData.additionalLightsCount;
             bool additionalLightsPerVertex = lightData.shadeAdditionalLightsPerVertex;
 
             using (new ProfilingScope(_profilingSampler))
             {
-                if (_useForwardPlus)
+                if (_usesCpuLightLists)
                 {
                     _reflectionProbeManager.UploadGpuData(CommandBufferHelpers.GetNativeCommandBuffer(cmd));
                 }
@@ -542,9 +543,10 @@ namespace FraxinusEngine.Rendering.Ultra
                 SetupShaderLightConstants(cmd, ref renderingData.cullResults, lightData);
 
                 bool lightCountCheck = (cameraData.renderer.stripAdditionalLightOffVariants && lightData.supportsAdditionalLights) || additionalLightsCount > 0;
-                cmd.SetKeyword(ShaderGlobalKeywords.AdditionalLightsVertex, lightCountCheck && additionalLightsPerVertex && !_useForwardPlus);
-                cmd.SetKeyword(ShaderGlobalKeywords.AdditionalLightsPixel, lightCountCheck && !additionalLightsPerVertex && !_useForwardPlus);
-                cmd.SetKeyword(ShaderGlobalKeywords.ForwardPlus, _useForwardPlus);
+                cmd.SetKeyword(ShaderGlobalKeywords.AdditionalLightsVertex, lightCountCheck && additionalLightsPerVertex && !_usesCpuLightLists);
+                cmd.SetKeyword(ShaderGlobalKeywords.AdditionalLightsPixel, lightCountCheck && !additionalLightsPerVertex && !_usesCpuLightLists);
+                // This shader keyword selects the shared CPU light-list layout.
+                cmd.SetKeyword(ShaderGlobalKeywords.ForwardPlus, _usesCpuLightLists);
 
                 bool isShadowMask = lightData.supportsMixedLighting && _mixedLightingSetup == MixedLightingSetup.ShadowMask;
                 bool isShadowMaskAlways = isShadowMask && QualitySettings.shadowmaskMode == ShadowmaskMode.Shadowmask;
@@ -746,7 +748,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
         int SetupPerObjectLightIndices(CullingResults cullResults, LightData lightData)
         {
-            if (lightData.additionalLightsCount == 0 || _useForwardPlus)
+            if (lightData.additionalLightsCount == 0 || _usesCpuLightLists)
                 return lightData.additionalLightsCount;
 
             var perObjectLightIndexMap = cullResults.GetLightIndexMap(Allocator.Temp);

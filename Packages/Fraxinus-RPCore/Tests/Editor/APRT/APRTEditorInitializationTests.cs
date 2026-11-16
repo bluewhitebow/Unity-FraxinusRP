@@ -37,7 +37,7 @@ namespace UnityEngine.Rendering.Tests
         }
 
         [Test]
-        public void ExistingTemporaryLightingTabResolvesRegisteredPersistentSetAfterAPRTInitialization()
+        public void ExistingTemporaryBakingContextResolvesRegisteredPersistentSetAfterAPRTInitialization()
         {
             RequireValidationProject();
             RequireSavedBaseline();
@@ -46,31 +46,56 @@ namespace UnityEngine.Rendering.Tests
             string sceneGUID = scene.GetGUID();
             ProbeVolumeBakingSet persistent = fixture.CreatePersistentSet(sceneGUID);
             ProbeVolumeBakingSet temporary = fixture.CreateTemporarySet(sceneGUID);
-            var tab = new ProbeVolumeLightingTab();
-            SetField(tab, "m_ActiveSet", new ProbeVolumeBakingSetWeakReference(temporary));
-            SetField(tab, "m_TempBakingSet", true);
-            SetField(tab, "m_Initialized", true);
-            SetField(tab, "m_InspectorScene", scene);
+            var workflow = new ProbeVolumeBakingWorkflow();
+            SetField(workflow, "m_ActiveSet", new ProbeVolumeBakingSetWeakReference(temporary));
+            SetField(workflow, "isTemporaryBakingSet", true);
+            SetField(workflow, "inspectorScene", scene);
             ProbeVolumeBakingSet.sceneToBakingSet.Clear();
 
             APRTProbeReferenceVolume.instance.Initialize(new ProbeVolumeSystemParameters { enableAPRT = true });
-            var find = typeof(ProbeVolumeLightingTab).GetMethod("FindActiveSet", k_InstancePrivate);
+            var find = typeof(ProbeVolumeBakingWorkflow).GetMethod("FindActiveSet", k_InstancePrivate);
             Assert.That(find, Is.Not.Null);
-            Assert.That((bool)find.Invoke(tab, null), Is.True);
+            Assert.That((bool)find.Invoke(workflow, null), Is.True);
 
-            var active = (ProbeVolumeBakingSetWeakReference)GetField(tab, "m_ActiveSet");
+            var active = (ProbeVolumeBakingSetWeakReference)GetField(workflow, "m_ActiveSet");
             Assert.That(active.Get(), Is.SameAs(persistent),
-                "A tab that already owns a temporary set must adopt the recovered persistent registration.");
-            Assert.That((bool)GetField(tab, "m_TempBakingSet"), Is.False);
-            Assert.That(temporary == null, Is.True, "The tab must dispose of the superseded temporary set.");
+                "A context that already owns a temporary set must adopt the recovered persistent registration.");
+            Assert.That((bool)GetField(workflow, "isTemporaryBakingSet"), Is.False);
+            Assert.That(temporary == null, Is.True, "The context must dispose of the superseded temporary set.");
             Assert.That(EditorUtility.IsPersistent(persistent), Is.True);
             Assert.That(ProbeVolumeBakingSet.GetBakingSetForScene(sceneGUID), Is.SameAs(persistent));
 
             APRTProbeReferenceVolume.instance.SetActiveScene(scene);
             Assert.That(APRTProbeReferenceVolume.instance.currentBakingSet, Is.SameAs(persistent),
-                "The runtime and the Lighting tab must resolve the same persisted Baking Set.");
-            Assert.That((bool)find.Invoke(tab, null), Is.True);
+                "The runtime and the baking context must resolve the same persisted Baking Set.");
+            Assert.That((bool)find.Invoke(workflow, null), Is.True);
             Assert.That(active.Get(), Is.SameAs(persistent), "Repeated discovery must preserve the persistent set.");
+        }
+
+        [Test]
+        public void ReleasingBakingContextDestroysOnlyTemporarySets()
+        {
+            RequireValidationProject();
+            using var fixture = new RegistryFixture();
+            string sceneGUID = Guid.NewGuid().ToString("N");
+            var temporary = fixture.CreateTemporarySet(sceneGUID);
+            var workflow = new ProbeVolumeBakingWorkflow();
+            SetField(workflow, "m_ActiveSet", new ProbeVolumeBakingSetWeakReference(temporary));
+            workflow.isTemporaryBakingSet = true;
+
+            workflow.ReleaseTemporaryBakingSet();
+
+            Assert.That(temporary == null, Is.True);
+            Assert.That(workflow.activeSet, Is.Null);
+
+            var persistent = fixture.CreatePersistentSet(sceneGUID);
+            workflow.activeSet = persistent;
+
+            workflow.ReleaseTemporaryBakingSet();
+
+            Assert.That(persistent != null, Is.True);
+            Assert.That(EditorUtility.IsPersistent(persistent), Is.True);
+            Assert.That(workflow.activeSet, Is.Null);
         }
 
         static void RequireValidationProject()

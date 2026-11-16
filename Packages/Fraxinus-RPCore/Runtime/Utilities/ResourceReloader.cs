@@ -48,10 +48,6 @@ namespace UnityEngine.Rendering
             {
                 return (false, true);
             }
-            catch (Exception e)
-            {
-                throw e;
-            }
         }
 
         /// <summary>

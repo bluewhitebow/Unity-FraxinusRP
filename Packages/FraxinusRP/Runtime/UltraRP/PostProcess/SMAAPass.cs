@@ -44,7 +44,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public SMAAPass() : base()
         {
-            if (GraphicsFormatCompatibility.IsFormatSupported(GraphicsFormat.R8G8_UNorm, GraphicsFormatUsage.Render) && SystemInfo.graphicsDeviceVendor.ToLowerInvariant().Contains("arm"))
+            if (RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R8G8_UNorm, GraphicsFormatUsage.Render) && SystemInfo.graphicsDeviceVendor.ToLowerInvariant().Contains("arm"))
                 _smssEdgeFormat = GraphicsFormat.R8G8_UNorm;
             else
                 _smssEdgeFormat = GraphicsFormat.R8G8B8A8_UNorm;

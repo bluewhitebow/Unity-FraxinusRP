@@ -505,10 +505,10 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public void SetupRenderGraphLights(RenderGraph renderGraph, RenderingData renderingData, CameraData cameraData, LightData lightData)
         {
-            // Forward+ already prepares and declares the common reflection-probe
+            // CPU light-list setup already prepares and declares the common reflection-probe
             // atlas. Preserve that atlas and its matching constants when GPU
             // deferred lighting and Forward+ draws share a camera.
-            if (renderingData.usesForwardPlusLightLists)
+            if (renderingData.usesCpuLightLists)
                 return;
 
             using (var builder = renderGraph.AddUnsafePass<SetupLightPassData>(s_setupClusterDeferredLights.name,

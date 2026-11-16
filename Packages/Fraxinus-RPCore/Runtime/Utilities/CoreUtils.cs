@@ -11,59 +11,6 @@ namespace UnityEngine.Rendering
     using UnityObject = UnityEngine.Object;
 
     /// <summary>
-    /// Cross-version graphics-format capability queries.
-    /// </summary>
-    public static class GraphicsFormatCompatibility
-    {
-        /// <summary>
-        /// Returns whether a format supports every requested Unity 6 usage
-        /// flag. Unity 2022 exposes only single <see cref="FormatUsage"/>
-        /// queries, so combined flags are evaluated one by one.
-        /// </summary>
-        public static bool IsFormatSupported(GraphicsFormat format, GraphicsFormatUsage usage)
-        {
-#if UNITY_6000_0_OR_NEWER
-            return SystemInfo.IsFormatSupported(format, usage);
-#else
-            var remaining = usage;
-            if (!IsLegacyUsageSupported(format, GraphicsFormatUsage.Sample, FormatUsage.Sample, ref remaining) ||
-                !IsLegacyUsageSupported(format, GraphicsFormatUsage.Linear, FormatUsage.Linear, ref remaining) ||
-                !IsLegacyUsageSupported(format, GraphicsFormatUsage.Sparse, FormatUsage.Sparse, ref remaining) ||
-                !IsLegacyUsageSupported(format, GraphicsFormatUsage.Render, FormatUsage.Render, ref remaining) ||
-                !IsLegacyUsageSupported(format, GraphicsFormatUsage.Blend, FormatUsage.Blend, ref remaining) ||
-                !IsLegacyUsageSupported(format, GraphicsFormatUsage.GetPixels, FormatUsage.GetPixels, ref remaining) ||
-                !IsLegacyUsageSupported(format, GraphicsFormatUsage.SetPixels, FormatUsage.SetPixels, ref remaining) ||
-                !IsLegacyUsageSupported(format, GraphicsFormatUsage.SetPixels32, FormatUsage.SetPixels32, ref remaining) ||
-                !IsLegacyUsageSupported(format, GraphicsFormatUsage.ReadPixels, FormatUsage.ReadPixels, ref remaining) ||
-                !IsLegacyUsageSupported(format, GraphicsFormatUsage.LoadStore, FormatUsage.LoadStore, ref remaining) ||
-                !IsLegacyUsageSupported(format, GraphicsFormatUsage.MSAA2x, FormatUsage.MSAA2x, ref remaining) ||
-                !IsLegacyUsageSupported(format, GraphicsFormatUsage.MSAA4x, FormatUsage.MSAA4x, ref remaining) ||
-                !IsLegacyUsageSupported(format, GraphicsFormatUsage.MSAA8x, FormatUsage.MSAA8x, ref remaining) ||
-                !IsLegacyUsageSupported(format, GraphicsFormatUsage.StencilSampling, FormatUsage.StencilSampling, ref remaining))
-                return false;
-
-            // Reject unknown future bits instead of silently claiming support.
-            return remaining == GraphicsFormatUsage.None;
-#endif
-        }
-
-#if !UNITY_6000_0_OR_NEWER
-        static bool IsLegacyUsageSupported(
-            GraphicsFormat format,
-            GraphicsFormatUsage flag,
-            FormatUsage legacyUsage,
-            ref GraphicsFormatUsage remaining)
-        {
-            if ((remaining & flag) == 0)
-                return true;
-
-            remaining &= ~flag;
-            return SystemInfo.IsFormatSupported(format, legacyUsage);
-        }
-#endif
-    }
-
-    /// <summary>
     /// Set of utility functions for the Core Scriptable Render Pipeline Library
     /// </summary>
     public static class CoreUtils
@@ -1353,14 +1300,15 @@ namespace UnityEngine.Rendering
                 m_AssemblyTypes = AppDomain.CurrentDomain.GetAssemblies()
                     .SelectMany(t =>
                     {
-                        // Ugly hack to handle mis-versioned dlls
-                        var innerTypes = new Type[0];
                         try
                         {
-                            innerTypes = t.GetTypes();
+                            return (IEnumerable<Type>)t.GetTypes();
                         }
-                        catch { }
-                        return innerTypes;
+                        catch (System.Reflection.ReflectionTypeLoadException exception)
+                        {
+                            // Keep loadable types when a third-party assembly has missing dependencies.
+                            return exception.Types.Where(type => type != null);
+                        }
                     });
             }
 

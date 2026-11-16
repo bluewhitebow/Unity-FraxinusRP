@@ -72,7 +72,7 @@ namespace FraxinusEngine.Rendering.Ultra
             // Signed UV motion and depth rejection share the conversion target.
             const GraphicsFormatUsage usage = GraphicsFormatUsage.Render | GraphicsFormatUsage.Sample | GraphicsFormatUsage.Linear;
             return SystemInfo.graphicsShaderLevel >= 45 &&
-                   GraphicsFormatCompatibility.IsFormatSupported(GraphicsFormat.R16G16B16A16_SFloat, usage);
+                   RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R16G16B16A16_SFloat, usage);
         }
 
         internal static bool IsSupported(Material material, Sgsr2History history)

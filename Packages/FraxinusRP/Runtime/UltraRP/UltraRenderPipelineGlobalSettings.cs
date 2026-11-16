@@ -14,9 +14,9 @@ namespace FraxinusEngine.Rendering.Ultra
     [DisplayInfo(name = "UltraRP Global Settings Asset", order = CoreUtils.Sections.section4 + 2)]
     [SupportedOnRenderPipeline(typeof(UltraRenderPipelineAsset))]
     [DisplayName("UltraRP")]
-    public partial class UltraRenderPipelineGlobalSettings : RenderPipelineGlobalSettings<UltraRenderPipelineGlobalSettings, UltraRenderPipeline>, ISerializationCallbackReceiver
+    public partial class UltraRenderPipelineGlobalSettings : RenderPipelineGlobalSettings<UltraRenderPipelineGlobalSettings, UltraRenderPipeline>
 #if !UNITY_6000_0_OR_NEWER
-        , IRenderingLayerNamesProvider
+        , ISerializationCallbackReceiver, IRenderingLayerNamesProvider
 #endif
     {
         internal bool IsAtLastVersion() => true;
@@ -33,7 +33,7 @@ namespace FraxinusEngine.Rendering.Ultra
             var changed = RenderPipelineGraphicsSettingsCompatibility.PopulateRenderPipelineGraphicsSettings(
                 this, typeof(UltraRenderPipelineAsset));
 #if UNITY_EDITOR
-            var defaults = RenderPipelineGraphicsSettingsCompatibility.GetRenderPipelineSettings<UltraRenderPipelineDefaultVolumeProfileSettings>(this);
+            var defaults = GetSettings<UltraRenderPipelineDefaultVolumeProfileSettings>();
             if (defaults != null && defaults.volumeProfile == null)
             {
                 defaults.volumeProfile = GetOrCreateDefaultVolumeProfile(null);
@@ -46,16 +46,15 @@ namespace FraxinusEngine.Rendering.Ultra
         }
 #endif
 
+#if !UNITY_6000_0_OR_NEWER
         public void OnBeforeSerialize()
         {
-#if !UNITY_6000_0_OR_NEWER
             m_Settings?.OnBeforeSerialize();
-#endif
         }
 
         public void OnAfterDeserialize()
         {
-#if UNITY_EDITOR && !UNITY_6000_0_OR_NEWER
+#if UNITY_EDITOR
             EditorApplication.delayCall += () =>
             {
                 if (this != null)
@@ -63,6 +62,7 @@ namespace FraxinusEngine.Rendering.Ultra
             };
 #endif
         }
+#endif
 
 #if UNITY_EDITOR
         internal void PrepareGraphicsSettingsForPlayerBuild()

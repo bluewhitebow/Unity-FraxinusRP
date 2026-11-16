@@ -125,7 +125,7 @@ namespace FraxinusEngine.Base
 
             var node = Activator.CreateInstance(nodeType) as BaseNode;
             node.position = new Rect(position, new Vector2(100, 100));
-            ExceptionToLog.Call(() => node.OnNodeCreated());
+            node.OnNodeCreated();
 
             return node;
         }
@@ -136,7 +136,7 @@ namespace FraxinusEngine.Base
         {
             this.graph = graph;
 
-            ExceptionToLog.Call(() => Enable());
+            Enable();
 
             InitializePorts();
         }
@@ -202,16 +202,10 @@ namespace FraxinusEngine.Base
                     if (typeBehaviors.Length == 0)
                         continue;
 
-                    CustomPortTypeBehaviorDelegate deleg = null;
-                    try
-                    {
-                        deleg = Delegate.CreateDelegate(typeof(CustomPortTypeBehaviorDelegate), this, method) as CustomPortTypeBehaviorDelegate;
-                    }
-                    catch (Exception e)
-                    {
-                        Debug.LogError(e);
+                    var deleg = method.ContainsGenericParameters ? null : Delegate.CreateDelegate(
+                        typeof(CustomPortTypeBehaviorDelegate), this, method, throwOnBindFailure: false) as CustomPortTypeBehaviorDelegate;
+                    if (deleg == null)
                         Debug.LogError($"Cannot convert method {method} to a delegate of type {typeof(CustomPortTypeBehaviorDelegate)}");
-                    }
 
                     foreach (var typeBehavior in typeBehaviors)
                         customPortTypeBehaviorMap[typeBehavior.type] = deleg;
@@ -372,10 +366,10 @@ namespace FraxinusEngine.Base
             inputPorts.Clear();
             outputPorts.Clear();
 
-            ExceptionToLog.Call(() => Disable());
+            Disable();
         }
 
-        internal void DestroyInternal() => ExceptionToLog.Call(() => Destroy());
+        internal void DestroyInternal() => Destroy();
 
         public virtual void OnNodeCreated() => guid = Guid.NewGuid().ToString();
 
@@ -453,15 +447,10 @@ namespace FraxinusEngine.Base
                 if (customPortBehaviorAttribute == null)
                     continue;
 
-                try
-                {
-                    var referenceType = typeof(CustomPortBehaviorDelegate);
-                    behavior = (CustomPortBehaviorDelegate)Delegate.CreateDelegate(referenceType, this, method, true);
-                }
-                catch
-                {
+                behavior = method.ContainsGenericParameters ? null : (CustomPortBehaviorDelegate)Delegate.CreateDelegate(
+                    typeof(CustomPortBehaviorDelegate), this, method, throwOnBindFailure: false);
+                if (behavior == null)
                     Debug.LogError($"The function {method} cannot be converted to the required delegate format: {typeof(CustomPortBehaviorDelegate)}");
-                }
 
                 if (nodeFields.ContainsKey(customPortBehaviorAttribute.fieldName))
                     nodeFields[customPortBehaviorAttribute.fieldName].behavior = behavior;
@@ -518,8 +507,6 @@ namespace FraxinusEngine.Base
         public void OnProcess()
         {
             inputPorts.PullDatas();
-
-            //ExceptionToLog.Call(() => Process()); // ExceptionToLog.Call 有256B GC
 
             Process();
 

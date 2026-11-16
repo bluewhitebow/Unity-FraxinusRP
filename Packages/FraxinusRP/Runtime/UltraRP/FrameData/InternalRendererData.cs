@@ -12,7 +12,8 @@ namespace FraxinusEngine.Rendering.Ultra
         public DeferredLightingMode deferredLightingMode;
         public bool hasDeferredCluster => hasDeferred && deferredLightingMode == DeferredLightingMode.GPUCluster;
         public bool hasDeferredPlus => hasDeferred && deferredLightingMode == DeferredLightingMode.DeferredPlus;
-        public bool usesForwardPlusLightLists => hasForwardPlus || hasDeferredPlus;
+        // Forward+ and Deferred+ share CPU-built lists; GPU Cluster has its own light lists.
+        public bool usesCpuLightLists => hasForwardPlus || hasDeferredPlus;
         public ClusterLightingMode clusterLightingMode;
 
         public override void Reset()

@@ -163,7 +163,7 @@ namespace FraxinusEngine.Rendering.Ultra
             // Sample and render support are both required for temporal feedback.
             const GraphicsFormatUsage usage = GraphicsFormatUsage.Render | GraphicsFormatUsage.Sample | GraphicsFormatUsage.Linear;
             if (descriptor.graphicsFormat == GraphicsFormat.None ||
-                !GraphicsFormatCompatibility.IsFormatSupported(descriptor.graphicsFormat, usage))
+                !RenderingUtils.SupportsGraphicsFormat(descriptor.graphicsFormat, usage))
             {
                 descriptor.graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
             }

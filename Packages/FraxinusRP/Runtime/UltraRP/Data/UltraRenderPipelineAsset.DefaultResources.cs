@@ -99,13 +99,14 @@ namespace FraxinusEngine.Rendering.Ultra
         #region Shaders
 
 #if UNITY_EDITOR
-        private UltraRenderPipelineEditorShaders defaultShaders =>
-#if UNITY_6000_0_OR_NEWER
-            RenderPipelineGraphicsSettingsCompatibility.GetRenderPipelineSettings<UltraRenderPipelineEditorShaders>();
-#else
-            RenderPipelineGraphicsSettingsCompatibility.GetRenderPipelineSettings<UltraRenderPipelineEditorShaders>(
-                UltraRenderPipelineGlobalSettings.instance);
-#endif
+        private UltraRenderPipelineEditorShaders defaultShaders
+        {
+            get
+            {
+                var globalSettings = UltraRenderPipelineGlobalSettings.instance;
+                return globalSettings == null ? null : globalSettings.GetSettings<UltraRenderPipelineEditorShaders>();
+            }
+        }
 #endif
 
         Shader _defaultShader;

@@ -62,7 +62,7 @@ namespace UnityEditor.Rendering
 
             EditorGUILayout.Space();
             var volume = (APRTVolume)target;
-            var bakingSet = ProbeVolumeLightingTab.GetSceneBakingSetForUI(volume.gameObject.scene);
+            var bakingSet = ProbeVolumeBakingWorkflow.GetSceneBakingSetForUI(volume.gameObject.scene);
             if (bakingSet != null)
             {
                 EditorGUILayout.ObjectField("Baking Set", bakingSet, typeof(ProbeVolumeBakingSet), false);
@@ -75,7 +75,7 @@ namespace UnityEditor.Rendering
             bool available = ProbeVolumeBakingProvider.IsBackendAvailable(APRTProbeReferenceVolumeBackend.backendId);
             if (!available) EditorGUILayout.HelpBox(APRTProbeVolumeEditorBackend.unavailableMessage, MessageType.Info);
             using (new EditorGUI.DisabledScope(!available || ProbeVolumeBakingProvider.isRunning || EditorApplication.isPlayingOrWillChangePlaymode))
-                if (GUILayout.Button("Bake APRT")) ProbeVolumeLightingTab.BakeAPRT(bakingSet, volume.gameObject.scene);
+                if (GUILayout.Button("Bake APRT")) ProbeVolumeBakingWorkflow.BakeAPRT(bakingSet, volume.gameObject.scene);
             if (ProbeVolumeBakingProvider.isRunning && ProbeVolumeBakingProvider.activeOrNull?.backendId == APRTProbeReferenceVolumeBackend.backendId && GUILayout.Button("Cancel APRT Bake"))
                 ProbeVolumeBakingProvider.Cancel();
         }
@@ -144,7 +144,7 @@ namespace UnityEditor.Rendering
                 Encapsulate(terrain.boundsWithTrees);
 
             // Use the scene's spacing even before the first bake and without initializing a backend.
-            var bakingSet = ProbeVolumeLightingTab.GetSceneBakingSetForUI(volume.gameObject.scene);
+            var bakingSet = ProbeVolumeBakingWorkflow.GetSceneBakingSetForUI(volume.gameObject.scene);
             float minBrickSize = ProbeVolumeBakingSet.GetMinBrickSize(bakingSet != null ? bakingSet.minDistanceBetweenProbes : 1.0f);
             Undo.RecordObjects(new Object[] { volume, volume.transform }, "Fit APRT Volume");
             volume.transform.position = toWorld.MultiplyPoint3x4(bounds.center);

@@ -229,19 +229,12 @@ namespace UnityEngine.Rendering
 
                     var keys = desc.keyTriggerList[keyListIndex];
 
-                    try
+                    // KeyCode bindings do not depend on named Input Manager mappings.
+                    foreach (var key in keys)
                     {
-                        foreach (var key in keys)
-                        {
-                            allKeyPressed = Input.GetKey(key);
-                            if (!allKeyPressed)
-                                break;
-                        }
-                    }
-                    catch (ArgumentException)
-                    {
-                        // Exception thrown if the input mapping gets removed while in play mode (UUM-37148)
-                        allKeyPressed = false;
+                        allKeyPressed = Input.GetKey(key);
+                        if (!allKeyPressed)
+                            break;
                     }
 
                     if (allKeyPressed)

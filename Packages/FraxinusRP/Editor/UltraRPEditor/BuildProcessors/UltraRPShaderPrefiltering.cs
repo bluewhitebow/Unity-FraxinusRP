@@ -167,8 +167,8 @@ namespace FraxinusEditor.Rendering.Ultra
                 return;
 
             var settings = GraphicsSettings.GetSettingsForRenderPipeline<UltraRenderPipeline>() as UltraRenderPipelineGlobalSettings;
-            var ultra = settings == null ? null : RenderPipelineGraphicsSettingsCompatibility.GetRenderPipelineSettings<UltraRenderPipelineShaderStrippingSetting>(settings);
-            var core = settings == null ? null : RenderPipelineGraphicsSettingsCompatibility.GetRenderPipelineSettings<ShaderStrippingSetting>(settings);
+            var ultra = settings == null ? null : settings.GetSettings<UltraRenderPipelineShaderStrippingSetting>();
+            var core = settings == null ? null : settings.GetSettings<ShaderStrippingSetting>();
             bool stripUnused = ultra != null && ultra.stripUnusedVariants;
             var features = UltraRPShaderBuildFeatures.WithBuildSettings(
                 UltraRPShaderBuildFeatures.Gather(allAssets, stripUnused),

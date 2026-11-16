@@ -166,7 +166,7 @@ namespace FraxinusEngine.Rendering.Ultra
     [ShaderKeywordFilter.ApplyRulesIfTagsEqual("RenderPipeline", "UltraPipeline")]
 #endif
     public partial class UltraRenderPipelineAsset : RenderPipelineAsset<UltraRenderPipeline>, ISerializationCallbackReceiver, 
-        IProbeVolumeEnabledRenderPipeline, IGPUResidentRenderPipeline, 
+        IProbeVolumeEnabledRenderPipeline,
         IRenderGraphEnabledRenderPipeline, ISTPEnabledRenderPipeline, IVirtualTexturingEnabledRenderPipeline
     {
         internal bool IsAtLastVersion() => true;
@@ -299,23 +299,9 @@ namespace FraxinusEngine.Rendering.Ultra
         internal VirtualTexturingSettingsSRP virtualTexturingSettings = new VirtualTexturingSettingsSRP();
 
         // GPU Resident Drawer
-        [SerializeField] GPUResidentDrawerMode _gpuResidentDrawerMode = GPUResidentDrawerMode.Disabled;
+        [SerializeField] UltraGPUResidentDrawerMode _gpuResidentDrawerMode = UltraGPUResidentDrawerMode.Disabled;
         [SerializeField] float _smallMeshScreenPercentage = 0.0f;
         [SerializeField] bool _gpuResidentDrawerEnableOcclusionCullingInCameras;
-
-        GPUResidentDrawerSettings IGPUResidentRenderPipeline.gpuResidentDrawerSettings => new()
-        {
-            mode = gpuResidentDrawerMode,
-            enableOcclusionCulling = gpuResidentDrawerEnableOcclusionCullingInCameras,
-            supportDitheringCrossFade = _enableLODCrossFade,
-            allowInEditMode = true,
-            smallMeshScreenPercentage = _smallMeshScreenPercentage,
-#if UNITY_EDITOR
-            pickingShader = Shader.Find("Hidden/Ultra Render Pipeline/BRGPicking"),
-#endif
-            errorShader = Shader.Find("Hidden/Ultra Render Pipeline/FallbackError"),
-            loadingShader = Shader.Find("Hidden/Ultra Render Pipeline/FallbackLoading"),
-        };
 
         [SerializeField] VolumeFrameworkUpdateMode _volumeFrameworkUpdateMode = VolumeFrameworkUpdateMode.EveryFrame;
         [SerializeField] VolumeProfile _volumeProfile;
@@ -369,7 +355,7 @@ namespace FraxinusEngine.Rendering.Ultra
             var pipeline = new UltraRenderPipeline(this);
             CreateRenderers();
 
-            IGPUResidentRenderPipeline.ReinitializeGPUResidentDrawer();
+            GPUResidentDrawerBridge.Reinitialize();
 
             return pipeline;
         }
@@ -443,8 +429,8 @@ namespace FraxinusEngine.Rendering.Ultra
                     DestroyRenderer(ref _renderers[defaultRendererIndex]);
                     _renderers[defaultRendererIndex] = scriptableRendererGraph.InternalCreateRenderer();
 
-                    if (gpuResidentDrawerMode != GPUResidentDrawerMode.Disabled)
-                        IGPUResidentRenderPipeline.ReinitializeGPUResidentDrawer();
+                    if (gpuResidentDrawerMode != UltraGPUResidentDrawerMode.Disabled)
+                        GPUResidentDrawerBridge.Reinitialize();
                 }
 
                 return _renderers[defaultRendererIndex];
@@ -473,8 +459,8 @@ namespace FraxinusEngine.Rendering.Ultra
                 DestroyRenderer(ref _renderers[index]);
                 _renderers[index] = rendererGraphList[index].InternalCreateRenderer();
 
-                if (gpuResidentDrawerMode != GPUResidentDrawerMode.Disabled)
-                    IGPUResidentRenderPipeline.ReinitializeGPUResidentDrawer();
+                if (gpuResidentDrawerMode != UltraGPUResidentDrawerMode.Disabled)
+                    GPUResidentDrawerBridge.Reinitialize();
             }
 
             return _renderers[index];
@@ -532,7 +518,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 GraphicsFormat result = GraphicsFormat.None;
                 foreach (var format in s_lightCookieFormatList[(int)_additionalLightsCookieFormat])
                 {
-                    if (GraphicsFormatCompatibility.IsFormatSupported(format, GraphicsFormatUsage.Render))
+                    if (RenderingUtils.SupportsGraphicsFormat(format, GraphicsFormatUsage.Render))
                     {
                         result = format;
                         break;
@@ -916,13 +902,9 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public override string renderPipelineShaderTag => UltraRenderPipeline.shaderTagName;
 
-        public GPUResidentDrawerMode gpuResidentDrawerMode
+        public UltraGPUResidentDrawerMode gpuResidentDrawerMode
         {
-#if UNITY_6000_0_OR_NEWER
-            get => _gpuResidentDrawerMode;
-#else
-            get => GPUResidentDrawerMode.Disabled;
-#endif
+            get => GPUResidentDrawerBridge.IsAvailable ? _gpuResidentDrawerMode : UltraGPUResidentDrawerMode.Disabled;
             set
             {
                 if (value == _gpuResidentDrawerMode)
@@ -935,11 +917,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public bool gpuResidentDrawerEnableOcclusionCullingInCameras
         {
-#if UNITY_6000_0_OR_NEWER
-            get => _gpuResidentDrawerEnableOcclusionCullingInCameras;
-#else
-            get => false;
-#endif
+            get => GPUResidentDrawerBridge.IsAvailable && _gpuResidentDrawerEnableOcclusionCullingInCameras;
             set
             {
                 if (value == _gpuResidentDrawerEnableOcclusionCullingInCameras)
@@ -948,35 +926,6 @@ namespace FraxinusEngine.Rendering.Ultra
                 _gpuResidentDrawerEnableOcclusionCullingInCameras = value;
                 OnValidate();
             }
-        }
-
-        static class Strings
-        {
-            public static readonly string notRenderer = $"{nameof(GPUResidentDrawer)} Disabled due to some configured Ultra RenderGraph not being {nameof(UltraRendererGraph)}.";
-        }
-
-        public bool IsGPUResidentDrawerSupportedBySRP(out string message, out LogType severty)
-        {
-#if !UNITY_6000_0_OR_NEWER
-            message = "GPU Resident Drawer requires Unity 6. UltraRP uses the standard renderer-list path on Unity 2022.";
-            severty = LogType.Warning;
-            return false;
-#else
-            message = string.Empty;
-            severty = LogType.Warning;
-
-            // if any of the renderers are not set to Forward+ return false
-            foreach (var rendererGraph in rendererGraphList)
-            {
-                if (rendererGraph is not UltraRendererGraph ultraRendererGraph)
-                {
-                    message = Strings.notRenderer;
-                    return false;
-                }
-            }
-
-            return true;
-#endif
         }
 
         /// <summary>

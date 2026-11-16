@@ -90,14 +90,14 @@ namespace FraxinusEngine.Rendering.Ultra
                 for (int passIndex = 0; passIndex < passCount; ++passIndex)
                 {
                     uint batchLayerMask = uint.MaxValue;
+#if UNITY_6000_0_OR_NEWER
                     if (needsOccluderUpdate)
                     {
                         OcclusionTest occlusionTest = (passIndex == 0) ? OcclusionTest.TestAll : OcclusionTest.TestCulled;
                         UltraRenderer.InstanceOcclusionTest(renderGraph, cameraData, occlusionTest);
-#if UNITY_6000_0_OR_NEWER
                         batchLayerMask = occlusionTest.GetBatchLayerMask();
-#endif
                     }
+#endif
 
                     // The prepasses are executed multiple times when GRD occlusion is active.
                     // We only want to set global textures after all executions are complete.
@@ -144,9 +144,11 @@ namespace FraxinusEngine.Rendering.Ultra
                     {
                         // first pass: make current frame intermediate depth pyramid
                         // second pass: make current frame final depth pyramid, set occlusion test results for later passes
-                        UltraRenderer.UpdateInstanceOccluders(renderGraph, cameraData, depthTarget);
+                        GPUResidentDrawerBridge.UpdateOccluders(renderGraph, cameraData, depthTarget);
+#if UNITY_6000_0_OR_NEWER
                         if (passIndex != 0)
                             UltraRenderer.InstanceOcclusionTest(renderGraph, cameraData, OcclusionTest.TestAll);
+#endif
                     }
                 }
                 needsOccluderUpdate = false;

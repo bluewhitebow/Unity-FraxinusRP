@@ -1696,188 +1696,190 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
             // Having random access targets bound leads to all sorts of weird behavior so we clear them before executing the graph.
             rgContext.cmd.ClearRandomWriteTargets();
 
-            try
+            for (int passIndex = 0; passIndex < contextData.passData.Length; passIndex++)
             {
-                for (int passIndex = 0; passIndex < contextData.passData.Length; passIndex++)
+                ref var pass = ref contextData.passData.ElementAt(passIndex);
+
+                // Culled passes do not participate in resource or native-pass execution.
+                if (pass.culled)
+                    continue;
+
+                rgContext.executingPass = passes[pass.passId];
+                var isRaster = pass.type == RenderGraphPassType.Raster;
+
+                bool haveGraphicsCommandsBeenAddedDuringResourceInitialization =
+                    ExecuteInitializeResource(rgContext, resources, pass);
+
+                var isAsyncCompute = pass.type == RenderGraphPassType.Compute && pass.asyncCompute;
+                GraphicsFence graphicsToAsyncFence = default(GraphicsFence);
+                bool hasGraphicsToAsyncFence = false;
+
+                if (isAsyncCompute)
                 {
-                    ref var pass = ref contextData.passData.ElementAt(passIndex);
-
-                    // Culled passes do not participate in resource or native-pass execution.
-                    if (pass.culled)
-                        continue;
-
-                    rgContext.executingPass = passes[pass.passId];
-                    var isRaster = pass.type == RenderGraphPassType.Raster;
-
-                    bool haveGraphicsCommandsBeenAddedDuringResourceInitialization =
-                        ExecuteInitializeResource(rgContext, resources, pass);
-
-                    var isAsyncCompute = pass.type == RenderGraphPassType.Compute && pass.asyncCompute;
-                    GraphicsFence graphicsToAsyncFence = default(GraphicsFence);
-                    bool hasGraphicsToAsyncFence = false;
-
-                    if (isAsyncCompute)
+                    if (!rgContext.contextlessTesting)
                     {
-                        if (!rgContext.contextlessTesting)
+                        if (haveGraphicsCommandsBeenAddedDuringResourceInitialization)
                         {
-                            if (haveGraphicsCommandsBeenAddedDuringResourceInitialization)
-                            {
-                                graphicsToAsyncFence = rgContext.cmd.CreateGraphicsFence(
-                                    GraphicsFenceType.AsyncQueueSynchronisation,
-                                    SynchronisationStageFlags.AllGPUOperations);
-                                hasGraphicsToAsyncFence = true;
-                            }
-
-                            // Do not cross the managed/native boundary for an
-                            // empty graphics buffer.  Unity 2022 still pays a
-                            // real submission cost here even when no commands
-                            // were recorded (notably visible in an otherwise
-                            // empty scene).  A non-empty buffer is always
-                            // flushed so the existing queue ordering remains
-                            // unchanged.
-                            if (rgContext.cmd.sizeInBytes > 0)
-                                rgContext.renderContext.ExecuteCommandBuffer(rgContext.cmd);
+                            graphicsToAsyncFence = rgContext.cmd.CreateGraphicsFence(
+                                GraphicsFenceType.AsyncQueueSynchronisation,
+                                SynchronisationStageFlags.AllGPUOperations);
+                            hasGraphicsToAsyncFence = true;
                         }
-                        rgContext.cmd.Clear();
 
-                        var asyncCmd = CommandBufferPool.Get("async cmd");
-                        rgContext.cmd = asyncCmd;
-                        m_AsyncCommandBufferActive = true;
-                        asyncCmd.SetExecutionFlags(CommandBufferExecutionFlags.AsyncCompute);
-
-                        if (haveGraphicsCommandsBeenAddedDuringResourceInitialization && hasGraphicsToAsyncFence)
-                            rgContext.cmd.WaitOnAsyncGraphicsFence(graphicsToAsyncFence);
+                        // Do not cross the managed/native boundary for an
+                        // empty graphics buffer.  Unity 2022 still pays a
+                        // real submission cost here even when no commands
+                        // were recorded (notably visible in an otherwise
+                        // empty scene).  A non-empty buffer is always
+                        // flushed so the existing queue ordering remains
+                        // unchanged.
+                        if (rgContext.cmd.sizeInBytes > 0)
+                            rgContext.renderContext.ExecuteCommandBuffer(rgContext.cmd);
                     }
+                    rgContext.cmd.Clear();
 
-                    // Also make sure to insert fence-waits for cross-queue dependencies.
-                    if (pass.waitOnGraphicsFencePassId != -1 && !rgContext.contextlessTesting)
+                    var asyncCmd = CommandBufferPool.Get("async cmd");
+                    rgContext.cmd = asyncCmd;
+                    m_AsyncCommandBufferActive = true;
+                    asyncCmd.SetExecutionFlags(CommandBufferExecutionFlags.AsyncCompute);
+
+                    if (haveGraphicsCommandsBeenAddedDuringResourceInitialization && hasGraphicsToAsyncFence)
+                        rgContext.cmd.WaitOnAsyncGraphicsFence(graphicsToAsyncFence);
+                }
+
+                // Also make sure to insert fence-waits for cross-queue dependencies.
+                if (pass.waitOnGraphicsFencePassId != -1 && !rgContext.contextlessTesting)
+                {
+                    if (contextData.fences.TryGetValue(pass.waitOnGraphicsFencePassId, out var fence))
+                        rgContext.cmd.WaitOnAsyncGraphicsFence(fence);
+                    else
+                        throw new InvalidOperationException($"Missing synchronization fence for pass {pass.waitOnGraphicsFencePassId}.");
+                }
+
+                var nrpBegan = false;
+                if (isRaster && pass.mergeState <= PassMergeState.Begin)
+                {
+                    if (pass.nativePassIndex >= 0)
                     {
-                        if (contextData.fences.TryGetValue(pass.waitOnGraphicsFencePassId, out var fence))
-                            rgContext.cmd.WaitOnAsyncGraphicsFence(fence);
-                        else
-                            throw new InvalidOperationException($"Missing synchronization fence for pass {pass.waitOnGraphicsFencePassId}.");
+                        ref var nativePass = ref contextData.nativePassData.ElementAt(pass.nativePassIndex);
+                        if (nativePass.fragments.size > 0)
+                        {
+                            ExecuteBeginRenderPass(rgContext, resources, ref nativePass);
+                            nrpBegan = true;
+                            inRenderPass = true;
+                        }
                     }
+                }
 
-                    var nrpBegan = false;
-                    if (isRaster && pass.mergeState <= PassMergeState.Begin)
+                if (pass.mergeState >= PassMergeState.SubPass)
+                {
+                    if (pass.beginNativeSubpass)
+                    {
+                        if (!inRenderPass)
+                        {
+                            throw new Exception("Compiler error: Pass is marked as beginning a native sub pass but no pass is currently active.");
+                        }
+                        ExecuteNextSubPass(rgContext, ref pass);
+                    }
+                }
+
+                if (pass.numRandomAccessResources > 0)
+                {
+                    foreach (var randomWriteAttachment in pass.RandomWriteTextures(contextData))
+                    {
+                        ExecuteSetRandomWriteTarget(rgContext.cmd, resources, randomWriteAttachment.index, randomWriteAttachment.resource);
+                    }
+                }
+
+                ExecuteGraphNode(ref rgContext, resources, passes[pass.passId]);
+
+                // If we set any uavs clear them again so they are local to the pass
+                if (pass.numRandomAccessResources > 0)
+                {
+                    rgContext.cmd.ClearRandomWriteTargets();
+                }
+
+                InsertGraphicsFence(rgContext, ref pass);
+
+                if (isRaster)
+                {
+                    if ((pass.mergeState == PassMergeState.None && nrpBegan)
+                        || pass.mergeState == PassMergeState.End)
                     {
                         if (pass.nativePassIndex >= 0)
                         {
                             ref var nativePass = ref contextData.nativePassData.ElementAt(pass.nativePassIndex);
                             if (nativePass.fragments.size > 0)
                             {
-                                ExecuteBeginRenderPass(rgContext, resources, ref nativePass);
-                                nrpBegan = true;
-                                inRenderPass = true;
-                            }
-                        }
-                    }
-
-                    if (pass.mergeState >= PassMergeState.SubPass)
-                    {
-                        if (pass.beginNativeSubpass)
-                        {
-                            if (!inRenderPass)
-                            {
-                                throw new Exception("Compiler error: Pass is marked as beginning a native sub pass but no pass is currently active.");
-                            }
-                            ExecuteNextSubPass(rgContext, ref pass);
-                        }
-                    }
-
-                    if (pass.numRandomAccessResources > 0)
-                    {
-                        foreach (var randomWriteAttachment in pass.RandomWriteTextures(contextData))
-                        {
-                            ExecuteSetRandomWriteTarget(rgContext.cmd, resources, randomWriteAttachment.index, randomWriteAttachment.resource);
-                        }
-                    }
-
-                    ExecuteGraphNode(ref rgContext, resources, passes[pass.passId]);
-
-                    // If we set any uavs clear them again so they are local to the pass
-                    if (pass.numRandomAccessResources > 0)
-                    {
-                        rgContext.cmd.ClearRandomWriteTargets();
-                    }
-
-                    InsertGraphicsFence(rgContext, ref pass);
-
-                    if (isRaster)
-                    {
-                        if ((pass.mergeState == PassMergeState.None && nrpBegan)
-                            || pass.mergeState == PassMergeState.End)
-                        {
-                            if (pass.nativePassIndex >= 0)
-                            {
-                                ref var nativePass = ref contextData.nativePassData.ElementAt(pass.nativePassIndex);
-                                if (nativePass.fragments.size > 0)
+                                if (!inRenderPass)
                                 {
-                                    if (!inRenderPass)
-                                    {
-                                        throw new Exception("Compiler error: Generated a subpass pass but no pass is currently active.");
-                                    }
-
-                                    ExecuteEndRenderPass(rgContext, ref nativePass);
-                                    inRenderPass = false;
+                                    throw new Exception("Compiler error: Generated a subpass pass but no pass is currently active.");
                                 }
+
+                                ExecuteEndRenderPass(rgContext, ref nativePass);
+                                inRenderPass = false;
                             }
                         }
-                        if (pass.mergeState == PassMergeState.None || pass.mergeState == PassMergeState.End)
-                            EmitPendingGraphicsFences(rgContext);
                     }
-                    else if (isAsyncCompute)
-                    {
-                        var asyncCommandBuffer = rgContext.cmd;
-                        if (!rgContext.contextlessTesting)
-                        {
-                            // Keep ownership until submission completes. If the
-                            // API fails after accepting work, recovery must not
-                            // treat an earlier fence as its completion point.
-                            m_HasUnfencedAsyncWork = true;
-                            rgContext.renderContext.ExecuteCommandBufferAsync(asyncCommandBuffer, ComputeQueueType.Background);
-                        }
-
-                        if (!rgContext.contextlessTesting && pass.insertGraphicsFence &&
-                            contextData.fences.TryGetValue(pass.passId, out var submittedFence))
-                        {
-                            m_LastSubmittedAsyncFence = submittedFence;
-                            m_HasSubmittedAsyncFence = true;
-                            m_HasUnfencedAsyncWork = false;
-                        }
-                        rgContext.cmd = previousCommandBuffer;
-                        m_AsyncCommandBufferActive = false;
-                        CommandBufferPool.Release(asyncCommandBuffer);
-                    }
-
-                    ExecuteDestroyResource(rgContext, resources, ref pass);
+                    if (pass.mergeState == PassMergeState.None || pass.mergeState == PassMergeState.End)
+                        EmitPendingGraphicsFences(rgContext);
                 }
-            }
-            finally
-            {
-#if UNITY_6000_0_OR_NEWER || THROW_ON_SETRENDERTARGET_DEBUG
-                CommandBuffer.ThrowOnSetRenderTarget = false;
-#endif
-                rgContext.ClearPassContext();
-                AbortRenderPass(rgContext);
-
-                // If a compute callback throws, restore the graph-owned main
-                // command buffer and return the temporary async buffer.
-                if (m_AsyncCommandBufferActive && rgContext.cmd != null)
+                else if (isAsyncCompute)
                 {
-                    var failedAsyncCommandBuffer = rgContext.cmd;
+                    var asyncCommandBuffer = rgContext.cmd;
+                    if (!rgContext.contextlessTesting)
+                    {
+                        // Keep ownership until submission completes. If the
+                        // API fails after accepting work, recovery must not
+                        // treat an earlier fence as its completion point.
+                        m_HasUnfencedAsyncWork = true;
+                        rgContext.renderContext.ExecuteCommandBufferAsync(asyncCommandBuffer, ComputeQueueType.Background);
+                    }
+
+                    if (!rgContext.contextlessTesting && pass.insertGraphicsFence &&
+                        contextData.fences.TryGetValue(pass.passId, out var submittedFence))
+                    {
+                        m_LastSubmittedAsyncFence = submittedFence;
+                        m_HasSubmittedAsyncFence = true;
+                        m_HasUnfencedAsyncWork = false;
+                    }
                     rgContext.cmd = previousCommandBuffer;
                     m_AsyncCommandBufferActive = false;
-                    try
-                    {
-                        failedAsyncCommandBuffer.Clear();
-                        CommandBufferPool.Release(failedAsyncCommandBuffer);
-                    }
-                    catch (Exception cleanupException)
-                    {
-                        if (!rgContext.contextlessTesting)
-                            Debug.LogException(cleanupException);
-                    }
+                    CommandBufferPool.Release(asyncCommandBuffer);
+                }
+
+                ExecuteDestroyResource(rgContext, resources, ref pass);
+            }
+
+            CleanupExecution(rgContext);
+        }
+
+        // The graph-level exception boundary invokes this before recovering resources.
+        // Keep the pass loop free of a second exception region.
+        internal void CleanupExecution(InternalRenderGraphContext rgContext)
+        {
+#if UNITY_6000_0_OR_NEWER || THROW_ON_SETRENDERTARGET_DEBUG
+            CommandBuffer.ThrowOnSetRenderTarget = false;
+#endif
+            rgContext.ClearPassContext();
+            AbortRenderPass(rgContext);
+
+            // If a compute callback throws, restore the graph-owned main
+            // command buffer and return the temporary async buffer.
+            if (m_AsyncCommandBufferActive && rgContext.cmd != null)
+            {
+                var failedAsyncCommandBuffer = rgContext.cmd;
+                rgContext.cmd = previousCommandBuffer;
+                m_AsyncCommandBufferActive = false;
+                try
+                {
+                    failedAsyncCommandBuffer.Clear();
+                    CommandBufferPool.Release(failedAsyncCommandBuffer);
+                }
+                catch (Exception cleanupException)
+                {
+                    if (!rgContext.contextlessTesting)
+                        Debug.LogException(cleanupException);
                 }
             }
         }

@@ -5,9 +5,10 @@ using UnityEngine.Rendering.RenderGraphModule;
 
 namespace FraxinusEngine.Rendering.Ultra
 {
+    // CPU-built z-bin and tile-mask lists shared by Forward+ and Deferred+.
     // Each context owns its light-list upload and constants. Child contexts may
     // have a different viewport and projection, including a different jitter.
-    public sealed class ForwardPlusFrameData : ContextItem
+    public sealed class CpuLightListFrameData : ContextItem
     {
         internal BufferHandle zBins;
         internal BufferHandle tileMasks;

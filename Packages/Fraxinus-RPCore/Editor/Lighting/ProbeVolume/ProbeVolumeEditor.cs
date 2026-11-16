@@ -114,7 +114,7 @@ namespace UnityEditor.Rendering
         [MenuItem("CONTEXT/ProbeVolume/Rendering Debugger...")]
         internal static void AddProbeVolumeContextMenu()
         {
-            ProbeVolumeLightingTab.OpenProbeDebugPanel(null, null, 0);
+            ProbeVolumeBakingPanel.OpenProbeDebugPanel(null, null, 0);
         }
     }
 }

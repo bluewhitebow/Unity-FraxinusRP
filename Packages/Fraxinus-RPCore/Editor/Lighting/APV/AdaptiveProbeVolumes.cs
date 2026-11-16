@@ -121,7 +121,7 @@ namespace UnityEngine.Rendering
             return ProbeVolumeBakingProvider.BakeStandaloneAsync();
         }
 
-        // The Lighting window is the public entry point for a standalone bake.
+        // The Probe Volumes window is the public entry point for a standalone bake.
         // Keep its implicit configuration tied to the active LightingSettings
         // so a previous editor session (or a parity runner) cannot leave a
         // stale sample budget behind. Unity 6 multiplies the lighting sample
@@ -129,7 +129,7 @@ namespace UnityEngine.Rendering
         // that rule here before the provider creates the baker.
         internal static void SyncStandaloneBakeConfigurationWithLightingSettings()
         {
-            var lightingSettings = ProbeVolumeLightingTab.GetLightingSettings();
+            var lightingSettings = ProbeVolumeBakingWorkflow.GetLightingSettings();
             if (lightingSettings == null)
                 return;
 

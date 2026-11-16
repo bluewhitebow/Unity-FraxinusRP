@@ -3,6 +3,7 @@
   "rootNamespace": "",
   "references": [
     "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.GPUDriven.Runtime",
     "Unity.RenderPipelines.Core.Runtime.Shared",
     "Unity.RenderPipelines.Universal.2D.Internal",
     "Unity.Mathematics",

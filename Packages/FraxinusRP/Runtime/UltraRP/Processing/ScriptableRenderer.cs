@@ -155,18 +155,9 @@ namespace FraxinusEngine.Rendering.Ultra
             {
                 if (_moduleContainer.ContainsKey(type))
                     continue;
-                try
-                {
-                    var instance = Activator.CreateInstance(type) as IRendererModule;
-                    if (instance != null)
-                        _moduleContainer[type] = instance;
-                }
-                catch (Exception ex)
-                {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-                    Debug.LogWarning($"Failed to auto-register pass {type.Name}: {ex.Message}");
-#endif
-                }
+                var instance = Activator.CreateInstance(type) as IRendererModule;
+                if (instance != null)
+                    _moduleContainer[type] = instance;
             }
 
         }
@@ -183,11 +174,7 @@ namespace FraxinusEngine.Rendering.Ultra
             s_fallbackInjectors = new List<InjectPassInfo>();
             var injectTypes = new List<Type>();
 
-            var passTypes = AppDomain.CurrentDomain.GetAssemblies()
-                .SelectMany(a => {
-                    try { return a.GetTypes(); }
-                    catch { return Type.EmptyTypes; }
-                })
+            var passTypes = AppDomain.CurrentDomain.GetAllTypes()
                 .Where(t => (typeof(BuiltinPass).IsAssignableFrom(t) || typeof(InjectPass).IsAssignableFrom(t))
                             && !t.IsAbstract && !t.ContainsGenericParameters
                             && t != typeof(BuiltinPass)
@@ -1154,7 +1141,11 @@ namespace FraxinusEngine.Rendering.Ultra
         public virtual bool supportsGPUOcclusion => false;
 
         public virtual bool isForwardPlus => false;
-        public virtual bool usesForwardPlusLightLists => isForwardPlus;
+
+        /// <summary>
+        /// Whether lighting uses CPU-built z-bin and tile-mask lists, shared by Forward+ and Deferred+.
+        /// </summary>
+        public virtual bool usesCpuLightLists => isForwardPlus;
 
         public virtual void SetupRenderGraphFinalPassDebug(RenderGraph renderGraph, ContextContainer frameData) { }
 

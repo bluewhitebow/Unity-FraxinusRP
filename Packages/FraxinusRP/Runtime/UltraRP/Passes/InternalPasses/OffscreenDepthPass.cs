@@ -22,7 +22,7 @@ namespace FraxinusEngine.Rendering.Ultra
             internal RendererListHandle opaque, transparent;
             internal Rect viewport;
             internal bool clearDepth, alphaToMask;
-            internal ForwardPlusFrameData forwardPlus;
+            internal CpuLightListFrameData cpuLightLists;
         }
 
         internal static void Render(RenderGraph graph, ContextContainer frameData, TextureHandle depth,
@@ -34,7 +34,7 @@ namespace FraxinusEngine.Rendering.Ultra
             var lights = frameData.Get<LightData>();
             using (var builder = graph.AddRasterRenderPass<PassData>("Offscreen Depth", out var data, s_Sampler))
             {
-                data.forwardPlus = ForwardLights.UseLightingResources(builder, frameData);
+                data.cpuLightLists = ForwardLights.UseLightingResources(builder, frameData);
                 if (mainShadows.IsValid())
                     builder.UseTexture(mainShadows, AccessFlags.Read);
                 if (additionalShadows.IsValid())
@@ -57,7 +57,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 builder.AllowGlobalStateModification(true);
                 builder.SetRenderFunc(static (PassData pass, RasterGraphContext context) =>
                 {
-                    ForwardLights.BindLightLists(context.cmd, pass.forwardPlus);
+                    ForwardLights.BindLightLists(context.cmd, pass.cpuLightLists);
                     if (pass.clearDepth)
                         context.cmd.ClearRenderTarget(RTClearFlags.DepthStencil, Color.clear, 1, 0);
                     context.cmd.SetViewport(pass.viewport);

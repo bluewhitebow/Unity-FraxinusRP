@@ -14,7 +14,7 @@ namespace FraxinusEngine.Rendering.Ultra
             internal TextureHandle depth;
 
             internal DeferredLights deferredLights;
-            internal ForwardPlusFrameData forwardPlus;
+            internal CpuLightListFrameData cpuLightLists;
 
             internal RendererListHandle rendererListHdl;
             internal RendererListHandle objectsWithErrorRendererListHdl;
@@ -129,7 +129,7 @@ namespace FraxinusEngine.Rendering.Ultra
             using (var builder = renderGraph.AddRasterRenderPass<PassData>(_passName, out var passData, _profilingSampler))
             {
                 APRTRelightPass.UseLightingResources(builder, frameData);
-                passData.forwardPlus = ForwardLights.UseLightingResources(builder, frameData);
+                passData.cpuLightLists = ForwardLights.UseLightingResources(builder, frameData);
                 GroundTruthAmbientOcclusionPass.UseLightingResources(builder, frameData);
                 // Note: This code is pretty confusing as passData.gbuffer[i] and gbuffer[i] actually point to the same array but seem to be mixed in this code.
                 if (passData.gbuffer == null || passData.gbuffer.Length != deferredLights.gBufferSliceCount)
@@ -183,7 +183,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
                 {
-                    ForwardLights.BindLightLists(context.cmd, data.forwardPlus);
+                    ForwardLights.BindLightLists(context.cmd, data.cpuLightLists);
                     ExecutePass(context.cmd, data, data.rendererListHdl, data.objectsWithErrorRendererListHdl);
                 });
             }

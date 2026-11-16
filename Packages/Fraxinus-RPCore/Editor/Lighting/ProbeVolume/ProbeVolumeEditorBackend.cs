@@ -9,7 +9,7 @@ namespace UnityEngine.Rendering
         internal virtual string displayName => "Probe Volumes";
         internal virtual bool supportsBaking => true;
         internal abstract ProbeVolumeBaking CreateBaking(TProbeReferenceVolumeBase volume, ProbeVolumeBakingSet bakingSet);
-        internal virtual bool PrepareBaking() => ProbeVolumeLightingTab.PrepareBake();
+        internal virtual bool PrepareBaking() => ProbeVolumeBakingWorkflow.PrepareBake();
         internal virtual bool CanFreezePlacement(TProbeReferenceVolumeBase volume, ProbeVolumeBakingSet bakingSet) => false;
         internal virtual void OnPlacementSettingsChanged(ProbeVolumeBakingSet bakingSet) { }
         internal virtual ProbeVolumeBakingSettingsEditor CreateBakingSettings(SerializedObject serializedObject) => null;

@@ -41,7 +41,7 @@ namespace FraxinusEngine.Rendering.Ultra
         /// <summary>
         /// GPU Resident Drawer Rendering Debugger settings and statistics.
         /// </summary>
-        internal DebugDisplayGPUResidentDrawer gpuResidentDrawerSettings { get; private set; }
+        internal IDebugDisplaySettingsData gpuResidentDrawerSettings { get; private set; }
 
         #region IDebugDisplaySettingsQuery
 
@@ -104,7 +104,9 @@ namespace FraxinusEngine.Rendering.Ultra
             renderingSettings = Add(new DebugDisplaySettingsRendering());
             volumeSettings = Add(new DebugDisplaySettingsVolume(new UltraRenderPipelineVolumeDebugSettings()));
             commonSettings = Add(new DebugDisplaySettingsCommon());
-            gpuResidentDrawerSettings = Add(new DebugDisplayGPUResidentDrawer());
+            gpuResidentDrawerSettings = GPUResidentDrawerBridge.CreateDebugSettings();
+            if (gpuResidentDrawerSettings != null)
+                Add(gpuResidentDrawerSettings);
 
             // This is not a debug property owned by any `IDebugDisplaySettingsData`, it is a static property on `Texture`.
             // When the user hits reset, we want to make sure texture mip caching is enabled again (regardless of whether the

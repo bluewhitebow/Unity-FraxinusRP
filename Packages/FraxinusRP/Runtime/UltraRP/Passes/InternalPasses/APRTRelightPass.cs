@@ -120,7 +120,9 @@ namespace FraxinusEngine.Rendering.Ultra
 
         internal static void PrepareSkyEnvironment(Camera camera, ScriptableRenderer renderer)
         {
-            if (!CanPrepareSkyEnvironment(camera)) return;
+            if (!CanPrepareSkyEnvironment(camera))
+                return;
+
             var volume = APRTProbeReferenceVolume.instance;
             if (renderer == null || !renderer.graph.IsInjectPassEnabled(typeof(APRTRelightPass)))
             {
@@ -140,7 +142,11 @@ namespace FraxinusEngine.Rendering.Ultra
                 {
                     if (!sunResolved && context.hasSkyIrradianceTransfer && settings.skyIntensity > 0 &&
                         !float.IsInfinity(settings.skyIntensity) && RenderSettings.skybox != null)
-                    { sun = FindSkySun(); sunResolved = true; }
+                    {
+                        sun = FindSkySun();
+                        sunResolved = true;
+                    }
+
                     context.UpdateSkyEnvironment(sun, settings, camera);
                 }
             }

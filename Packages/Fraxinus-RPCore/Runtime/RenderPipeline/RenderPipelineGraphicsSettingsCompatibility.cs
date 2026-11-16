@@ -157,7 +157,7 @@ namespace UnityEngine.Rendering
             }
         }
 
-        public static T GetRenderPipelineSettings<T>() where T : class
+        public static T GetRenderPipelineSettings<T>() where T : class, IRenderPipelineGraphicsSettings
         {
             var globalSettings = GetCurrentRenderPipelineGlobalSettings();
             if (globalSettings == null)
@@ -166,12 +166,7 @@ namespace UnityEngine.Rendering
             return GetRenderPipelineSettings<T>(globalSettings);
         }
 
-        /// <summary>
-        /// Resolves a graphics setting from a specific global settings asset.
-        /// This overload is useful during asset migration, when the asset is
-        /// not registered yet but its serialized container is available.
-        /// </summary>
-        public static T GetRenderPipelineSettings<T>(RenderPipelineGlobalSettings globalSettings) where T : class
+        static T GetRenderPipelineSettings<T>(RenderPipelineGlobalSettings globalSettings) where T : class, IRenderPipelineGraphicsSettings
         {
             if (globalSettings == null)
                 return null;
@@ -210,18 +205,9 @@ namespace UnityEngine.Rendering
             return result;
         }
 
-        public static bool TryGetRenderPipelineSettings<T>(out T settings) where T : class
+        public static bool TryGetRenderPipelineSettings<T>(out T settings) where T : class, IRenderPipelineGraphicsSettings
         {
             settings = GetRenderPipelineSettings<T>();
-            return settings != null;
-        }
-
-        /// <summary>Tries to resolve a setting from a supplied global asset.</summary>
-        public static bool TryGetRenderPipelineSettings<T>(
-            RenderPipelineGlobalSettings globalSettings,
-            out T settings) where T : class
-        {
-            settings = GetRenderPipelineSettings<T>(globalSettings);
             return settings != null;
         }
 
@@ -431,10 +417,6 @@ namespace UnityEngine.Rendering
                 {
                     types = exception.Types;
                 }
-                catch
-                {
-                    continue;
-                }
 
                 if (types == null)
                     continue;
@@ -479,21 +461,12 @@ namespace UnityEngine.Rendering
 
         static object CreateSettingInstance(Type type)
         {
-            try
-            {
-                return Activator.CreateInstance(
-                    type,
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                    binder: null,
-                    args: null,
-                    culture: null);
-            }
-            catch
-            {
-                // A third-party setting may expose no default constructor;
-                // leave it for the package/editor to register explicitly.
-                return null;
-            }
+            // A third-party setting may expose no default constructor;
+            // leave it for the package/editor to register explicitly.
+            var constructor = type.GetConstructor(
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                binder: null, types: Type.EmptyTypes, modifiers: null);
+            return constructor?.Invoke(null);
         }
 
         static bool TryReloadResourceReferences(IRenderPipelineGraphicsSettings settings)
@@ -625,13 +598,6 @@ namespace UnityEngine.Rendering
                     {
                         result = method.Invoke(null, null) as RenderPipelineGlobalSettings;
                     }
-                    catch (ArgumentException)
-                    {
-                        // A malformed/custom pipeline type can fail the
-                        // generic constraint; retain a null result for this
-                        // pipeline instance and keep the package registration
-                        // fallback below intact.
-                    }
                     catch (TargetInvocationException)
                     {
                         // Unity may reject an unregistered pipeline while it
@@ -661,7 +627,8 @@ namespace UnityEngine.Rendering
         static bool TryGetSettingsForPipelineType(Type pipelineType, out MethodInfo closedMethod)
         {
             closedMethod = null;
-            if (pipelineType == null)
+            if (pipelineType == null || pipelineType.ContainsGenericParameters ||
+                !typeof(RenderPipeline).IsAssignableFrom(pipelineType))
                 return false;
 
             if (s_ClosedGetSettingsMethods.TryGetValue(pipelineType, out closedMethod))
@@ -689,16 +656,7 @@ namespace UnityEngine.Rendering
 
             if (s_GetSettingsForRenderPipelineMethod != null)
             {
-                try
-                {
-                    closedMethod = s_GetSettingsForRenderPipelineMethod.MakeGenericMethod(pipelineType);
-                }
-                catch (ArgumentException)
-                {
-                    // The type did not satisfy Unity's generic constraint.
-                    // Remember the miss so it is not retried for every query.
-                    closedMethod = null;
-                }
+                closedMethod = s_GetSettingsForRenderPipelineMethod.MakeGenericMethod(pipelineType);
             }
 
             s_ClosedGetSettingsMethods[pipelineType] = closedMethod;
@@ -877,17 +835,17 @@ namespace UnityEngine.Rendering
         // exactly the same asset that Unity 6 stores in its native collection.
         // Keep the field private so the existing Core property drawer still
         // owns the presentation of the collection.
-        [SerializeReference]
-        List<IRenderPipelineGraphicsSettings> m_Settings =
+        [SerializeReference, UnityEngine.Serialization.FormerlySerializedAs("m_Settings")]
+        List<IRenderPipelineGraphicsSettings> m_List =
             new List<IRenderPipelineGraphicsSettings>();
 
         public List<IRenderPipelineGraphicsSettings> settingsList
         {
             get
             {
-                if (m_Settings == null)
-                    m_Settings = new List<IRenderPipelineGraphicsSettings>();
-                return m_Settings;
+                if (m_List == null)
+                    m_List = new List<IRenderPipelineGraphicsSettings>();
+                return m_List;
             }
         }
     }
@@ -920,14 +878,11 @@ namespace UnityEngine.Rendering
     {
         public static Type currentRenderPipelineAssetType => GraphicsSettings.currentRenderPipelineAssetType;
 
-        public static T GetRenderPipelineSettings<T>() where T : class
+        public static T GetRenderPipelineSettings<T>() where T : class, IRenderPipelineGraphicsSettings
             => GraphicsSettings.GetRenderPipelineSettings<T>();
 
-        public static bool TryGetRenderPipelineSettings<T>(out T settings) where T : class
-        {
-            settings = GetRenderPipelineSettings<T>();
-            return settings != null;
-        }
+        public static bool TryGetRenderPipelineSettings<T>(out T settings) where T : class, IRenderPipelineGraphicsSettings
+            => GraphicsSettings.TryGetRenderPipelineSettings(out settings);
     }
 }
 #endif

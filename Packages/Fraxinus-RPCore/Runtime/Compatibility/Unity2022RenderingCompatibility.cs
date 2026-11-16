@@ -237,16 +237,7 @@ namespace UnityEngine
         // member without exposing another public API surface.
         static uint Internal_GetDefaultRenderingLayerValue()
         {
-            try
-            {
-                return UnityEngine.Rendering.GraphicsSettings.defaultRenderingLayerMask;
-            }
-            catch
-            {
-                // Unity 2022 always has the property, but retain a safe value
-                // for stripped/headless test harnesses.
-                return 1u;
-            }
+            return UnityEngine.Rendering.GraphicsSettings.defaultRenderingLayerMask;
         }
 
         /// <summary>

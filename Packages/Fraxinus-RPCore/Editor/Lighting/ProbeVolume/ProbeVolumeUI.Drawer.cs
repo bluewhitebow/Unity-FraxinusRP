@@ -34,7 +34,7 @@ namespace UnityEditor.Rendering
                 Undo.RecordObject(pv.transform, "Fitting Probe Volume");
 
                 // Get minBrickSize from scene baking set if available
-                var bakingSet = ProbeVolumeLightingTab.GetSceneBakingSetForUI(pv.gameObject.scene);
+                var bakingSet = ProbeVolumeBakingWorkflow.GetSceneBakingSetForUI(pv.gameObject.scene);
                 float minBrickSize = bakingSet != null ? bakingSet.minBrickSize : ProbeReferenceVolumeProvider.instance.MinBrickSize();
 
                 var bounds = pv.ComputeBounds(filter.Value, pv.gameObject.scene);
@@ -77,7 +77,7 @@ namespace UnityEditor.Rendering
                     serialized.maxSubdivisionLevel.intValue = Mathf.RoundToInt(maxLevelOverride);
                 }
 
-                ProbeVolumeLightingTab.DrawSimplificationLevelsMarkers(rect, minDistance, 0, maxSimplicationLevel,
+                ProbeVolumeBakingPanel.DrawSimplificationLevelsMarkers(rect, minDistance, 0, maxSimplicationLevel,
                     serialized.minSubdivisionLevel.intValue, serialized.maxSubdivisionLevel.intValue);
             }
 
@@ -89,7 +89,7 @@ namespace UnityEditor.Rendering
         static void Drawer_VolumeContent(SerializedProbeVolume serialized, Editor owner)
         {
             ProbeVolume pv = (serialized.serializedObject.targetObject as ProbeVolume);
-            var bakingSet = ProbeVolumeLightingTab.GetSceneBakingSetForUI(pv.gameObject.scene);
+            var bakingSet = ProbeVolumeBakingWorkflow.GetSceneBakingSetForUI(pv.gameObject.scene);
 
             EditorGUILayout.PropertyField(serialized.mode);
             if (serialized.mode.intValue == (int)ProbeVolume.Mode.Local)
@@ -127,9 +127,9 @@ namespace UnityEditor.Rendering
 
             if (isFreezingPlacement)
             {
-                CoreEditorUtils.DrawFixMeBox("The placement is frozen in the baking settings. To change these values uncheck the Freeze Placement in the Probe Volumes tab of the Lighting Window.", MessageType.Info, "Open", () =>
+                CoreEditorUtils.DrawFixMeBox("The placement is frozen in the baking settings. To change these values uncheck Freeze Placement in the Probe Volumes window.", MessageType.Info, "Open", () =>
                 {
-                    ProbeVolumeLightingTab.OpenBakingSet(bakingSet);
+                    ProbeVolumeBakingPanel.OpenBakingSet(bakingSet);
                 });
             }
 
@@ -155,7 +155,7 @@ namespace UnityEditor.Rendering
             EditorGUILayout.Space();
             using (new EditorGUI.DisabledScope(bakingSet == null))
             {
-                ProbeVolumeLightingTab.BakeProbeVolumeButton();
+                ProbeVolumeBakingPanel.BakeProbeVolumeButton();
             }
         }
 
