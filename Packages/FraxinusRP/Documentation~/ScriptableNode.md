@@ -55,7 +55,7 @@ In Renderer Graph, select a `Deferred Object` node and set its `Lighting Mode`:
 | `Deferred+` | Reuses Forward+'s CPU Jobs light bins and screen tiles for fullscreen raster lighting, classified by material stencil. |
 | `GPU Cluster` | Builds GPU light lists and uses the selected `Cluster Lighting Mode`: Auto, Compute or Raster. |
 
-`Cluster Lighting Mode` applies only to GPU Cluster. Deferred+ uses the camera's Forward+ lists for subsequent forward draws without requiring a separate Forward+ toggle on each DrawObjects node. Deferred lighting is a camera-wide choice; keep its nodes consistent. Deferred+ uses the existing GBuffer layout and, like the other deferred paths, does not support MSAA. Old graphs migrate `_cluster: false` to Stencil and `_cluster: true` to GPU Cluster.
+`Cluster Lighting Mode` applies only to GPU Cluster. Deferred+ uses the camera's Forward+ lists for subsequent forward draws without requiring a separate Forward+ toggle on each DrawObjects node. Deferred lighting is a camera-wide choice; keep its nodes consistent. Deferred+ uses the existing GBuffer layout. All UltraRP camera paths, including Forward and Forward+, use one sample; legacy MSAA settings are ignored. Shared Core and RenderGraph utilities retain multisample support. Old graphs migrate `_cluster: false` to Stencil and `_cluster: true` to GPU Cluster.
 
 Declare every rendering mode needed at runtime in the build's Renderer Graph configurations, or disable unused-variant stripping. Changing modes at runtime cannot restore shaders removed from the build. See [Shader build filtering](ShaderBuild.md).
 

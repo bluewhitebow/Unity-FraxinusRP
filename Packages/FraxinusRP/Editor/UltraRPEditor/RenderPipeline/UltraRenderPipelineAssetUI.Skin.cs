@@ -41,16 +41,13 @@ namespace FraxinusEditor.Rendering.Ultra
             // Quality
             public static GUIContent hdrText = EditorGUIUtility.TrTextContent("HDR", "Controls the global HDR settings.");
             public static GUIContent hdrColorBufferPrecisionText = EditorGUIUtility.TrTextContent("HDR Precision", "Controls the precision of the camera color buffer in HDR rendering. 32-bits is the default. 64-bits can reduce banding artifacts at the cost of memory and performance.");
-            public static GUIContent msaaText = EditorGUIUtility.TrTextContent("Anti Aliasing (MSAA)", "Controls the global anti aliasing settings.");
-            public static GUIContent renderScaleText = EditorGUIUtility.TrTextContent("Render Scale", "Scales the camera render target allowing the game to render at a resolution different than native resolution. UI is always rendered at native resolution.");
-            public static GUIContent upscalingFilterText = EditorGUIUtility.TrTextContent("Upscaling Filter", "Controls the type of filter used for upscaling when render scale is lower than 1.0.");
+            public static GUIContent renderScaleText = EditorGUIUtility.TrTextContent("Render Scale", "Scales the camera's internal rendering resolution relative to its output resolution. Screen Space Overlay UI uses the output resolution.");
+            public static GUIContent upscalingFilterText = EditorGUIUtility.TrTextContent("Upscaling Filter", "Selects the filter for rendering below the output resolution. FSR, STP, SGSR1 and SGSR2 also run at Render Scale 1 on supported game cameras with Post Processing enabled. Values above 1 use Bilinear downscaling.");
             public static GUIContent fsrOverrideSharpness = EditorGUIUtility.TrTextContent("Override FSR Sharpness", "Overrides the FSR sharpness value for the render pipeline asset.");
             public static GUIContent fsrSharpnessText = EditorGUIUtility.TrTextContent("FSR Sharpness", "Controls the intensity of the sharpening filter used by FidelityFX Super Resolution.");
             public static GUIContent enableLODCrossFadeText = EditorGUIUtility.TrTextContent("LOD Cross Fade", "Controls whether LOD Cross Fade enabled or disabled.");
             public static GUIContent lodCrossFadeDitheringTypeText = EditorGUIUtility.TrTextContent("LOD Cross Fade Dithering Type", "Controls the LOD Cross Fade Dithering Type that will be used to draw Renderer LOD when LODGroup has CrossFade Fade Mode selected.");
             public static GUIContent shEvalModeText = EditorGUIUtility.TrTextContent("SH Evaluation Mode", "Defines the Spherical Harmonic (SH) lighting evaluation type (per vertex, per pixel, or mixed).");
-            public static readonly string stpRequiresRenderGraph = "STP is selected but Render Graph is not enabled. STP requires Render Graph in order to function. Unity will fall back to the Automatic option.";
-            public static readonly string stpMobilePlatformWarning = "STP is selected for use on a mobile platform. STP is only supported on modern compute-capable hardware and its performance overhead may make it impractical on lower-end devices.";
 
             // Main light
             public static GUIContent mainLightRenderingModeText = EditorGUIUtility.TrTextContent("Main Light", "Main light is the brightest directional light.");
@@ -94,7 +91,7 @@ namespace FraxinusEditor.Rendering.Ultra
             public static GUIContent reflectionProbeBlendingText = EditorGUIUtility.TrTextContent("Probe Blending", "If enabled smooth transitions will be created between reflection probes.");
             public static GUIContent reflectionProbeAtlasText = EditorGUIUtility.TrTextContent("Probe Atlas Blending", "If enabled, reflection probes will be added to the Forward Plus data grid and combined into a single atlas texture. The atlas is used by default when both Forward Plus and the GPU Resident Drawer are used.");
             public static GUIContent reflectionProbeBoxProjectionText = EditorGUIUtility.TrTextContent("Box Projection", "If enabled reflections appear based on the object’s position within the probe’s box, while still using a single probe as the source of the reflection.");
-            public static GUIContent reflectionProbeBlendingGpuResidentDrawerWarningText = EditorGUIUtility.TrTextContent("Probe Atlas Blending is currently force enabled because GPUResidentDrawer is in use. GPUResidentDrawer currently only supports Reflection probes via Probe Atlas Blending.");
+            public static GUIContent reflectionProbeBlendingGpuResidentDrawerWarningText = EditorGUIUtility.TrTextContent("GPU Resident Drawer uses Probe Atlas Blending for reflection probes. Enable Reflection Probe Blending and Probe Atlas.");
 
             // Additional lighting settings
             public static GUIContent mixedLightingSupportLabel = EditorGUIUtility.TrTextContent("Mixed Lighting", "Makes the render pipeline include mixed-lighting Shader Variants in the build.");
@@ -163,10 +160,6 @@ namespace FraxinusEditor.Rendering.Ultra
                 EditorGUIUtility.TrTextContent("\"BatchRendererGroup Variants\" setting must be \"Keep All\". To fix, modify Graphics settings and set \"BatchRendererGroup Variants\" to \"Keep All\".");
             public static GUIContent staticBatchingInfoMessage =
                 EditorGUIUtility.TrTextContent("Static Batching is not recommended when using GPU draw submission modes, performance may improve if Static Batching is disabled in Player Settings.");
-            public static GUIContent lightModeErrorMessage =
-                EditorGUIUtility.TrTextContent("Rendering Path must be set to Forward+ for correct lighting and reflections. One or more entries in the RendererList are not set to this mode.");
-            public static GUIContent renderGraphNotEnabledErrorMessage =
-                EditorGUIUtility.TrTextContent("Render Graph must be enabled to use occlusion culling.");
 
             // Dropdown menu options
             public static string[] mainLightOptions = { "Disabled", "Per Pixel" };

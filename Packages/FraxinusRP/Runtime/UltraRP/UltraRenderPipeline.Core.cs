@@ -703,9 +703,18 @@ namespace FraxinusEngine.Rendering.Ultra
             return lastBaseCameraIndex;
         }
 
+        internal static void ValidateRenderTarget(RenderTexture target)
+        {
+            if (target != null && (target.antiAliasing > 1 || target.bindTextureMS))
+                throw new InvalidOperationException("UltraRP cameras require a single-sample render target. Set RenderTexture.antiAliasing to 1 and bindTextureMS to false before rendering with UltraRP.");
+        }
+
         internal static RenderTextureDescriptor CreateRenderTextureDescriptor(Camera camera, CameraData cameraData,
              bool isHdrEnabled, HDRColorBufferPrecision requestHDRColorBufferPrecision, int msaaSamples, bool needsAlpha)
         {
+            ValidateRenderTarget(camera.targetTexture);
+            // Keep the parameter for compatibility; UltraRP camera attachments always use one sample.
+            msaaSamples = 1;
             RenderTextureDescriptor desc;
 
             if (camera.targetTexture == null)

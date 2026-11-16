@@ -42,8 +42,8 @@ feedback path or sufficient cache capacity.
 
 ## Rendering and shader integration
 
-Feedback collection supports non-XR 2D Game, Scene View, and Reflection cameras,
-including ordinary and MSAA targets. Software render scale uses the actual
+Feedback collection supports non-XR 2D Game, Scene View, and Reflection cameras
+with single-sample targets. Software render scale uses the actual
 camera target dimensions. UltraRP Lit and Unlit Shader Graph color passes emit
 packed native feedback. Depth, shadow, and other auxiliary passes can sample
 Texture Stacks without emitting feedback.
@@ -51,8 +51,8 @@ Texture Stacks without emitting feedback.
 Transparent materials select complete foreground or background requests using a
 Bayer mask and separate blending on the feedback target; tile IDs must not be
 interpolated. Built-in UltraRP forward shaders write an empty feedback sentinel
-when ordinary materials cover virtual-textured surfaces. Alpha clipping and
-MSAA coverage also apply to this output.
+when ordinary materials cover virtual-textured surfaces. Alpha clipping also
+applies to this output.
 
 External forward shaders drawn by the same DrawObjects MRT pass must include
 `ShaderLibrary/ShaderVariables.hlsl` from the UltraRP package and write either an

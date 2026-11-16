@@ -167,9 +167,9 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             PlatformAutoDetect.Initialize();
 
-            // GBuffer attachments are single-sampled and clustered lighting writes
-            // the color target as a UAV. Neither deferred path can share an MSAA target.
-            supportedRenderingFeatures.msaa = !_sortedNodes.Exists(node => node is DeferredObjectPass pass && pass.active);
+            // UltraRP camera rendering is single-sampled in every rendering path.
+            // Shared render-target helpers retain their multisample support.
+            supportedRenderingFeatures.msaa = false;
 
             if (RenderPipelineGraphicsSettingsCompatibility.TryGetRenderPipelineSettings<UltraRendererResources>(
                 out var ultraRendererShaders))

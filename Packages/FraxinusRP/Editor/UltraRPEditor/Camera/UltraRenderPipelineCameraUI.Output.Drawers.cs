@@ -42,7 +42,6 @@ namespace FraxinusEditor.Rendering.Ultra
                                     (serialized, owner) => PlayerSettings.allowHDRDisplaySupport,
                                     CED.Group(DrawerOutputHDROutput)
                                     ),
-                                CED.Group(DrawerOutputMSAA),
                                 CED.Group(DrawerOutputAllowDynamicResolution)
                             )
                         )
@@ -145,22 +144,14 @@ namespace FraxinusEditor.Rendering.Ultra
 
             static void DrawerOutputTargetTexture(UltraRenderPipelineSerializedCamera p, Editor owner)
             {
-                var rpAsset = UltraRenderPipeline.asset;
                 using (var checkScope = new EditorGUI.ChangeCheckScope())
                 {
                     EditorGUILayout.PropertyField(p.baseCameraSettings.targetTexture, Styles.targetTextureLabel);
 
                     var texture = p.baseCameraSettings.targetTexture.objectReferenceValue as RenderTexture;
-                    if (!p.baseCameraSettings.targetTexture.hasMultipleDifferentValues && rpAsset != null)
-                    {
-                        int pipelineSamplesCount = rpAsset.msaaSampleCount;
-
-                        if (texture && texture.antiAliasing > pipelineSamplesCount)
-                        {
-                            string pipelineMSAACaps = (pipelineSamplesCount > 1) ? string.Format(Styles.pipelineMSAACapsSupportSamples, pipelineSamplesCount) : Styles.pipelineMSAACapsDisabled;
-                            EditorGUILayout.HelpBox(string.Format(Styles.cameraTargetTextureMSAA, texture.antiAliasing, pipelineMSAACaps), MessageType.Warning, true);
-                        }
-                    }
+                    if (!p.baseCameraSettings.targetTexture.hasMultipleDifferentValues && texture &&
+                        (texture.antiAliasing > 1 || texture.bindTextureMS))
+                        EditorGUILayout.HelpBox(Styles.unsupportedTargetTexture, MessageType.Error, true);
 
                     if (checkScope.changed)
                     {
@@ -212,9 +203,11 @@ namespace FraxinusEditor.Rendering.Ultra
                         var allowHDROutput = EditorGUI.IntPopup(controlRect, Styles.allowHDROutput, selectedValue, Styles.hdrOuputOptions, Styles.hdrOuputValues) == 1;
 
                         var rpAsset = UltraRenderPipeline.asset;
-                        bool perCameraHDRDisabled = !p.baseCameraSettings.HDR.boolValue && (rpAsset == null || rpAsset.supportsHDR);
+                        bool perCameraHDRDisabled = !p.baseCameraSettings.HDR.hasMultipleDifferentValues &&
+                            !p.baseCameraSettings.HDR.boolValue && rpAsset != null && rpAsset.supportsHDR;
                         
-                        if (allowHDROutput && PlayerSettings.allowHDRDisplaySupport && perCameraHDRDisabled)
+                        if (!p.allowHDROutput.hasMultipleDifferentValues && allowHDROutput &&
+                            PlayerSettings.allowHDRDisplaySupport && perCameraHDRDisabled)
                         {
                             EditorGUILayout.HelpBox(Styles.disabledHDRRenderingWithHDROutput, MessageType.Warning);
                         }
@@ -226,32 +219,6 @@ namespace FraxinusEditor.Rendering.Ultra
                 EditorGUI.EndProperty();
             }
 
-            static void DrawerOutputMSAA(UltraRenderPipelineSerializedCamera p, Editor owner)
-            {
-                Rect controlRect = EditorGUILayout.GetControlRect(true);
-                EditorGUI.BeginProperty(controlRect, Styles.allowMSAA, p.baseCameraSettings.allowMSAA);
-                {
-                    using (var checkScope = new EditorGUI.ChangeCheckScope())
-                    {
-                        int selectedValue = !p.baseCameraSettings.allowMSAA.boolValue ? 0 : 1;
-                        var allowMSAA = EditorGUI.IntPopup(controlRect, Styles.allowMSAA,
-                            selectedValue, Styles.displayedCameraOptions, Styles.cameraOptions) == 1;
-                        if (checkScope.changed)
-                        {
-                            p.baseCameraSettings.allowMSAA.boolValue = allowMSAA;
-                            UpdateStackCamerasOutput(p, camera =>
-                            {
-                                if (camera.allowMSAA == allowMSAA)
-                                    return false;
-
-                                camera.allowMSAA = allowMSAA;
-                                return true;
-                            });
-                        }
-                    }
-                }
-                EditorGUI.EndProperty();
-            }
         }
     }
 }

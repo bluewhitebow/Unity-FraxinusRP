@@ -274,14 +274,6 @@ namespace FraxinusEditor.Rendering.Ultra
                 isChanged = true;
             }
 
-            // Force same mssa
-            bool allowMSSA = settings.allowMSAA.boolValue;
-            if (cam.allowMSAA != allowMSSA)
-            {
-                cam.allowMSAA = allowMSSA;
-                isChanged = true;
-            }
-
             // Force same viewport rect
             Rect rect = settings.normalizedViewPortRect.rectValue;
             if (cam.rect != rect)
@@ -325,11 +317,6 @@ namespace FraxinusEditor.Rendering.Ultra
             // Force same hdr
             bool allowHDR = settings.HDR.boolValue;
             if (cam.allowHDR != allowHDR)
-                return true;
-
-            // Force same mssa
-            bool allowMSSA = settings.allowMSAA.boolValue;
-            if (cam.allowMSAA != allowMSSA)
                 return true;
 
             // Force same viewport rect
@@ -512,7 +499,7 @@ namespace FraxinusEditor.Rendering.Ultra
                     var camIndex = _outputWarningCameras.FindIndex(c => c.Item1 == selectedCameraInStack);
                     if (camIndex != -1)
                     {
-                        var message = "The output properties of this Camera do not match the output properties.";
+                        var message = "This camera's output properties do not match the Base camera's output properties.";
                         if ((CameraRenderType)_outputWarningCameras[camIndex].Item2.cameraType.intValue == CameraRenderType.Base)
                         {
                             EditorGUILayout.HelpBox(message, MessageType.Warning);

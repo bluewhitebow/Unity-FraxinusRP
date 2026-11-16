@@ -12,7 +12,6 @@ namespace FraxinusEditor.Rendering.Ultra
 
         public SerializedProperty hdr { get; }
         public SerializedProperty hdrColorBufferPrecisionProp { get; }
-        public SerializedProperty msaa { get; }
         public SerializedProperty renderScale { get; }
         public SerializedProperty upscalingFilter { get; }
         public SerializedProperty fsrOverrideSharpness { get; }
@@ -96,7 +95,6 @@ namespace FraxinusEditor.Rendering.Ultra
 
             hdr = serializedObject.FindProperty("_supportsHDR");
             hdrColorBufferPrecisionProp = serializedObject.FindProperty("_hdrColorBufferPrecision");
-            msaa = serializedObject.FindProperty("_msaa");
             renderScale = serializedObject.FindProperty("_renderScale");
             upscalingFilter = serializedObject.FindProperty("_upscalingFilter");
             fsrOverrideSharpness = serializedObject.FindProperty("_fsrOverrideSharpness");

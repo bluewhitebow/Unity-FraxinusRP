@@ -264,11 +264,11 @@ namespace FraxinusEngine.Rendering.Ultra
             if (reasonWarning == null && !cameraData.postProcessEnabled)
                 reasonWarning = "because camera has post-processing disabled.";
 
-            if (cameraData.taaHistory == null)
+            if (reasonWarning == null && cameraData.taaHistory == null)
                 reasonWarning = "due to invalid persistent data.";
 
             if (reasonWarning == null && cameraData.cameraTargetDescriptor.msaaSamples != 1)
-                reasonWarning = "because MSAA is on. Turn MSAA off on the camera or current UltraRP Asset.";
+                reasonWarning = "because temporal anti-aliasing requires a single-sample camera target.";
 
             if (reasonWarning == null && cameraData.camera.TryGetComponent<UltraAdditionalCameraData>(out var additionalCameraData))
             {
@@ -287,7 +287,10 @@ namespace FraxinusEngine.Rendering.Ultra
 
             if (reasonWarning == null &&
                 (!(cameraData.renderer is UltraRenderer ultraRenderer) || !ultraRenderer.SupportsTemporalAA()))
-                reasonWarning = "because the renderer has no enabled TAA pass in its main post-processing path.";
+                reasonWarning = "because the renderer's temporal resources or enabled TAA pass in the main post-processing path are unavailable.";
+
+            if (reasonWarning == null)
+                return null;
 
             const int warningThrottleFrames = 60 * 1; // 60 FPS * 1 sec
             if (s_warnCounter % warningThrottleFrames == 0)

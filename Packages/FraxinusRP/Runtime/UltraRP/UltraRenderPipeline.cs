@@ -217,10 +217,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
             GraphicsSettings.useScriptableRenderPipelineBatching = asset.useSRPBatcher;
 
-            int qualitySettingsMsaaSampleCount = QualitySettings.antiAliasing > 0 ? QualitySettings.antiAliasing : 1;
-            bool msaaSampleCountNeedsUpdate = qualitySettingsMsaaSampleCount != asset.msaaSampleCount;
-            if (msaaSampleCountNeedsUpdate)
-                QualitySettings.antiAliasing = asset.msaaSampleCount;
+            QualitySettings.antiAliasing = 0;
 
             var defaultVolumeProfileSettings = RenderPipelineGraphicsSettingsCompatibility.GetRenderPipelineSettings<UltraRenderPipelineDefaultVolumeProfileSettings>();
             if (!VolumeManager.instance.isInitialized)
@@ -527,6 +524,8 @@ namespace FraxinusEngine.Rendering.Ultra
                     return;
                 }
 
+                ValidateRenderTarget(destination);
+
                 int mipLevel = standardRequest != null ? standardRequest.mipLevel : singleRequest.mipLevel;
                 int slice = standardRequest != null ? standardRequest.slice : singleRequest.slice;
                 int face = standardRequest != null ? (int)standardRequest.face : (int)singleRequest.face;
@@ -543,7 +542,8 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 rtDesc.colorFormat = destination.format;
                 rtDesc.volumeDepth = 1;
-                rtDesc.msaaSamples = destination.descriptor.msaaSamples;
+                rtDesc.msaaSamples = 1;
+                rtDesc.bindMS = false;
                 rtDesc.dimension = TextureDimension.Tex2D;
                 rtDesc.width = destination.width / (int)Math.Pow(2, mipLevel);
                 rtDesc.height = destination.height / (int)Math.Pow(2, mipLevel);
@@ -1094,7 +1094,6 @@ namespace FraxinusEngine.Rendering.Ultra
         static CameraData CreateCameraData(ContextContainer frameData, Camera camera, UltraAdditionalCameraData additionalCameraData, bool resolveFinalTarget)
         {
             using var profScope = new ProfilingScope(Profiling.Pipeline.initializeCameraData);
-            var renderer = GetRenderer(camera, additionalCameraData);
             CameraData cameraData = frameData.Create<CameraData>();
             InitializeStackedCameraData(camera, additionalCameraData, cameraData);
 
@@ -1104,17 +1103,11 @@ namespace FraxinusEngine.Rendering.Ultra
             ///////////////////////////////////////////////////////////////////
             //                      Descriptor settings                       /
             ///////////////////////////////////////////////////////////////////
-            bool rendererSupportsMSAA = renderer != null && renderer.supportedRenderingFeatures.msaa;
-
-            int msaaSamples = 1;
-            if (camera.allowMSAA && asset.msaaSampleCount > 1 && rendererSupportsMSAA)
-                msaaSamples = (camera.targetTexture != null) ? camera.targetTexture.antiAliasing : asset.msaaSampleCount;
-
             bool needsAlphaChannel = Graphics.preserveFramebufferAlpha;
 
             cameraData.hdrColorBufferPrecision = asset ? asset.hdrColorBufferPrecision : HDRColorBufferPrecision._32Bits;
             cameraData.cameraTargetDescriptor = CreateRenderTextureDescriptor(camera, cameraData,
-                cameraData.isHdrEnabled, cameraData.hdrColorBufferPrecision, msaaSamples, needsAlphaChannel);
+                cameraData.isHdrEnabled, cameraData.hdrColorBufferPrecision, 1, needsAlphaChannel);
 
             uint count = GraphicsFormatUtility.GetAlphaComponentCount(cameraData.cameraTargetDescriptor.graphicsFormat);
             cameraData.isAlphaOutputEnabled = GraphicsFormatUtility.HasAlphaChannel(cameraData.cameraTargetDescriptor.graphicsFormat);
@@ -1654,7 +1647,12 @@ namespace FraxinusEngine.Rendering.Ultra
 
         private static void SetupScreenMSAASamplesState(int cameraCount)
         {
+            // Quality changes made while UltraRP is active must not enable camera MSAA.
+            if (QualitySettings.antiAliasing != 0)
+                QualitySettings.antiAliasing = 0;
 #if UNITY_6000_0_OR_NEWER
+            if (Screen.msaaSamples > 1)
+                Screen.SetMSAASamples(1);
             // Enable potential bandwidth optimization only when rendering a single base camera
             canOptimizeScreenMSAASamples = (cameraCount == 1);
             // Save ScreenMSAASamples value at beginning of the frame, useful for iOS/macOS

@@ -12,35 +12,10 @@ namespace FraxinusEditor.Rendering.Ultra
     {
         public partial class Rendering
         {
-            static bool s_postProcessingWarningShown = false;
-
             private static readonly CED.IDrawer postProcessingWarningDrawer = CED.Conditional(
-                (serialized, owner) => IsAnyRendererHasPostProcessingEnabled(serialized, UltraRenderPipeline.asset) && serialized.renderPostProcessing.boolValue,
-                (serialized, owner) =>
-                {
-                    EditorGUILayout.HelpBox(Styles.disabledPostprocessing, MessageType.Warning);
-                    s_postProcessingWarningShown = true;
-                });
-
-            private static readonly CED.IDrawer msaaWarningDrawer = CED.Conditional(
-                (serialized, owner) => !IsSGSR2Selected() && (GraphicsSettings.currentRenderPipeline is UltraRenderPipelineAsset asset && asset.msaaSampleCount > 1) && serialized.baseCameraSettings.allowMSAA.boolValue == true && (AntialiasingMode)serialized.antialiasing.intValue == AntialiasingMode.TemporalAntiAliasing,
-                (serialized, owner) => EditorGUILayout.HelpBox(Styles.msaaWarning, MessageType.Warning));
-
-            private static readonly CED.IDrawer postProcessingStopNaNsWarningDrawer = CED.Conditional(
-                (serialized, owner) => !s_postProcessingWarningShown && IsAnyRendererHasPostProcessingEnabled(serialized, UltraRenderPipeline.asset) && serialized.stopNaNs.boolValue,
-                (serialized, owner) =>
-                {
-                    EditorGUILayout.HelpBox(Styles.disabledPostprocessing, MessageType.Warning);
-                    s_postProcessingWarningShown = true;
-                });
-
-            private static readonly CED.IDrawer postProcessingDitheringWarningDrawer = CED.Conditional(
-                (serialized, owner) => !s_postProcessingWarningShown && IsAnyRendererHasPostProcessingEnabled(serialized, UltraRenderPipeline.asset) && serialized.dithering.boolValue,
-                (serialized, owner) =>
-                {
-                    EditorGUILayout.HelpBox(Styles.disabledPostprocessing, MessageType.Warning);
-                    s_postProcessingWarningShown = true;
-                });
+                (serialized, owner) => !serialized.renderPostProcessing.hasMultipleDifferentValues &&
+                    serialized.renderPostProcessing.boolValue && IsPostProcessDataMissing(serialized, UltraRenderPipeline.asset),
+                (serialized, owner) => EditorGUILayout.HelpBox(Styles.missingPostProcessData, MessageType.Warning));
 
             public static readonly CED.IDrawer drawer;
 
@@ -66,8 +41,7 @@ namespace FraxinusEditor.Rendering.Ultra
                         )
                     ),
                     CED.noop,
-                    FoldoutOption.Indent,
-                    (serialized, owner) => s_postProcessingWarningShown = false
+                    FoldoutOption.Indent
                 );
 
                 drawerPreset = CED.FoldoutGroup(
@@ -91,9 +65,8 @@ namespace FraxinusEditor.Rendering.Ultra
                 CED.Group(
                     DrawerRenderingAntialiasing
                 ),
-                msaaWarningDrawer,
                 CED.Conditional(
-                        (serialized, owner) => !serialized.antialiasing.hasMultipleDifferentValues && !IsSGSR2Selected(),
+                        (serialized, owner) => !serialized.antialiasing.hasMultipleDifferentValues && !IsSGSR2Selected(serialized),
                         CED.Group(
                             GroupOption.Indent,
                             new[]{
@@ -115,11 +88,9 @@ namespace FraxinusEditor.Rendering.Ultra
                 CED.Group(
                     CameraUI.Rendering.Drawer_Rendering_StopNaNs
                     ),
-                    postProcessingStopNaNsWarningDrawer,
                 CED.Group(
                     CameraUI.Rendering.Drawer_Rendering_Dithering
                     ),
-                    postProcessingDitheringWarningDrawer,
                 CED.Group(
                     DrawerRenderingRenderShadows,
                     DrawerRenderingPriority
@@ -131,7 +102,7 @@ namespace FraxinusEditor.Rendering.Ultra
                 CED.Group(
                     DrawerRenderingRenderPostProcessing
                     ),
-
+                postProcessingWarningDrawer,
                 CED.Group(
                     DrawerRenderingClearDepth,
                     DrawerRenderingRenderShadows
@@ -170,9 +141,9 @@ namespace FraxinusEditor.Rendering.Ultra
 
             static void DrawerRenderingAntialiasing(UltraRenderPipelineSerializedCamera p, Editor owner)
             {
-                if (IsSGSR2Selected())
+                if (IsSGSR2Selected(p))
                 {
-                    EditorGUILayout.HelpBox("SGSR2 supplies anti-aliasing. This camera's AA selection is preserved for other upscaling filters. Enable Post Processing and disable MSAA, stacking and dynamic resolution; unsupported cameras use Bilinear without temporal jitter.", MessageType.Info);
+                    EditorGUILayout.HelpBox("SGSR2 overrides this camera's anti-aliasing selection. It requires Post Processing, a renderer graph that supports temporal upscaling, and a non-stereo camera with a 2D color target, no camera stack or dynamic resolution. If unavailable, rendering falls back to Bilinear without temporal jitter or additional camera anti-aliasing. The camera's saved selection is used with other upscaling filters.", MessageType.Info);
                     return;
                 }
 
@@ -187,10 +158,23 @@ namespace FraxinusEditor.Rendering.Ultra
                 EditorGUI.EndProperty();
             }
 
-            static bool IsSGSR2Selected()
+            static bool IsSGSR2Selected(UltraRenderPipelineSerializedCamera p)
             {
                 var pipeline = UltraRenderPipeline.asset;
-                return pipeline != null && pipeline.upscalingFilter == UpscalingFilterSelection.SGSR2 && pipeline.renderScale <= 1.0f;
+                if (pipeline == null || pipeline.upscalingFilter != UpscalingFilterSelection.SGSR2)
+                    return false;
+
+                // Camera initialization snaps render scales within 0.05 of one to one.
+                if (pipeline.renderScale > 1.0f && Mathf.Abs(1.0f - pipeline.renderScale) >= 0.05f)
+                    return false;
+
+                foreach (var target in p.serializedObject.targetObjects)
+                {
+                    if (target is not Camera camera || camera.cameraType == CameraType.SceneView ||
+                        camera.cameraType == CameraType.Preview || camera.cameraType == CameraType.Reflection)
+                        return false;
+                }
+                return true;
             }
 
             static void DrawerRenderingSMAAQuality(UltraRenderPipelineSerializedCamera p, Editor owner)
@@ -260,20 +244,20 @@ namespace FraxinusEditor.Rendering.Ultra
                 EditorGUILayout.PropertyField(p.baseCameraSettings.depth, Styles.priority);
             }
 
-            static bool IsAnyRendererHasPostProcessingEnabled(UltraRenderPipelineSerializedCamera p, UltraRenderPipelineAsset rpAsset)
+            static bool IsPostProcessDataMissing(UltraRenderPipelineSerializedCamera p, UltraRenderPipelineAsset rpAsset)
             {
+                if (rpAsset == null || rpAsset.rendererGraphList == null || p.renderer.hasMultipleDifferentValues)
+                    return false;
+
                 int selectedRendererOption = p.renderer.intValue;
-
-                if (selectedRendererOption < -1 || selectedRendererOption >= rpAsset.rendererGraphList.Length || p.renderer.hasMultipleDifferentValues)
+                if (selectedRendererOption < 0 || selectedRendererOption >= rpAsset.rendererGraphList.Length ||
+                    rpAsset.rendererGraphList[selectedRendererOption] == null)
+                    selectedRendererOption = rpAsset.defaultRendererIndex;
+                if (selectedRendererOption < 0 || selectedRendererOption >= rpAsset.rendererGraphList.Length)
                     return false;
 
-                var rendererData = selectedRendererOption == -1 ? rpAsset.scriptableRendererGraph : rpAsset.rendererGraphList[selectedRendererOption];
-
-                var forwardRendererData = rendererData as UltraRendererGraph;
-                if (forwardRendererData != null && forwardRendererData.postProcessData == null)
-                    return true;
-                else
-                    return false;
+                return rpAsset.rendererGraphList[selectedRendererOption] is UltraRendererGraph rendererGraph &&
+                    rendererGraph.postProcessData == null;
             }
         }
     }

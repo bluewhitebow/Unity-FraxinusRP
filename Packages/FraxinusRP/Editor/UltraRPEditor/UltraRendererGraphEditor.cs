@@ -24,13 +24,11 @@ namespace FraxinusEditor.Rendering.Ultra
             
             public static readonly GUIContent depthPrimingModeLabel = EditorGUIUtility.TrTextContent(
                 "Depth Priming Mode", 
-                "With depth priming enabled, Unity uses the depth buffer generated in the depth prepass to determine if a fragment should be rendered or skipped during the Base Camera opaque pass. Disabled: Unity does not perform depth priming. Auto: If there is a Render Pass that requires a depth prepass, Unity performs the depth prepass and depth priming. Forced: Unity performs the depth prepass and depth priming.");
+                "Depth priming uses a depth prepass to reject occluded fragments in opaque rendering. Disabled: Do not use depth priming. Auto: Enable it for supported cameras and platforms, adding a depth prepass when needed.");
             
             public static readonly GUIContent depthPrimingModeInfo = EditorGUIUtility.TrTextContent(
-                "On Android, iOS, and Apple TV, Unity performs depth priming only in Forced mode.");
+                "Depth priming is disabled on Android, iOS, tvOS and Embedded Linux.");
             
-            public static readonly GUIContent depthPrimingMSAAWarning = EditorGUIUtility.TrTextContent(
-                "Depth priming is not supported because MSAA is enabled.");
         }
         
         #endregion
@@ -160,22 +158,9 @@ namespace FraxinusEditor.Rendering.Ultra
 
             helpBoxContainer.Clear();
 
-            HelpBox helpBox = ShouldShowMSAAWarning()
-                ? new HelpBox(Styles.depthPrimingMSAAWarning.text, HelpBoxMessageType.Warning)
-                : new HelpBox(Styles.depthPrimingModeInfo.text, HelpBoxMessageType.Info);
+            HelpBox helpBox = new HelpBox(Styles.depthPrimingModeInfo.text, HelpBoxMessageType.Info);
 
             helpBoxContainer.Add(helpBox);
-        }
-
-        private bool ShouldShowMSAAWarning()
-        {
-            if (GraphicsSettings.currentRenderPipeline == null)
-                return false;
-
-            if (!(GraphicsSettings.currentRenderPipeline is UltraRenderPipelineAsset asset))
-                return false;
-
-            return asset.msaaSampleCount > 1;
         }
 
         private PropertyField CreatePropertyField(SerializedProperty property, GUIContent content)

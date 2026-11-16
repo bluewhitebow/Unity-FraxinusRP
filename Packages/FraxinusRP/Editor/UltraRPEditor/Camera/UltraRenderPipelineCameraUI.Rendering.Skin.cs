@@ -33,10 +33,8 @@ namespace FraxinusEditor.Rendering.Ultra
 
                 public static readonly string noRendererError = L10n.Tr("There are no valid Renderers available on the UltraRP asset.");
                 public static readonly string missingRendererWarning = L10n.Tr("The currently selected Renderer is missing from the UltraRP asset.");
-                public static readonly string disabledPostprocessing = L10n.Tr("Post Processing is currently disabled on the current UltraRP renderer.");
+                public static readonly string missingPostProcessData = L10n.Tr("Post Processing is enabled on this camera, but its renderer graph has no Post Process Data assigned.");
                 public static readonly string selectRenderPipelineAsset = L10n.Tr("Select Render Pipeline Asset");
-                public static readonly string disabledPostprocessingAntiAliasWarning = L10n.Tr("Post Processing based Anti-aliasing requires Post Processing enabled to function.");
-                public static readonly string msaaWarning = L10n.Tr("MSAA is enabled. TAA will be disabled when using current UltraRenderPipelineAsset.");
             }
         }
     }

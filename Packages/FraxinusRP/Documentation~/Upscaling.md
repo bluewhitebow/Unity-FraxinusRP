@@ -22,7 +22,9 @@ FSR's sharpness controls do not apply to SGSR.
 Both filters require shader model 4.5, a supported shader in the renderer graph's
 PostProcessData, a 2D camera target, and no XR or dynamic resolution. SGSR2 also
 requires a floating-point motion/depth target, post-processing, motion vectors,
-MSAA disabled, and a single Base camera without overlays. Subcontexts do not
+and a single Base camera without overlays. All UltraRP cameras use one sample;
+output RenderTextures must have `antiAliasing = 1` and `bindTextureMS = false`.
+Multisampled output targets are rejected before rendering. Subcontexts do not
 share the main camera's temporal history. Unsupported configurations use linear
 scaling; SGSR2 eligibility is resolved before projection jitter is applied.
 
@@ -45,7 +47,8 @@ and depth buffers; their temporal image quality needs separate evaluation.
 
 Unity 2022.3.62f3, Windows, NVIDIA GTX 1650, Direct3D 11. Local evidence is under
 `Logs/FraxinusRP/SGSR-2026-10-23` in the host project; temporary test scripts are
-not part of the package.
+not part of the package. These results describe the historical checkpoint;
+its MSAA fallback cases predate the current single-sample camera requirement.
 
 `Graphics-04` passes 43 Play Mode frames covering both upscale passes, object
 motion, input/output resizing, 1.0 render scale, explicit reset, filter switching,

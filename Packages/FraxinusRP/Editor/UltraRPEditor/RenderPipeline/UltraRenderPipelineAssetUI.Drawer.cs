@@ -64,7 +64,6 @@ namespace FraxinusEditor.Rendering.Ultra
 
 
                 var brgStrippingError = EditorGraphicsSettings.batchRendererGroupShaderStrippingMode != BatchRendererGroupStrippingMode.KeepAll;
-                var lightingModeError = !HasCorrectLightingModes(serialized.asset);
                 var staticBatchingWarning = PlayerSettings.GetStaticBatchingForPlatform(EditorUserBuildSettings.activeBuildTarget);
 
                 if ((UltraGPUResidentDrawerMode)serialized.gpuResidentDrawerMode.intValue != UltraGPUResidentDrawerMode.Disabled)
@@ -76,8 +75,6 @@ namespace FraxinusEditor.Rendering.Ultra
 
                     if (brgStrippingError)
                         EditorGUILayout.HelpBox(Styles.brgShaderStrippingErrorMessage.text, MessageType.Warning, true);
-                    if (lightingModeError)
-                        EditorGUILayout.HelpBox(Styles.lightModeErrorMessage.text, MessageType.Warning, true);
                     if (staticBatchingWarning)
                         EditorGUILayout.HelpBox(Styles.staticBatchingInfoMessage.text, MessageType.Info, true);
                 }
@@ -100,7 +97,6 @@ namespace FraxinusEditor.Rendering.Ultra
         {
             DrawHDR(serialized, ownerEditor);
 
-            EditorGUILayout.PropertyField(serialized.msaa, Styles.msaaText);
             serialized.renderScale.floatValue = EditorGUILayout.Slider(Styles.renderScaleText, serialized.renderScale.floatValue, UltraRenderPipeline.minRenderScale, UltraRenderPipeline.maxRenderScale);
             EditorGUILayout.PropertyField(serialized.upscalingFilter, Styles.upscalingFilterText);
             if (serialized.asset.upscalingFilter == UpscalingFilterSelection.FSR)
@@ -115,24 +111,14 @@ namespace FraxinusEditor.Rendering.Ultra
 
                 --EditorGUI.indentLevel;
             }
-            else if (serialized.asset.upscalingFilter == UpscalingFilterSelection.STP)
-            {
-                // Warn users about performance expectations if they attempt to enable STP on a mobile platform
-                if (PlatformAutoDetect.isShaderAPIMobileDefined)
-                    EditorGUILayout.HelpBox(Styles.stpMobilePlatformWarning, MessageType.Warning, true);
-            }
             else if (serialized.asset.upscalingFilter == UpscalingFilterSelection.SGSR1)
             {
                 EditorGUILayout.HelpBox("SGSR1 performs spatial upscaling at Render Scale 1 or below. Enable camera Post Processing. Unsupported shaders, stereo targets and dynamic resolution use Bilinear.", MessageType.Info);
             }
             else if (serialized.asset.upscalingFilter == UpscalingFilterSelection.SGSR2)
             {
-                EditorGUILayout.HelpBox("SGSR2 includes temporal anti-aliasing at Render Scale 1 or below. Enable camera Post Processing and disable MSAA. Camera stacking, dynamic resolution, stereo and child contexts are unsupported; these cameras use Bilinear without temporal jitter.", MessageType.Info);
+                EditorGUILayout.HelpBox("SGSR2 includes temporal anti-aliasing at Render Scale 1 or below. Enable camera Post Processing. Camera stacking, dynamic resolution, stereo and child contexts are unsupported; these cameras use Bilinear without temporal jitter.", MessageType.Info);
             }
-
-            if (serialized.renderScale.floatValue < 1.0f || serialized.asset.upscalingFilter == UpscalingFilterSelection.STP || serialized.asset.upscalingFilter == UpscalingFilterSelection.FSR ||
-                serialized.asset.upscalingFilter == UpscalingFilterSelection.SGSR1 || serialized.asset.upscalingFilter == UpscalingFilterSelection.SGSR2)
-                EditorGUILayout.HelpBox("Camera depth isn't supported when Upscaling is turned on in the game view. We will automatically fall back to not doing depth-testing for this pass.", MessageType.Warning, true);
 
             EditorGUILayout.PropertyField(serialized.enableLODCrossFadeProp, Styles.enableLODCrossFadeText);
             EditorGUI.BeginDisabledGroup(!serialized.enableLODCrossFadeProp.boolValue);
@@ -226,27 +212,19 @@ namespace FraxinusEditor.Rendering.Ultra
             if (!serialized.reflectionProbeBlendingProp.boolValue)
                 serialized.reflectionProbeAtlasProp.boolValue = false;
 
+#if UNITY_6000_0_OR_NEWER
             if ((UltraGPUResidentDrawerMode)serialized.gpuResidentDrawerMode.intValue != UltraGPUResidentDrawerMode.Disabled)
             {
                 if (!serialized.reflectionProbeBlendingProp.boolValue || !serialized.reflectionProbeAtlasProp.boolValue)
                     EditorGUILayout.HelpBox(Styles.reflectionProbeBlendingGpuResidentDrawerWarningText.text, MessageType.Warning, true);
             }
+#endif
 
             EditorGUI.indentLevel--;
 
             EditorGUILayout.PropertyField(serialized.reflectionProbeBoxProjectionProp, Styles.reflectionProbeBoxProjectionText);
 
             EditorGUI.indentLevel--;
-
-            // Disable probeAtlas when probeBlending is off.
-            if (!serialized.reflectionProbeBlendingProp.boolValue)
-                serialized.reflectionProbeAtlasProp.boolValue = false;
-
-            if ((UltraGPUResidentDrawerMode)serialized.gpuResidentDrawerMode.intValue != UltraGPUResidentDrawerMode.Disabled)
-            {
-                if (!serialized.reflectionProbeBlendingProp.boolValue || !serialized.reflectionProbeAtlasProp.boolValue)
-                    EditorGUILayout.HelpBox(Styles.reflectionProbeBlendingGpuResidentDrawerWarningText.text, MessageType.Warning, true);
-            }
 
             EditorGUILayout.Space();
 
@@ -608,16 +586,6 @@ namespace FraxinusEditor.Rendering.Ultra
             }
             else
                 CoreUtils.Destroy(s_volumeProfileEditor);
-        }
-
-        private static bool HasCorrectLightingModes(UltraRenderPipelineAsset asset)
-        {
-            //foreach (var rendererData in asset.rendererGraphList)
-            //{
-            //    if (rendererData is not UltraRendererData { renderingMode: RenderingMode.ForwardPlus })
-            //        return false;
-            //}
-            return true;
         }
 
         static bool ValidateRendererGraphicsAPIsForLightLayers(UltraRenderPipelineAsset pipelineAsset, out string unsupportedGraphicsApisMessage)

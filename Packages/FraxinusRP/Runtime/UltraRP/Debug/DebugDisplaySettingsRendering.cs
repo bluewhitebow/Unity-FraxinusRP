@@ -165,10 +165,8 @@ namespace FraxinusEngine.Rendering.Ultra
         /// </summary>
         public DebugPostProcessingMode postProcessingDebugMode { get; set; } = DebugPostProcessingMode.Auto;
 
-        /// <summary>
-        /// Whether MSAA is enabled.
-        /// </summary>
-        public bool enableMsaa { get; set; } = true;
+        /// <summary>Compatibility property. MSAA cannot be enabled for UltraRP cameras.</summary>
+        public bool enableMsaa { get => false; set { } }
 
         /// <summary>
         /// Whether HDR is enabled.
@@ -238,7 +236,6 @@ namespace FraxinusEngine.Rendering.Ultra
             public static readonly NameAndTooltip mipMapActivityTimespan = new() { name = "Activity Timespan", tooltip = "How long a texture should be shown as \"recently updated\"." };
             public static readonly NameAndTooltip mipMapCombinePerMaterial = new() { name = "Combined per Material", tooltip = "Combine the information over all slots per material." };
             public static readonly NameAndTooltip postProcessing = new() { name = "Post-processing", tooltip = "Override the controls for Post Processing in the scene." };
-            public static readonly NameAndTooltip msaa = new() { name = "MSAA", tooltip = "Use the checkbox to disable MSAA in the scene." };
             public static readonly NameAndTooltip hdr = new() { name = "HDR", tooltip = "Use the checkbox to disable High Dynamic Range in the scene." };
             public static readonly NameAndTooltip taaDebugMode = new() { name = "TAA Debug Mode", tooltip = "Choose whether to force TAA to output the raw jittered frame or clamped reprojected history." };
             public static readonly NameAndTooltip pixelValidationMode = new() { name = "Pixel Validation Mode", tooltip = "Choose between modes that validate pixel on screen." };
@@ -477,13 +474,6 @@ namespace FraxinusEngine.Rendering.Ultra
                 setIndex = (value) => panel.data.postProcessingDebugMode = (DebugPostProcessingMode)value
             };
 
-            internal static DebugUI.Widget CreateMSAA(SettingsPanel panel) => new DebugUI.BoolField
-            {
-                nameAndTooltip = Strings.msaa,
-                getter = () => panel.data.enableMsaa,
-                setter = (value) => panel.data.enableMsaa = value
-            };
-
             internal static DebugUI.Widget CreateHDR(SettingsPanel panel) => new DebugUI.BoolField
             {
                 nameAndTooltip = Strings.hdr,
@@ -560,7 +550,6 @@ namespace FraxinusEngine.Rendering.Ultra
                         WidgetFactory.CreateStpDebugViews(this),
                         WidgetFactory.CreateMapOverlaySize(this),
                         WidgetFactory.CreateHDR(this),
-                        WidgetFactory.CreateMSAA(this),
                         WidgetFactory.CreateTaaDebugMode(this),
                         WidgetFactory.CreatePostProcessing(this),
                         WidgetFactory.CreateAdditionalWireframeShaderViews(this),
@@ -619,7 +608,6 @@ namespace FraxinusEngine.Rendering.Ultra
         (sceneOverrideMode != DebugSceneOverrideMode.None) ||
         (mipInfoMode != DebugMipInfoMode.None) ||
         (validationMode != DebugValidationMode.None) ||
-        !enableMsaa ||
         !enableHDR ||
         (taaDebugMode != TaaDebugMode.None);
 

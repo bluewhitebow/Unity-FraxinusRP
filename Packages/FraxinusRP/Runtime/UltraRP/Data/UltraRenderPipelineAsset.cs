@@ -116,7 +116,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
     public enum UpscalingFilterSelection
     {
-        [InspectorName("Automatic"), Tooltip("Unity selects a filtering option automatically based on the Render Scale value and the current screen resolution.")]
+        [InspectorName("Automatic"), Tooltip("Uses Nearest-Neighbor when the output dimensions and Render Scale allow integer scaling; otherwise uses Bilinear.")]
         Auto,
 
         [InspectorName("Bilinear")]
@@ -128,7 +128,7 @@ namespace FraxinusEngine.Rendering.Ultra
         [InspectorName("FidelityFX Super Resolution 1.0"), Tooltip("If the target device does not support Unity shader model 4.5, Unity falls back to the Automatic option.")]
         FSR,
 
-        [InspectorName("Spatial-Temporal Post-Processing"), Tooltip("If the target device does not support compute shaders or is running GLES, Unity falls back to the Automatic option.")]
+        [InspectorName("Spatial-Temporal Post-Processing"), Tooltip("Temporal upscaling and anti-aliasing at Render Scale 1 or below. Requires camera Post Processing and an enabled TAA pass in the renderer, without camera stacking or dynamic resolution. Unsupported compute hardware, GLES or missing STP compute resources use Bilinear.")]
         STP,
 
         [InspectorName("Snapdragon Game Super Resolution 1"), Tooltip("Spatial upscaling. Falls back to Bilinear when the shader is not supported.")]
@@ -183,7 +183,8 @@ namespace FraxinusEngine.Rendering.Ultra
         // Quality settings
         [SerializeField] bool _supportsHDR = false;
         [SerializeField] HDRColorBufferPrecision _hdrColorBufferPrecision = HDRColorBufferPrecision._32Bits;
-        [SerializeField] MsaaQuality _msaa = MsaaQuality.Disabled;
+        // Retained for asset and API compatibility. UltraRP always renders single-sampled.
+        [SerializeField, HideInInspector] MsaaQuality _msaa = MsaaQuality.Disabled;
         [SerializeField] float _renderScale = 1.0f;
         [SerializeField] UpscalingFilterSelection _upscalingFilter = UpscalingFilterSelection.Auto;
         [SerializeField] bool _fsrOverrideSharpness = false;
@@ -363,6 +364,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
         protected override void OnValidate()
         {
+            _msaa = MsaaQuality.Disabled;
             DestroyRenderers();
 
             base.OnValidate();
@@ -577,10 +579,14 @@ namespace FraxinusEngine.Rendering.Ultra
             set => _hdrColorBufferPrecision = value;
         }
 
+        /// <summary>
+        /// Compatibility property. UltraRP uses one sample regardless of the assigned value.
+        /// Shared texture and render-graph utilities still support multisampled resources.
+        /// </summary>
         public int msaaSampleCount
         {
-            get { return (int)_msaa; }
-            set { _msaa = (MsaaQuality)value; }
+            get => 1;
+            set => _msaa = MsaaQuality.Disabled;
         }
 
         public float renderScale
@@ -946,12 +952,13 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public void OnBeforeSerialize()
         {
-
+            _msaa = MsaaQuality.Disabled;
         }
 
         public void OnAfterDeserialize()
         {
-
+            if (_msaa != MsaaQuality.Disabled)
+                _msaa = MsaaQuality.Disabled;
         }
 
         float ValidateShadowBias(float value)
