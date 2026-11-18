@@ -5,6 +5,7 @@ namespace FraxinusEngine.Rendering.Ultra
 {
     public partial class DeferredLights
     {
+        static readonly bool s_supportsFullGBuffer = SystemInfo.supportedRenderTargetCount >= 7;
         readonly UltraRenderPipelineRuntimeShaders _runtimeShaders;
         Material _clusterDeferredMaterial;
 
@@ -24,8 +25,8 @@ namespace FraxinusEngine.Rendering.Ultra
             // Seven MRTs covers depth, rendering layers and mixed lighting as well
             // as the four base buffers. Keep Auto on compute on smaller devices.
             useFramebufferFetch = nativeRenderPasses && !disableFramebufferFetch &&
-                (useDeferredPlus ? SystemInfo.supportedRenderTargetCount >= 7 :
-                    !clustered || (mode != ClusterLightingMode.Compute && SystemInfo.supportedRenderTargetCount >= 7));
+                (useDeferredPlus ? s_supportsFullGBuffer :
+                    !clustered || (mode != ClusterLightingMode.Compute && s_supportsFullGBuffer));
             // Resolve a material only when it can actually be used. In particular,
             // Auto on the guarded DX11 backend keeps the original compute costs.
             bool rasterAvailable = clustered && (mode == ClusterLightingMode.Raster || useFramebufferFetch) &&

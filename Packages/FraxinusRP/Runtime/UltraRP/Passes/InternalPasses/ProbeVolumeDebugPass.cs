@@ -13,6 +13,7 @@ namespace FraxinusEngine.Rendering.Ultra
         class WriteApvData
         {
             public ComputeShader computeShader;
+            public int kernel;
             public BufferHandle resultBuffer;
             public Vector2 clickCoordinates;
             public TextureHandle depthBuffer;
@@ -20,6 +21,7 @@ namespace FraxinusEngine.Rendering.Ultra
         }
 
         private ComputeShader _computeShader;
+        private int _kernel;
 
         sealed class PreparedSampling : ContextItem
         {
@@ -39,6 +41,8 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             if (RenderPipelineGraphicsSettingsCompatibility.TryGetRenderPipelineSettings<UltraPipelineDebugShaders>(out var debugShaders))
                 _computeShader = debugShaders.probeVolumeSamplingDebugComputeShader;
+            if (_computeShader != null)
+                _kernel = _computeShader.FindKernel("ComputePositionNormal");
         }
 
         protected override void OnCameraCleanup(CommandBuffer cmd){ }
@@ -52,7 +56,8 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public override bool PrepareFrame(RenderGraph renderGraph, ContextContainer frameData)
         {
-            if (UltraRenderPipeline.asset == null || !UltraRenderPipeline.asset.supportProbeVolume || _computeShader == null)
+            var pipeline = UltraRenderPipeline.asset;
+            if (pipeline == null || !pipeline.supportProbeVolume || _computeShader == null)
                 return false;
             var volume = ProbeReferenceVolumeProvider.instance;
             if (!volume.isInitialized)
@@ -92,7 +97,8 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public override void Execute(RenderGraph renderGraph, ScriptableRenderContext context, ContextContainer frameData)
         {
-            if (UltraRenderPipeline.asset == null || !UltraRenderPipeline.asset.supportProbeVolume)
+            var pipeline = UltraRenderPipeline.asset;
+            if (pipeline == null || !pipeline.supportProbeVolume)
                 return;
 
             ResourceData resourceData   = frameData.Get<ResourceData>();
@@ -109,6 +115,7 @@ namespace FraxinusEngine.Rendering.Ultra
             {
                 passData.clickCoordinates = prepared.coordinates;
                 passData.computeShader = _computeShader;
+                passData.kernel = _kernel;
 
                 passData.resultBuffer = renderGraph.ImportBuffer(prepared.resultBuffer);
                 passData.depthBuffer = cameraDepthTexture;
@@ -120,7 +127,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 builder.SetRenderFunc((WriteApvData data, ComputeGraphContext ctx) =>
                 {
-                    int kernel = data.computeShader.FindKernel("ComputePositionNormal");
+                    int kernel = data.kernel;
 
                     ctx.cmd.SetComputeTextureParam(data.computeShader, kernel, "_CameraDepthTexture", data.depthBuffer);
                     ctx.cmd.SetComputeTextureParam(data.computeShader, kernel, "_NormalBufferTexture", data.normalBuffer);

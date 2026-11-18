@@ -10,7 +10,7 @@ UltraRP 的 `Strip Unused Variants` 同时控制提前关键词过滤、普通 S
 
 ## 当前能力规则
 
-- 调用 Fraxinus 自身的 `PlatformAutoDetect.ShAutoDetect` 解析 SH 模式。当前 Auto 在普通 Android 构建中是 PerPixel；不复制 URP 17 的不同移动端判定。Mixed、PerVertex 及不同质量档的组合均保留各自需要的状态与 OFF 状态。
+- SH Auto 在构建分析时保持未解析，因为 Editor 的平台与 XR 缓存不能证明 Player 的实际需求。运行时仍由 `PlatformAutoDetect.ShAutoDetect` 选择模式；Mixed、PerVertex 及不同质量档的组合均保留各自需要的状态与 OFF 状态。
 - 调用运行时的 `SupportsPerLightSoftShadowQuality` 判定阴影质量模式。使用动态质量时过滤静态 LOW/MEDIUM/HIGH；普通 `_SHADOWS_SOFT` 的开关状态始终保留，因为游戏可以在运行中调整阴影画质。
 - Forward Plus 单独检查每个声明节点的 `RequestRenderingMode` 虚方法实现和 DrawObjects 配置。检查包含禁用、断开的节点。未知图、缺失类型、未知重写或不同的虚方法槽保持保守，不执行自定义节点代码。后处理节点继承默认 None 实现，不会阻止独立的 Forward Plus 判断。
 - 按资产能力过滤未启用的 LOD Cross Fade、APV、APRT、Light Layers、Light Cookies、Mixed Lighting 和反射探针混合/盒投影；这些能力仍合并所有构建质量档。
@@ -43,6 +43,8 @@ UltraRP 的 `Strip Unused Variants` 同时控制提前关键词过滤、普通 S
 包提供 `[ScreenSpaceShadowUsage(false)]`，供已经审查的自定义节点、后处理、Uber processor 和自动注入模块明确声明自身不产生或启用该状态。声明必须覆盖该类型委托的材质、插件绘制和回调。属性的 `Inherited=false`，子类必须重新声明；未声明、声明为 `true`、未知图、缺失节点和缺失托管引用均保留该状态。分析只读取声明，不执行自定义渲染代码。关闭 `Strip Unused Variants` 时不应用该裁剪。
 
 自动发现检查与运行时一致：`PostProcessPass` 会实例化全部具体 `BasePostPass` / `IUberEffectProcessor`，即使没有序列化到图中；`ScriptableRenderer` 会实例化具有公开无参构造函数的具体 `BuiltinPass` / `InjectPass`。未审查且未明确声明的类型阻止屏幕空间阴影裁剪。通用 Forward/Deferred 证明仍只接受已审查原生模块，屏幕空间阴影声明不能绕过它，因此不会据此删除自定义材质的 GBuffer、Deferred 或其它 Pass。
+
+`HiZDepthPass` 已登记到原生模块、Rendering Layers 和相机灯光/阴影契约清单。它只生成深度历史，不改变这些灯光关键字，也不请求 Rendering Layers 输出，因此不会阻止已有裁剪证明。
 
 Duckov 宿主工程的历史集成审查了以下五个精确节点类型。这些项目节点、插件和游戏资产不随本包提供；其他宿主必须审查自己的实现：
 

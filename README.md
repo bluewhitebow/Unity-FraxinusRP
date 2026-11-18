@@ -52,7 +52,7 @@ Materials can use handwritten shaders or **UltraRP Lit / Unlit Shader Graph targ
 
 Rendering resolution can be chosen independently of output resolution. **SGSR1** reconstructs a single frame, while **SGSR2** uses motion vectors and camera history for temporal reconstruction; **STP** is another available option. The pipeline integrates these paths with Render Scale, post-processing and history resets, so different reconstruction methods can be evaluated in the same scene. [Upscaling configuration](Packages/FraxinusRP/Documentation~/Upscaling.md)
 
-## The four packages
+## Companion packages and GPU Batcher
 
 | Package | UPM identifier | Version | Role |
 | --- | --- | --- | --- |
@@ -60,8 +60,11 @@ Rendering resolution can be chosen independently of output resolution. **SGSR1**
 | [Fraxinus-RPCore](Packages/Fraxinus-RPCore/README.md) | `com.unity.render-pipelines.core` | `14.0.99` | RenderGraph, shared rendering tools, probe baking and data management. |
 | [Fraxinus-ShaderGraph](Packages/Fraxinus-ShaderGraph/FraxinusChanges.md) | `com.unity.shadergraph` | `14.0.12` | Shader Graph fork exposing the internal APIs needed by UltraRP targets. |
 | [Fraxinus-Light-Transport](Packages/Fraxinus-Light-Transport/README.md) | `com.fraxinus.rendering.light-transport` | `1.0.1` | Compute ray queries, acceleration structures and sampling. |
+| [Fraxinus-GPU-Batcher](Packages/Fraxinus-GPU-Batcher/README.md) | `com.bluewhitebow.fraxinus-gpu-batcher` | `0.1.0` | Optional GPU instancing, terrain / detail batching and Hi-Z occlusion through UltraRP. |
 
-Each UPM package retains its own version. Use all four packages from one checkout or Git revision. Matching version numbers do not make official packages interchangeable with these forks.
+Each UPM package retains its own version. Use the four companion packages and, when installed, GPU Batcher from one checkout or Git revision. Matching version numbers do not make official packages interchangeable with these forks. The dependency examples include all five packages; omit the GPU Batcher entry when it is not needed.
+
+GPU Batcher uses UltraRP's `HiZDepthPass` and per-camera `HiZDepthHistory`. Occlusion requires valid previous-frame depth from a base Game camera with a 2D, non-stereo, non-dynamically-scaled target. Disabling the pass or invalidating history skips occlusion while frustum and distance culling remain available. See [GPU Batcher setup](docs/Usage.md#optional-gpu-batcher).
 
 ## Getting started
 
@@ -70,7 +73,7 @@ Each UPM package retains its own version. Use all four packages from one checkou
 3. Create a pipeline asset and its associated Renderer Graph through **Assets > Create > FraxinusEngine > UltraRP > UltraRP Asset**. Connect drawing, shadow and post-processing nodes using the [graph configuration guide](Packages/FraxinusRP/Documentation~/Installation.md).
 4. Assign the UltraRP asset in **Project Settings > Graphics** and check the active **Quality** override. Use the included UltraRP shaders or create Lit / Unlit graphs through **Assets > Create > Shader Graph > UltraRP**.
 
-This repository contains packages and documentation. Open a consuming Unity project in the Editor. FraxinusRP currently does not ship a sample scene or sample generator.
+This repository contains packages and documentation. Open a consuming Unity project in the Editor. FraxinusRP currently does not ship a sample scene or sample generator; the optional GPU Batcher package provides its own importable demos.
 
 ## Support and validation
 

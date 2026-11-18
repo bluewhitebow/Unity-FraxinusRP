@@ -26,6 +26,16 @@
       "name": "com.bluewhitebow.fraxinus-rp",
       "version": "0.1.0",
       "sourceCommit": "6e23ebef02e036c432edca96cb339cd4ee1d668a"
+    },
+    {
+      "folder": "Fraxinus-GPU-Batcher",
+      "name": "com.bluewhitebow.fraxinus-gpu-batcher",
+      "version": "0.1.0",
+      "sourceProject": "Duckov-Recovered",
+      "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
+      "sourcePath": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher",
+      "sourceCommit": "03bf252c381f5812e758616acd1ccb55a4fe6cb5",
+      "sourceState": "Working-tree snapshot based on sourceCommit; synchronized with FraxinusRP adaptations present at capture."
     }
   ]
 }

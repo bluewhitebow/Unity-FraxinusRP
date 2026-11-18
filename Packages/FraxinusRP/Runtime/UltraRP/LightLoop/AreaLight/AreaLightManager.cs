@@ -8,6 +8,7 @@ namespace FraxinusEngine.Rendering.Ultra
     internal sealed class AreaLightManager
     {
         internal const int MaxLights = 16;
+        static readonly bool s_HardwareSupported = SystemInfo.supports2DArrayTextures && SystemInfo.graphicsShaderLevel >= 35;
         readonly Plane[] _frustum = new Plane[6];
         readonly UltraAdditionalLightData[] _selected = new UltraAdditionalLightData[MaxLights];
         readonly float[] _scores = new float[MaxLights];
@@ -28,9 +29,8 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             output.count = 0;
             var camera = cameraData.camera;
-            if (camera == null || camera.stereoEnabled || cameraData.isPreviewCamera ||
-                UltraRenderer.IsOffscreenDepthTexture(cameraData) ||
-                !SystemInfo.supports2DArrayTextures || SystemInfo.graphicsShaderLevel < 35)
+            if (!s_HardwareSupported || camera == null || camera.stereoEnabled || cameraData.isPreviewCamera ||
+                UltraRenderer.IsOffscreenDepthTexture(cameraData))
                 return;
 #if UNITY_EDITOR
             if (cameraData.isSceneViewCamera && UnityEditor.SceneView.currentDrawingSceneView != null &&

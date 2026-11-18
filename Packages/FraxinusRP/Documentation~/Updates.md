@@ -1,3 +1,18 @@
+# 2026-11-18 GPU Batcher and shared Hi-Z integration
+
+Adds the optional `com.bluewhitebow.fraxinus-gpu-batcher` companion package.
+UltraRP now owns the depth pyramid through `HiZDepthPass` and per-camera
+`HiZDepthHistory`; consumers request and borrow this history without owning its
+resources. Invalid, expired, stereo, or dynamically scaled history skips
+occlusion until a supported frame is available. The pass remains independent
+of GPU Batcher and is included in the reviewed shader-build module lists.
+
+Rendering preparation caches fixed device capabilities and compute-kernel
+lookups while retaining resource replacement and recovery checks. The merge
+preserves the package's URP light-data migration and platform compatibility.
+See the [GPU Batcher guide](../../Fraxinus-GPU-Batcher/README.md) and the
+[suite installation guide](../../../docs/Usage.md) for dependencies and setup.
+
 # 2026-10-29 package sample cleanup
 
 The package no longer ships example scenes, sample-generation Editor menus or a

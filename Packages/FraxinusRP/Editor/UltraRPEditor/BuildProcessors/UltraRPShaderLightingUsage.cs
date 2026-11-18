@@ -27,7 +27,7 @@ namespace FraxinusEditor.Rendering.Ultra
             typeof(DepthOnlyPass), typeof(DepthNormalOnlyPass), typeof(DepthCopyPass),
             typeof(DeferredPass), typeof(CustomPassWithDepthCopyAndMotion),
             typeof(ContactShadowsPass), typeof(CapturePass), typeof(AreaLightsPass),
-            typeof(APRTRelightPass), typeof(APRTProbeDebugPass),
+            typeof(APRTRelightPass), typeof(APRTProbeDebugPass), typeof(HiZDepthPass),
             // The callback dispatcher does not alter the policy. Its callbacks
             // obey the same reserved-keyword contract as other external code.
             typeof(InvokeOnRenderObjectCallbackPass),

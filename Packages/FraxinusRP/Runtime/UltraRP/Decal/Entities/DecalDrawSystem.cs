@@ -11,6 +11,7 @@ namespace FraxinusEngine.Rendering.Ultra
     internal abstract class DecalDrawSystem
     {
         readonly static internal uint maxBatchSize = 250;
+        static readonly bool s_SupportsInstancing = SystemInfo.supportsInstancing;
 
         protected DecalEntityManager _entityManager;
         private Matrix4x4[] _worldToDecals;
@@ -67,7 +68,7 @@ namespace FraxinusEngine.Rendering.Ultra
             if (count == 0 || passIndex == -1 || material == null)
                 return;
 
-            if (SystemInfo.supportsInstancing && material.enableInstancing)
+            if (s_SupportsInstancing && material.enableInstancing)
             {
                 DrawInstanced(cmd, decalEntityChunk, decalCachedChunk, decalDrawCallChunk, passIndex);
             }
@@ -150,7 +151,7 @@ namespace FraxinusEngine.Rendering.Ultra
             if (count == 0 || passIndex == -1 || material == null)
                 return;
 
-            if (SystemInfo.supportsInstancing && material.enableInstancing)
+            if (s_SupportsInstancing && material.enableInstancing)
             {
                 DrawInstanced(cameraData, decalEntityChunk, decalCachedChunk, decalDrawCallChunk);
             }

@@ -4,9 +4,9 @@
 
 Use **Unity 2022.3**, with **2022.3.62f3** matching the source project. This repository is a collection of UPM packages. A consuming Unity project supplies its own `Assets`, `ProjectSettings` and `Packages/manifest.json`.
 
-The repository contains the four companion packages for **ScriptableNode / UltraRP**: Core, Light Transport, Shader Graph and FraxinusRP. The examples below install all four. UltraRP does not require URP.
+The repository contains the four companion packages for **ScriptableNode / UltraRP**: Core, Light Transport, Shader Graph and FraxinusRP, plus the optional **Fraxinus GPU Batcher**. The examples below install all five; omit `com.bluewhitebow.fraxinus-gpu-batcher` if GPU instancing is not needed. UltraRP does not require URP.
 
-Use all four companion packages from the same revision.
+Use the four companion packages and, when installed, GPU Batcher from the same revision.
 
 ## Install from a local checkout
 
@@ -28,7 +28,8 @@ Merge these entries into the project's `Packages/manifest.json` → `dependencie
   "com.unity.render-pipelines.core": "file:../../Unity-FraxinusRP/Packages/Fraxinus-RPCore",
   "com.fraxinus.rendering.light-transport": "file:../../Unity-FraxinusRP/Packages/Fraxinus-Light-Transport",
   "com.unity.shadergraph": "file:../../Unity-FraxinusRP/Packages/Fraxinus-ShaderGraph",
-  "com.bluewhitebow.fraxinus-rp": "file:../../Unity-FraxinusRP/Packages/FraxinusRP"
+  "com.bluewhitebow.fraxinus-rp": "file:../../Unity-FraxinusRP/Packages/FraxinusRP",
+  "com.bluewhitebow.fraxinus-gpu-batcher": "file:../../Unity-FraxinusRP/Packages/Fraxinus-GPU-Batcher"
 }
 ```
 
@@ -45,7 +46,8 @@ Merge the following entries into `dependencies`, or use [manifest.git.json](mani
   "com.unity.render-pipelines.core": "https://github.com/bluewhitebow/Unity-FraxinusRP.git?path=/Packages/Fraxinus-RPCore#main",
   "com.fraxinus.rendering.light-transport": "https://github.com/bluewhitebow/Unity-FraxinusRP.git?path=/Packages/Fraxinus-Light-Transport#main",
   "com.unity.shadergraph": "https://github.com/bluewhitebow/Unity-FraxinusRP.git?path=/Packages/Fraxinus-ShaderGraph#main",
-  "com.bluewhitebow.fraxinus-rp": "https://github.com/bluewhitebow/Unity-FraxinusRP.git?path=/Packages/FraxinusRP#main"
+  "com.bluewhitebow.fraxinus-rp": "https://github.com/bluewhitebow/Unity-FraxinusRP.git?path=/Packages/FraxinusRP#main",
+  "com.bluewhitebow.fraxinus-gpu-batcher": "https://github.com/bluewhitebow/Unity-FraxinusRP.git?path=/Packages/Fraxinus-GPU-Batcher#main"
 }
 ```
 
@@ -65,12 +67,21 @@ The Graphics pipeline asset and the current Quality override determine which pip
 
 The matching Shader Graph fork is required for UltraRP's internal target APIs. Its package version remains `14.0.12`; choosing the registry package with that version will not supply the same assembly access. FraxinusRP currently has no importable sample scene or sample generator.
 
+## Optional GPU Batcher
+
+[Fraxinus GPU Batcher](../Packages/Fraxinus-GPU-Batcher/README.md) adds GPU instancing for prefabs, terrain, details and trees. It depends on FraxinusRP `0.1.0` and the matching Core / Shader Graph forks. Use **Tools > Fraxinus GPU Batcher > Check Fraxinus Integration** to check the active pipeline. Runtime managers are created from the Profiles in its project settings; cameras do not need a separate handler. Generated project data is stored in `Assets/FraxinusGPUBatcherData/`.
+
+For occlusion culling, keep `HiZDepthPass` enabled in the Renderer Graph. UltraRP owns the depth prepass, pyramid and per-camera history; GPU Batcher only requests and borrows that history. Runtime rendering covers base Game cameras. Hi-Z requires 2D, non-stereo targets without dynamic scaling. The first frame, expired history, or a change to the camera target, size, pipeline or render scale skips occlusion until valid depth is available. Disabling the pass also skips occlusion; frustum and distance culling continue. The algorithm uses previous-frame depth, so evaluate rapid camera movement in the consuming scene.
+
+Import **Fraxinus GPU Batcher Demos** through Package Manager for the optional examples. Their presence does not change FraxinusRP's sample availability.
+
 ## Common setup issues
 
 | Symptom | What to check |
 | --- | --- |
 | Missing `ScopeData` or typed RenderGraph APIs | Check that UltraRP and Core come from the same repository revision, and that old embedded copies are not taking precedence. |
 | UltraRP Shader Graph access / target compilation errors | Confirm `com.unity.shadergraph` resolves to `Fraxinus-ShaderGraph`, not the registry package. |
+| GPU Batcher cannot find `HiZDepthHistory` | Update FraxinusRP and GPU Batcher together from the same revision; their unchanged version numbers do not guarantee matching APIs. |
 | Missing package / invalid Git path | Check access to GitHub, that `?path=/Packages/...` matches the exact directory, and that all references use an available revision. |
 | Pipeline looks unchanged | Check Graphics and the current Quality pipeline asset; installing packages alone does not select a pipeline. |
 | Pink materials or an empty UltraRP view | Check shader compatibility, the Renderer Graph connections and drawing tags. URP Renderer Features are not UltraRP graph nodes. |

@@ -13,6 +13,10 @@ namespace FraxinusEngine.Rendering.Ultra
         const int k_MaxMeteringDimension = 512;
         const GraphicsFormat k_ExposureFormat = GraphicsFormat.R32G32_SFloat;
 
+        static readonly bool s_HardwareSupported = SystemInfo.supportsComputeShaders &&
+            SystemInfo.IsFormatSupported(k_ExposureFormat, FormatUsage.LoadStore) &&
+            SystemInfo.IsFormatSupported(k_ExposureFormat, FormatUsage.Sample);
+
         static readonly int s_SourceTexture = Shader.PropertyToID("_SourceTexture");
         static readonly int s_SourceSize = Shader.PropertyToID("_SourceSize");
         static readonly int s_SourceIsGamma = Shader.PropertyToID("_SourceIsGamma");
@@ -88,10 +92,7 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             RetireUnusedCameras();
             _settings = stack.GetComponent<AutoExposure>();
-            if (!enable || _settings == null || !_settings.IsActive() ||
-                !SystemInfo.supportsComputeShaders ||
-                !SystemInfo.IsFormatSupported(k_ExposureFormat, FormatUsage.LoadStore) ||
-                !SystemInfo.IsFormatSupported(k_ExposureFormat, FormatUsage.Sample))
+            if (!enable || _settings == null || !_settings.IsActive() || !s_HardwareSupported)
                 return false;
 
             var shaders = _postProcessPass.graph.postProcessData?.shaders;

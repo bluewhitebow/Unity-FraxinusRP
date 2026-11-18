@@ -15,6 +15,16 @@ namespace FraxinusEngine.Rendering.Ultra
         const GraphicsFormat kFeedbackFormat = GraphicsFormat.R16G16_UNorm;
         const GraphicsFormat kResolveFormat = GraphicsFormat.R8G8B8A8_UNorm;
 
+        // ENABLE_VIRTUALTEXTURES gates the feature; device capabilities are fixed.
+        static readonly bool s_HardwareSupported = SystemInfo.supportsComputeShaders &&
+            SystemInfo.supportsAsyncGPUReadback && SystemInfo.supportedRenderTargetCount >= 3 &&
+            SystemInfo.supportsSeparatedRenderTargetsBlend &&
+            SystemInfo.IsFormatSupported(kFeedbackFormat, FormatUsage.Render) &&
+            SystemInfo.IsFormatSupported(kFeedbackFormat, FormatUsage.Blend) &&
+            SystemInfo.IsFormatSupported(kFeedbackFormat, FormatUsage.Sample) &&
+            SystemInfo.IsFormatSupported(kResolveFormat, FormatUsage.LoadStore) &&
+            SystemInfo.IsFormatSupported(kResolveFormat, FormatUsage.ReadPixels);
+
         static readonly int s_InputTexture = Shader.PropertyToID("_InputTexture");
         static readonly int s_InputTextureMSAA = Shader.PropertyToID("_InputTextureMSAA");
         static readonly int s_OutputTexture = Shader.PropertyToID("_OutputTexture");
@@ -74,10 +84,8 @@ namespace FraxinusEngine.Rendering.Ultra
 
         internal static bool IsSupported(CameraData cameraData)
         {
-            if (cameraData == null || cameraData.camera == null || cameraData.isSubContext ||
-                cameraData.camera.stereoEnabled || !SystemInfo.supportsComputeShaders ||
-                !SystemInfo.supportsAsyncGPUReadback || SystemInfo.supportedRenderTargetCount < 3 ||
-                !SystemInfo.supportsSeparatedRenderTargetsBlend)
+            if (!s_HardwareSupported || cameraData == null || cameraData.camera == null || cameraData.isSubContext ||
+                cameraData.camera.stereoEnabled)
                 return false;
 
             CameraType type = cameraData.cameraType;
@@ -88,15 +96,6 @@ namespace FraxinusEngine.Rendering.Ultra
             if (descriptor.dimension != TextureDimension.Tex2D || descriptor.volumeDepth != 1 ||
                 descriptor.width <= 0 || descriptor.height <= 0 ||
                 descriptor.graphicsFormat == GraphicsFormat.None || descriptor.useDynamicScale)
-                return false;
-
-            // ENABLE_VIRTUALTEXTURES is Unity's feature gate. System.enabled is internal
-            // to the engine in Unity 2022 and cannot be queried by this assembly.
-            if (!SystemInfo.IsFormatSupported(kFeedbackFormat, FormatUsage.Render) ||
-                !SystemInfo.IsFormatSupported(kFeedbackFormat, FormatUsage.Blend) ||
-                !SystemInfo.IsFormatSupported(kFeedbackFormat, FormatUsage.Sample) ||
-                !SystemInfo.IsFormatSupported(kResolveFormat, FormatUsage.LoadStore) ||
-                !SystemInfo.IsFormatSupported(kResolveFormat, FormatUsage.ReadPixels))
                 return false;
 
             if (descriptor.msaaSamples > 1)

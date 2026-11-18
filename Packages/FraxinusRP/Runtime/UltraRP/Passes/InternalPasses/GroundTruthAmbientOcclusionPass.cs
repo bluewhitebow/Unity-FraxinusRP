@@ -8,6 +8,11 @@ namespace FraxinusEngine.Rendering.Ultra
     [InjectPass(typeof(RenderDrivenPass), InjectionPoint.After, scopeFilter = ContextScopeFilter.Main)]
     public sealed class GroundTruthAmbientOcclusionPass : InjectPass
     {
+        static readonly GraphicsFormat s_OutputFormat = SupportsFormat(GraphicsFormat.R8_UNorm) ? GraphicsFormat.R8_UNorm :
+            SupportsFormat(GraphicsFormat.R16_SFloat) ? GraphicsFormat.R16_SFloat : GraphicsFormat.None;
+        static readonly bool s_HardwareSupported = SystemInfo.supportsComputeShaders &&
+            SupportsFormat(GraphicsFormat.R32_SFloat) && SupportsFormat(GraphicsFormat.R32G32_SFloat) &&
+            s_OutputFormat != GraphicsFormat.None;
         static readonly ProfilingSampler s_Sampler = new ProfilingSampler("Ground Truth Ambient Occlusion");
         internal static readonly int textureId = Shader.PropertyToID("_ScreenSpaceOcclusionTexture");
         static readonly int s_AmbientParams = Shader.PropertyToID("_AmbientOcclusionParam");
@@ -32,6 +37,12 @@ namespace FraxinusEngine.Rendering.Ultra
         static readonly int s_View = Shader.PropertyToID("_GTAOView");
         static readonly int s_Orthographic = Shader.PropertyToID("_GTAOOrthographic");
         static readonly int s_NormalsOct = Shader.PropertyToID("_GTAONormalsOct");
+
+        ComputeShader _shader;
+        int _downsampleKernel = -1;
+        int _traceKernel = -1;
+        int _blurUpsampleKernel = -1;
+        int _spatialDenoiseKernel = -1;
 
         sealed class PublishData { internal bool enabled; internal float directStrength; }
         sealed class DownsampleData
@@ -67,25 +78,30 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             var data = frame.GetOrCreate<AmbientOcclusionData>();
             var camera = frame.Get<CameraData>();
-            if (!IsCameraSupported(camera) || !HasActiveMainInjection(camera.renderer, frame))
+            if (!IsCameraSupported(camera))
                 return false;
             var settings = VolumeManager.instance.stack.GetComponent<GroundTruthAmbientOcclusion>();
             if (settings == null || !settings.IsActive() ||
-                !RenderPipelineGraphicsSettingsCompatibility.TryGetRenderPipelineSettings<UltraRenderPipelineRuntimeShaders>(out var shaders) ||
-                shaders.groundTruthAmbientOcclusionCS == null)
-                return false;
-            var shader = shaders.groundTruthAmbientOcclusionCS;
-            string denoise = settings.downSample.value ? "BlurUpsample" : "SpatialDenoise";
-            if (!shader.HasKernel("DownsampleDepth") || !shader.HasKernel("GTAOMain") || !shader.HasKernel(denoise))
+                !HasActiveMainInjection(camera.renderer, frame) ||
+                !RenderPipelineGraphicsSettingsCompatibility.TryGetRenderPipelineSettings<UltraRenderPipelineRuntimeShaders>(out var shaders))
                 return false;
 
-            data.shader = shader;
-            data.downsampleKernel = shader.FindKernel("DownsampleDepth");
-            data.traceKernel = shader.FindKernel("GTAOMain");
-            data.denoiseKernel = shader.FindKernel(denoise);
-            if (!shader.IsSupported(data.downsampleKernel) || !shader.IsSupported(data.traceKernel) ||
-                !shader.IsSupported(data.denoiseKernel))
+            if (!ReferenceEquals(_shader, shaders.groundTruthAmbientOcclusionCS))
+            {
+                _shader = shaders.groundTruthAmbientOcclusionCS;
+                _downsampleKernel = GetSupportedKernel(_shader, "DownsampleDepth");
+                _traceKernel = GetSupportedKernel(_shader, "GTAOMain");
+                _blurUpsampleKernel = GetSupportedKernel(_shader, "BlurUpsample");
+                _spatialDenoiseKernel = GetSupportedKernel(_shader, "SpatialDenoise");
+            }
+            int denoiseKernel = settings.downSample.value ? _blurUpsampleKernel : _spatialDenoiseKernel;
+            if (_shader == null || _downsampleKernel < 0 || _traceKernel < 0 || denoiseKernel < 0)
                 return false;
+
+            data.shader = _shader;
+            data.downsampleKernel = _downsampleKernel;
+            data.traceKernel = _traceKernel;
+            data.denoiseKernel = denoiseKernel;
             data.width = camera.cameraTargetDescriptor.width;
             data.height = camera.cameraTargetDescriptor.height;
             data.downSample = settings.downSample.value;
@@ -106,7 +122,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 settings.thickness.value, Mathf.Max(1f, pixelRadius));
             data.sampling = new Vector4(settings.stepCount.value, settings.directionCount.value, divider, settings.blurSharpness.value);
             data.directLightingStrength = settings.directLightingStrength.value;
-            data.outputFormat = SupportsFormat(GraphicsFormat.R8_UNorm) ? GraphicsFormat.R8_UNorm : GraphicsFormat.R16_SFloat;
+            data.outputFormat = s_OutputFormat;
             data.active = true;
 
             // All opaque geometry must be available before both Forward and GBuffer
@@ -124,15 +140,21 @@ namespace FraxinusEngine.Rendering.Ultra
         static bool SupportsFormat(GraphicsFormat format) =>
             SystemInfo.IsFormatSupported(format, FormatUsage.LoadStore) && SystemInfo.IsFormatSupported(format, FormatUsage.Sample);
 
+        static int GetSupportedKernel(ComputeShader shader, string name)
+        {
+            if (shader == null || !shader.HasKernel(name))
+                return -1;
+            int kernel = shader.FindKernel(name);
+            return shader.IsSupported(kernel) ? kernel : -1;
+        }
+
         static bool IsCameraSupported(CameraData camera) =>
-            camera != null && camera.camera != null && !camera.isSubContext &&
+            s_HardwareSupported && camera != null && camera.camera != null && !camera.isSubContext &&
             camera.renderType == CameraRenderType.Base && !UltraRenderer.IsOffscreenDepthTexture(camera) &&
             (camera.cameraType == CameraType.Game || camera.cameraType == CameraType.SceneView) &&
             camera.cameraTargetDescriptor.dimension == TextureDimension.Tex2D &&
             camera.cameraTargetDescriptor.width > 0 && camera.cameraTargetDescriptor.height > 0 &&
-            !camera.cameraTargetDescriptor.useDynamicScale && !camera.camera.stereoEnabled && SystemInfo.supportsComputeShaders &&
-            SupportsFormat(GraphicsFormat.R32_SFloat) && SupportsFormat(GraphicsFormat.R32G32_SFloat) &&
-            (SupportsFormat(GraphicsFormat.R8_UNorm) || SupportsFormat(GraphicsFormat.R16_SFloat));
+            !camera.cameraTargetDescriptor.useDynamicScale && !camera.camera.stereoEnabled;
 
         bool HasActiveMainInjection(ScriptableRenderer renderer, ContextContainer frame)
         {

@@ -164,6 +164,9 @@ namespace FraxinusEngine.Rendering.Ultra
         internal bool useShadowMask { get { return this.mixedLightingSetup != MixedLightingSetup.None; } }
         internal bool useRenderingLayers { get { return useLightLayers || useDecalLayers; } }
         internal RenderingLayerUtils.MaskSize renderingLayerMaskSize { get; set; }
+#if UNITY_2022_1_OR_NEWER && !UNITY_2023_1_OR_NEWER
+        static readonly bool s_supportsFramebufferFetch = SystemInfo.graphicsDeviceType != GraphicsDeviceType.Direct3D11;
+#endif
         private bool _useFramebufferFetch;
         internal bool useFramebufferFetch
         {
@@ -176,7 +179,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 // declared textures preserves their storage and keeps Native
                 // RenderGraph enabled. Gate both setup callers here so attachment
                 // layout, shader keywords and depth-copy scheduling agree.
-                _useFramebufferFetch = value && SystemInfo.graphicsDeviceType != GraphicsDeviceType.Direct3D11;
+                _useFramebufferFetch = value && s_supportsFramebufferFetch;
 #else
                 _useFramebufferFetch = value;
 #endif
@@ -813,7 +816,7 @@ namespace FraxinusEngine.Rendering.Ultra
             Profiler.EndSample();
         }
 
-        void RenderStencilDirectionalLights(RasterCommandBuffer cmd, bool stripShadowsOffVariants, LightData lightData, ShadowData shadowData, 
+        void RenderStencilDirectionalLights(RasterCommandBuffer cmd, bool stripShadowsOffVariants, LightData lightData, ShadowData shadowData,
             NativeArray<VisibleLight> visibleLights, bool hasLightCookieManager, int mainLightIndex)
         {
             if (_fullscreenMesh == null)

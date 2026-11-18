@@ -8,6 +8,9 @@ namespace FraxinusEngine.Rendering.Ultra
     [InjectPass(typeof(RenderDrivenPass), InjectionPoint.After, scopeFilter = ContextScopeFilter.Main)]
     public sealed class ContactShadowsPass : InjectPass
     {
+        static readonly bool s_HardwareSupported = SystemInfo.supportsComputeShaders &&
+            SystemInfo.IsFormatSupported(GraphicsFormat.R16_SFloat, FormatUsage.LoadStore) &&
+            SystemInfo.IsFormatSupported(GraphicsFormat.R16_SFloat, FormatUsage.Sample);
         static readonly ProfilingSampler s_Sampler = new ProfilingSampler("Contact Shadows");
         internal static readonly int enabledId = Shader.PropertyToID("_ContactShadowsEnabled");
         static readonly int s_Texture = Shader.PropertyToID("_ContactShadowTexture");
@@ -20,6 +23,9 @@ namespace FraxinusEngine.Rendering.Ultra
         static readonly int s_Ray = Shader.PropertyToID("_ContactRayParameters");
         static readonly int s_Fade = Shader.PropertyToID("_ContactFadeParameters");
         static readonly int s_Sampling = Shader.PropertyToID("_ContactSamplingParameters");
+
+        ComputeShader _shader;
+        int _kernel = -1;
 
         sealed class PassData
         {
@@ -50,13 +56,21 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             var data = frame.GetOrCreate<ContactShadowsData>();
             var camera = frame.Get<CameraData>();
-            if (!IsCameraSupported(camera) || !HasActiveMainInjection(camera.renderer, frame))
+            if (!IsCameraSupported(camera))
                 return false;
 
             var settings = VolumeManager.instance.stack.GetComponent<ContactShadows>();
             if (settings == null || !settings.IsActive() ||
-                !RenderPipelineGraphicsSettingsCompatibility.TryGetRenderPipelineSettings<UltraRenderPipelineRuntimeShaders>(out var shaders) ||
-                shaders.contactShadowsCS == null || !shaders.contactShadowsCS.HasKernel("ContactShadows"))
+                !HasActiveMainInjection(camera.renderer, frame) ||
+                !RenderPipelineGraphicsSettingsCompatibility.TryGetRenderPipelineSettings<UltraRenderPipelineRuntimeShaders>(out var shaders))
+                return false;
+
+            if (!ReferenceEquals(_shader, shaders.contactShadowsCS))
+            {
+                _shader = shaders.contactShadowsCS;
+                _kernel = _shader != null && _shader.HasKernel("ContactShadows") ? _shader.FindKernel("ContactShadows") : -1;
+            }
+            if (_shader == null || _kernel < 0)
                 return false;
 
             var lights = frame.Get<LightData>();
@@ -66,8 +80,8 @@ namespace FraxinusEngine.Rendering.Ultra
             if (light.lightType != LightType.Directional)
                 return false;
 
-            data.shader = shaders.contactShadowsCS;
-            data.kernel = data.shader.FindKernel("ContactShadows");
+            data.shader = _shader;
+            data.kernel = _kernel;
             data.width = camera.cameraTargetDescriptor.width;
             data.height = camera.cameraTargetDescriptor.height;
             // The depth texture is an intermediate target. Capture its flipped GPU
@@ -128,16 +142,13 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             // Child targets and XR have different projection/depth conventions.
             // Keep them neutral until they have a dedicated implementation.
-            if (camera == null || camera.camera == null || camera.isSubContext ||
+            if (!s_HardwareSupported || camera == null || camera.camera == null || camera.isSubContext ||
                 camera.renderType != CameraRenderType.Base ||
                 UltraRenderer.IsOffscreenDepthTexture(camera) ||
                 (camera.cameraType != CameraType.Game && camera.cameraType != CameraType.SceneView) ||
                 camera.cameraTargetDescriptor.dimension != TextureDimension.Tex2D ||
                 camera.cameraTargetDescriptor.width <= 0 || camera.cameraTargetDescriptor.height <= 0 ||
-                camera.cameraTargetDescriptor.useDynamicScale ||
-                camera.camera.stereoEnabled || !SystemInfo.supportsComputeShaders ||
-                !SystemInfo.IsFormatSupported(GraphicsFormat.R16_SFloat, FormatUsage.LoadStore) ||
-                !SystemInfo.IsFormatSupported(GraphicsFormat.R16_SFloat, FormatUsage.Sample))
+                camera.cameraTargetDescriptor.useDynamicScale || camera.camera.stereoEnabled)
                 return false;
 
             return true;

@@ -1,0 +1,46 @@
+{
+  "name": "com.bluewhitebow.fraxinus-gpu-batcher",
+  "version": "0.1.0",
+  "displayName": "Fraxinus GPU Batcher",
+  "description": "GPU-driven instancing and terrain/detail batching for the Fraxinus rendering stack.",
+  "unity": "2022.3",
+  "dependencies": {
+    "com.bluewhitebow.fraxinus-rp": "0.1.0",
+    "com.unity.burst": "1.8.28",
+    "com.unity.collections": "2.6.6",
+    "com.unity.mathematics": "1.3.2",
+    "com.unity.render-pipelines.core": "14.0.99",
+    "com.unity.shadergraph": "14.0.12",
+    "com.unity.modules.animation": "1.0.0",
+    "com.unity.modules.imageconversion": "1.0.0",
+    "com.unity.modules.particlesystem": "1.0.0",
+    "com.unity.modules.physics": "1.0.0",
+    "com.unity.modules.terrain": "1.0.0",
+    "com.unity.modules.terrainphysics": "1.0.0",
+    "com.unity.ugui": "1.0.0",
+    "com.unity.modules.ui": "1.0.0",
+    "com.unity.modules.vr": "1.0.0",
+    "com.unity.modules.wind": "1.0.0",
+    "com.unity.modules.xr": "1.0.0"
+  },
+  "samples": [
+    {
+      "displayName": "Fraxinus GPU Batcher Demos",
+      "description": "Prefab, terrain, detail, tree, shader graph, and runtime modification examples.",
+      "path": "Samples~"
+    }
+  ],
+  "keywords": [
+    "bluewhitebow",
+    "fraxinus",
+    "gpu",
+    "instancing",
+    "batching",
+    "fraxinus-rp",
+    "terrain"
+  ],
+  "author": {
+    "name": "bluewhitebow",
+    "url": "https://github.com/bluewhitebow"
+  }
+}

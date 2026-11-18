@@ -138,24 +138,30 @@ namespace FraxinusEngine.Rendering.Ultra
             get => 8;
         }
 
+        static readonly bool s_isLowEndGles = SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES3 &&
+            Graphics.minOpenGLESVersion <= OpenGLESVersion.OpenGLES30;
+        static readonly bool s_hasConstrainedGraphicsApi =
+            SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLCore ||
+            SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES3
+#if UNITY_6000_0_OR_NEWER
+            || SystemInfo.graphicsDeviceType == GraphicsDeviceType.WebGPU
+#endif
+            ;
+        static readonly bool s_supportsShadows = SystemInfo.supportsShadows;
+        static readonly bool s_supportsLightLayers = RenderingUtils.SupportsLightLayers(SystemInfo.graphicsDeviceType);
+
         public static int maxVisibleAdditionalLights
         {
             get
             {
                 // Must match: Input.hlsl, MAX_VISIBLE_LIGHTS
                 bool isMobileOrMobileBuildTarget = PlatformAutoDetect.isShaderAPIMobileDefined;
-                if (isMobileOrMobileBuildTarget && (SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES3 && Graphics.minOpenGLESVersion <= OpenGLESVersion.OpenGLES30))
+                if (isMobileOrMobileBuildTarget && s_isLowEndGles)
                     return ShaderOptions.maxVisibleLightCountLowEndMobile;
 
                 // GLES can be selected as platform on Windows (not a mobile platform) but uniform buffer size so we must use a low light count.
                 // WebGPU's minimal limits are based on mobile rather than desktop, so it will need to assume mobile.
-                bool constrainedGraphicsApi = isMobileOrMobileBuildTarget
-                    || SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLCore
-                    || SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES3;
-
-#if UNITY_6000_0_OR_NEWER
-                constrainedGraphicsApi |= SystemInfo.graphicsDeviceType == GraphicsDeviceType.WebGPU;
-#endif
+                bool constrainedGraphicsApi = isMobileOrMobileBuildTarget || s_hasConstrainedGraphicsApi;
                 return constrainedGraphicsApi ? ShaderOptions.maxVisibleLightCountMobile : ShaderOptions.maxVisibleLightCountDesktop;
             }
         }
@@ -1399,10 +1405,10 @@ namespace FraxinusEngine.Rendering.Ultra
             bool cameraRenderShadows = cameraData.maxShadowDistance > 0.0f;
 
             shadowData.mainLightShadowsEnabled = settings.supportsMainLightShadows && settings.mainLightRenderingMode == LightRenderingMode.PerPixel;
-            shadowData.supportsMainLightShadows = SystemInfo.supportsShadows && shadowData.mainLightShadowsEnabled && cameraRenderShadows;
+            shadowData.supportsMainLightShadows = s_supportsShadows && shadowData.mainLightShadowsEnabled && cameraRenderShadows;
 
             shadowData.additionalLightShadowsEnabled = settings.supportsAdditionalLightShadows && (settings.additionalLightsRenderingMode == LightRenderingMode.PerPixel || usesCpuLightLists);
-            shadowData.supportsAdditionalLightShadows = SystemInfo.supportsShadows && shadowData.additionalLightShadowsEnabled && !lightData.shadeAdditionalLightsPerVertex && cameraRenderShadows;
+            shadowData.supportsAdditionalLightShadows = s_supportsShadows && shadowData.additionalLightShadowsEnabled && !lightData.shadeAdditionalLightsPerVertex && cameraRenderShadows;
 
             // Early out if shadows are not rendered...
             if (!shadowData.supportsMainLightShadows && !shadowData.supportsAdditionalLightShadows)
@@ -1567,7 +1573,7 @@ namespace FraxinusEngine.Rendering.Ultra
             lightData.supportsMixedLighting = settings.supportsMixedLighting;
             lightData.reflectionProbeBlending = settings.reflectionProbeBlending;
             lightData.reflectionProbeBoxProjection = settings.reflectionProbeBoxProjection;
-            lightData.supportsLightLayers = RenderingUtils.SupportsLightLayers(SystemInfo.graphicsDeviceType) && settings.useRenderingLayers;
+            lightData.supportsLightLayers = s_supportsLightLayers && settings.useRenderingLayers;
 
             return lightData;
         }

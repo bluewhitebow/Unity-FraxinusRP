@@ -173,7 +173,6 @@ namespace FraxinusEngine.Rendering.Ultra
             s_passToInjectorMap = new Dictionary<Type, List<InjectPassInfo>>();
             s_fallbackInjectors = new List<InjectPassInfo>();
             var injectTypes = new List<Type>();
-
             var passTypes = AppDomain.CurrentDomain.GetAllTypes()
                 .Where(t => (typeof(BuiltinPass).IsAssignableFrom(t) || typeof(InjectPass).IsAssignableFrom(t))
                             && !t.IsAbstract && !t.ContainsGenericParameters
@@ -184,8 +183,8 @@ namespace FraxinusEngine.Rendering.Ultra
             {
                 if (type.GetConstructor(Type.EmptyTypes) == null)
                     continue;
-                s_moduleTypes.Add(type);
 
+                s_moduleTypes.Add(type);
                 if (typeof(InjectPass).IsAssignableFrom(type))
                 {
                     var attributes = type.GetCustomAttributes(typeof(InjectPassAttribute), true);
@@ -226,6 +225,7 @@ namespace FraxinusEngine.Rendering.Ultra
                     }
                 }
             }
+
             s_injectPassTypes = injectTypes.AsReadOnly();
         }
 
@@ -612,20 +612,25 @@ namespace FraxinusEngine.Rendering.Ultra
             _primaryInjectionContexts.Clear();
             _boundInjectPasses.Clear();
             foreach (var node in graph.nodes)
+            {
                 if (node is ScriptableRenderPassNode passNode)
                     passNode.ClearAllInjectPasses();
+            }
+
 
             var scopes = new Stack<ContextBeginNode>();
             foreach (var item in _sortedNodes)
             {
                 if (!(item is ScriptableRenderPassNode pass)) continue;
                 _nodeContexts[pass] = scopes.Count > 0 ? scopes.Peek() : null;
-                if (pass is ContextBeginNode begin) scopes.Push(begin);
-                else if (pass is ContextEndNode && scopes.Count > 0) scopes.Pop();
+                if (pass is ContextBeginNode begin)
+                    scopes.Push(begin);
+                else if (pass is ContextEndNode && scopes.Count > 0)
+                    scopes.Pop();
+
                 _nodeAfterContexts[pass] = scopes.Count > 0 ? scopes.Peek() : null;
             }
 
-            // Candidate selection is cached here; execution is deduplicated per scope each frame.
 
             foreach (var node in _sortedNodes)
             {
@@ -685,22 +690,23 @@ namespace FraxinusEngine.Rendering.Ultra
 
         internal void RefreshInjectPassSettings()
         {
-            // Undo and deserialization update serialized fields without invoking
-            // the setter. Compare exact values before camera requirements are
-            // collected, and only rebuild bindings when the settings changed.
             var disabled = graph.disabledInjectPasses;
             if (disabled.Count == _appliedDisabledInjectPasses.Count)
             {
                 bool matches = true;
                 for (int i = 0; i < disabled.Count; ++i)
+                {
                     if (disabled[i] != _appliedDisabledInjectPasses[i])
                     {
                         matches = false;
                         break;
                     }
+                }
+
                 if (matches)
                     return;
             }
+
             InjectPassToRenderPassNode();
         }
 
@@ -708,12 +714,16 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             bool requiresFinalBlit = false;
             foreach (var module in _moduleContainer.Values)
+            {
                 if (module is InjectPass pass)
                     pass.ResetFrame(renderGraph, frameData);
+            }
 
             foreach (var module in _moduleContainer.Values)
+            {
                 if (module is InjectPass pass && _boundInjectPasses.Contains(pass) && graph.IsInjectPassEnabled(pass.GetType()))
                     requiresFinalBlit |= pass.PrepareFrame(renderGraph, frameData);
+            }
 
             var rendering = frameData.Get<RenderingData>();
             rendering.renderPassInputs.requiresDepthTexture |= rendering.renderPassInputs.requiresMotionVectors;
