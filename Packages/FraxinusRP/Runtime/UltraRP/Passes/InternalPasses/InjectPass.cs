@@ -16,7 +16,7 @@ namespace FraxinusEngine.Rendering.Ultra
         public Type targetPassType;
         public InjectionPoint point;
         public bool finalInjectPostPass;
-        
+
         /// <summary>
         /// 作用域过滤器：控制此InjectPass在哪些作用域中注入
         /// 默认为All（所有作用域）
@@ -64,10 +64,11 @@ namespace FraxinusEngine.Rendering.Ultra
 
         /// <summary>
         /// Called once per camera for enabled, bound passes before texture allocation.
-        /// Merge texture requirements into RenderingData.renderPassInputs here.
-        /// Return true when this effect requires an intermediate camera target and final blit.
+        /// Prepare this camera's pass data and return this pass's resource requirements.
+        /// Return default to request no resources. The renderer merges the requirements
+        /// and determines the final output path.
         /// </summary>
-        public virtual bool PrepareFrame(RenderGraph renderGraph, ContextContainer frameData) => false;
+        public virtual RenderPassInputSummary PrepareFrameResources(RenderGraph renderGraph, ContextContainer frameData) => default;
 
         public virtual bool IsEligibleToInject(ScriptableRenderer renderer, ScriptableRenderPassNode node)
         {

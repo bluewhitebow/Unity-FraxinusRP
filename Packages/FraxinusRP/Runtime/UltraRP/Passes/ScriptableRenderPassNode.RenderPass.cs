@@ -37,7 +37,7 @@ namespace FraxinusEngine.Rendering.Ultra
         [SerializeField, HideInInspector]
         public RenderingMode renderingModes = RenderingMode.None;
 
-        public bool requiresIntermediateTexture { get; set; }
+        public virtual bool requiresIntermediateTexture { get; set; }
 
         [SerializeField, HideInInspector]
         public RenderOrder renderOrder = RenderOrder.Default;
@@ -60,7 +60,7 @@ namespace FraxinusEngine.Rendering.Ultra
             {
 #if (DEVELOPMENT_BUILD || UNITY_EDITOR)
                 return _profingSampler;
-#else 
+#else
                 //We only remove the sampler in release build to reduce overhead
                 return null;
 #endif

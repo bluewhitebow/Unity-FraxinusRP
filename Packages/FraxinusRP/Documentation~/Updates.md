@@ -1,3 +1,19 @@
+# 2026-11-19 Injected-pass requirements and camera output
+
+Replaces `bool InjectPass.PrepareFrame(...)` with
+`RenderPassInputSummary InjectPass.PrepareFrameResources(...)`. Injectors return
+their resource requirements, or `default`; the renderer combines them with
+`MergeFrom`. Pass activation and single-use requests remain in the prepared
+per-camera state. Custom injectors need the
+[preparation API migration](ScriptableNode.md#injected-pass-controls).
+
+Intermediate camera color is now requested explicitly. GTAO and Contact Shadows
+request their depth and normal inputs without forcing an intermediate color
+target. Decals, parent-color copies and final-resolve callbacks declare their own
+attachment needs. The last camera in a stack resolves any remaining intermediate
+color once, including graphs with a disabled post-processing node. Overlay
+cameras preserve the Base camera's color attachments and post-processing result.
+
 # 2026-11-18 GPU Batcher and shared Hi-Z integration
 
 Adds the optional `com.bluewhitebow.fraxinus-gpu-batcher` companion package.

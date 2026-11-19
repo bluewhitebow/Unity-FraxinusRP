@@ -16,7 +16,7 @@ namespace FraxinusEngine.Rendering.Ultra
         Deferred = 1 << 1,
         ForwardPlus = 1 << 2,
         DeferredPlus = 1 << 3,
-        DeferredCluster = 1 << 4, 
+        DeferredCluster = 1 << 4,
     };
 
     public enum RenderOrder
@@ -39,9 +39,8 @@ namespace FraxinusEngine.Rendering.Ultra
         readonly Dictionary<Camera, VTBufferManager> _virtualTextureCameras = new();
         readonly List<Camera> _retiredVirtualTextureCameras = new();
 #endif
-        FinalBlitPass _effectFinalBlit;
+        FinalBlitPass _finalBlitPass;
         // Base and overlay renderers share the camera-stack attachments below.
-        private static bool s_effectRequiresFinalBlit;
         private static RTHandle[] s_renderGraphCameraColorHandles = new RTHandle[]
         {
             null, null
@@ -222,7 +221,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 manager.Cleanup();
             _virtualTextureCameras.Clear();
 #endif
-            _effectFinalBlit?.Dispose();
+            _finalBlitPass?.Dispose();
             base.Dispose(dispose);
 
             _targetColorHandle?.Release();
@@ -265,20 +264,18 @@ namespace FraxinusEngine.Rendering.Ultra
                 var node = _sortedNodes[i];
                 if (node.computeOrder >= 0 && node.canProcess && node is ScriptableRenderPassNode pass && pass.active)
                 {
-                    bool needsDepth = (pass.input & ScriptableRenderPassInput.Depth) != ScriptableRenderPassInput.None;
-                    bool needsNormals = (pass.input & ScriptableRenderPassInput.Normal) != ScriptableRenderPassInput.None;
-                    bool needsColor = (pass.input & ScriptableRenderPassInput.Color) != ScriptableRenderPassInput.None;
-                    bool needsMotion = (pass.input & ScriptableRenderPassInput.Motion) != ScriptableRenderPassInput.None;
-
-                    inputSummary.requiresIntermediateTexture |= pass.requiresIntermediateTexture;
-                    inputSummary.requiresColorTextureCreated = true;
-                    inputSummary.requiresDepthTexture |= needsDepth;
-
-                    inputSummary.requiresDepthPrepass |= needsNormals || needsDepth;
-
-                    inputSummary.requiresNormalsTexture |= needsNormals;
-                    inputSummary.requiresColorTexture |= needsColor;
-                    inputSummary.requiresMotionVectors |= needsMotion;
+                    var input = pass.input;
+                    bool needsDepth = (input & ScriptableRenderPassInput.Depth) != ScriptableRenderPassInput.None;
+                    bool needsNormals = (input & ScriptableRenderPassInput.Normal) != ScriptableRenderPassInput.None;
+                    inputSummary.MergeFrom(new RenderPassInputSummary
+                    {
+                        requiresIntermediateTexture = pass.requiresIntermediateTexture,
+                        requiresDepthTexture = needsDepth,
+                        requiresDepthPrepass = needsNormals || needsDepth,
+                        requiresNormalsTexture = needsNormals,
+                        requiresColorTexture = (input & ScriptableRenderPassInput.Color) != ScriptableRenderPassInput.None,
+                        requiresMotionVectors = (input & ScriptableRenderPassInput.Motion) != ScriptableRenderPassInput.None
+                    });
 
                     bool mainContext = drivenNode == null || IsSameContext(pass, drivenNode);
                     if (!(pass is DeferredObjectPass) || mainContext)
@@ -382,10 +379,9 @@ namespace FraxinusEngine.Rendering.Ultra
             useRenderPassEnabled = renderGraph.nativeRenderPassesEnabled;
 
             CollectRenderingData(cameraData.IsTemporalJitterEnabled(), cameraData.postProcessEnabled, cameraData.isSceneViewCamera, ref internalData, renderingData);
-            bool injectedEffectsRequireFinalBlit = PrepareInjectPasses(renderGraph, frameData);
-            GetModule<AreaLightsPass>().PrepareFrame(renderGraph, frameData);
-            if (cameraData.renderType == CameraRenderType.Base)
-                s_effectRequiresFinalBlit = injectedEffectsRequireFinalBlit;
+            PrepareInjectPassResources(renderGraph, frameData);
+            GetModule<AreaLightsPass>().PrepareFrameResources(renderGraph, frameData);
+
             if (cameraData.isSceneViewCamera)
                 renderingData.opaqueLayerMask = -1;
 
@@ -411,8 +407,6 @@ namespace FraxinusEngine.Rendering.Ultra
 #if ENABLE_VIRTUALTEXTURES
             VTBufferManager virtualTextureManager = BeginVirtualTexturing(renderGraph, cameraData, resourceData);
 #endif
-            bool hasMainPostProcessPass = false;
-
             if (debugHandler != null)
                 debugHandler.Setup(renderGraph, cameraData.isPreviewCamera);
 
@@ -438,8 +432,6 @@ namespace FraxinusEngine.Rendering.Ultra
                         renderOrder = pass.renderOrder;
                     }
 
-                    hasMainPostProcessPass |= pass.active && pass is PostProcessPass &&
-                        !frameData.Get<CameraData>().isSubContext;
                     pass.OnProcess(renderGraph, context, frameData);
                 }
                 else
@@ -451,22 +443,18 @@ namespace FraxinusEngine.Rendering.Ultra
 
 #if ENABLE_VIRTUALTEXTURES
             virtualTextureManager?.Resolve(renderGraph, resourceData.virtualTextureFeedback, cameraData.cameraTargetDescriptor);
-            s_effectRequiresFinalBlit |= virtualTextureManager != null;
 #endif
 
-            // Effects can require an intermediate target even when a graph has no
-            // post-processing output node. Present that target for these graphs too.
-            if (s_effectRequiresFinalBlit && !hasMainPostProcessPass &&
-                cameraData.resolveFinalTarget && !resourceData.isActiveTargetBackBuffer)
+            // The last camera in the stack presents any intermediate color target
+            // that has not already been resolved by an output pass.
+            if (cameraData.resolveFinalTarget && !resourceData.isActiveTargetBackBuffer)
             {
-                _effectFinalBlit ??= new FinalBlitPass();
-                _effectFinalBlit.Render(renderGraph, frameData, cameraData,
+                _finalBlitPass ??= new FinalBlitPass();
+                _finalBlitPass.Render(renderGraph, frameData, cameraData,
                     resourceData.cameraColor, resourceData.backBufferColor, resourceData.overlayUITexture);
                 resourceData.activeColorID = ResourceData.ActiveID.BackBuffer;
                 resourceData.activeDepthID = ResourceData.ActiveID.BackBuffer;
             }
-            if (cameraData.resolveFinalTarget)
-                s_effectRequiresFinalBlit = false;
         }
 
 #if ENABLE_VIRTUALTEXTURES
@@ -544,7 +532,7 @@ namespace FraxinusEngine.Rendering.Ultra
             }
         }
 
-        public override bool isForwardPlus => (_renderingMode & RenderingMode.ForwardPlus) != 0; 
+        public override bool isForwardPlus => (_renderingMode & RenderingMode.ForwardPlus) != 0;
         public override bool usesCpuLightLists => (_renderingMode & (RenderingMode.ForwardPlus | RenderingMode.DeferredPlus)) != 0;
 
         private void SetupRenderGraphLights(RenderGraph renderGraph, RenderingData renderingData, CameraData cameraData, LightData lightData)
@@ -716,7 +704,7 @@ namespace FraxinusEngine.Rendering.Ultra
             // Finally for non-base cameras the backbuffer should never be cleared. (Note that there might still be two base cameras
             // rendering to the same screen. See e.g. test foundation 014 that renders a minimap)
             bool clearBackbufferOnFirstUse = (cameraData.renderType == CameraRenderType.Base) && !requiresIntermediateAttachments;
-            
+
             // force the clear if we are rendering to an offscreen depth texture
             clearBackbufferOnFirstUse |= isCameraTargetOffscreenDepth;
 
@@ -827,13 +815,17 @@ namespace FraxinusEngine.Rendering.Ultra
                 }
                 else
                 {
-                    RenderingUtils.ReAllocateHandleIfNeeded(ref s_renderGraphCameraColorHandles[0], cameraTargetDescriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: k_cameraTargetAttachmentAName);
-                    RenderingUtils.ReAllocateHandleIfNeeded(ref s_renderGraphCameraColorHandles[1], cameraTargetDescriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: k_cameraTargetAttachmentBName);
-
-                    // Make sure that the base camera always starts rendering to the ColorAttachmentA for deterministic frame results.
-                    // Not doing so makes the targets look different every frame, causing the frame debugger to flash, and making debugging harder.
+                    // The base camera owns the stack's color attachments. An overlay
+                    // can use a different lighting path, but must preserve the base's
+                    // allocation (including UAV support) and any post-process swap.
                     if (cameraData.renderType == CameraRenderType.Base)
+                    {
+                        RenderingUtils.ReAllocateHandleIfNeeded(ref s_renderGraphCameraColorHandles[0], cameraTargetDescriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: k_cameraTargetAttachmentAName);
+                        RenderingUtils.ReAllocateHandleIfNeeded(ref s_renderGraphCameraColorHandles[1], cameraTargetDescriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: k_cameraTargetAttachmentBName);
+
+                        // Start each stack at ColorAttachmentA for deterministic results.
                         s_currentColorHandle = 0;
+                    }
 
                     ImportResourceParams importColorParams = new ImportResourceParams();
                     importColorParams.clearOnFirstUse = clearColor;

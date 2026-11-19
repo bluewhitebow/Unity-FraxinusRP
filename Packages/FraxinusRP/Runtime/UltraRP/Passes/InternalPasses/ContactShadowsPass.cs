@@ -52,18 +52,18 @@ namespace FraxinusEngine.Rendering.Ultra
             ResetGlobals(graph);
         }
 
-        public override bool PrepareFrame(RenderGraph graph, ContextContainer frame)
+        public override RenderPassInputSummary PrepareFrameResources(RenderGraph graph, ContextContainer frame)
         {
             var data = frame.GetOrCreate<ContactShadowsData>();
             var camera = frame.Get<CameraData>();
             if (!IsCameraSupported(camera))
-                return false;
+                return default;
 
             var settings = VolumeManager.instance.stack.GetComponent<ContactShadows>();
             if (settings == null || !settings.IsActive() ||
                 !HasActiveMainInjection(camera.renderer, frame) ||
                 !RenderPipelineGraphicsSettingsCompatibility.TryGetRenderPipelineSettings<UltraRenderPipelineRuntimeShaders>(out var shaders))
-                return false;
+                return default;
 
             if (!ReferenceEquals(_shader, shaders.contactShadowsCS))
             {
@@ -71,14 +71,14 @@ namespace FraxinusEngine.Rendering.Ultra
                 _kernel = _shader != null && _shader.HasKernel("ContactShadows") ? _shader.FindKernel("ContactShadows") : -1;
             }
             if (_shader == null || _kernel < 0)
-                return false;
+                return default;
 
             var lights = frame.Get<LightData>();
             if (lights.mainLightIndex < 0 || lights.mainLightIndex >= lights.visibleLights.Length)
-                return false;
+                return default;
             var light = lights.visibleLights[lights.mainLightIndex];
             if (light.lightType != LightType.Directional)
-                return false;
+                return default;
 
             data.shader = _shader;
             data.kernel = _kernel;
@@ -95,13 +95,13 @@ namespace FraxinusEngine.Rendering.Ultra
                 camera.IsTemporalJitterEnabled() ? Time.frameCount & 7 : 0, camera.camera.orthographic ? 1f : 0f, 0f);
             data.active = true;
 
-            var rendering = frame.Get<RenderingData>();
-            rendering.renderPassInputs.requiresDepthTexture = true;
-            rendering.renderPassInputs.requiresDepthPrepass = true;
-            rendering.renderPassInputs.requiresIntermediateTexture = true;
-            rendering.renderPassInputs.requiresFullDepthPrepass = true;
-            rendering.renderPassInputs.disableFramebufferFetch = true;
-            return true;
+            return new RenderPassInputSummary
+            {
+                requiresDepthTexture = true,
+                requiresDepthPrepass = true,
+                requiresFullDepthPrepass = true,
+                disableFramebufferFetch = true,
+            };
         }
 
         bool HasActiveMainInjection(ScriptableRenderer renderer, ContextContainer frame)

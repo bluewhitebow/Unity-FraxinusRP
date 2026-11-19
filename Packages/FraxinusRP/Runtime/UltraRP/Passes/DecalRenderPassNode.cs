@@ -160,12 +160,23 @@ namespace FraxinusEngine.Rendering.Ultra
         internal ref DecalSettings settings => ref _settings;
         internal bool intermediateRendering => _technique == DecalTechnique.DBuffer;
         internal bool requiresDecalLayers => _settings.decalLayers;
-        internal static bool isGLDevice => SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES3 
+
+        // Requirements are collected before per-camera technique initialization.
+        // Automatic may select DBuffer, which samples both depth and normals.
+        public override ScriptableRenderPassInput input =>
+            _settings.technique == DecalTechniqueOption.ScreenSpace
+                ? ScriptableRenderPassInput.Depth
+                : ScriptableRenderPassInput.Depth | ScriptableRenderPassInput.Normal;
+
+        internal static bool isGLDevice => SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES3
                                             || SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLCore;
 
         public DecalRenderPassNode() : base()
         {
             profilingSampler = new ProfilingSampler(nameof(DecalRenderPassNode));
+            // The current decal passes use ResourceData.cameraColor/cameraDepth,
+            // so they require those attachments even when other nodes render directly.
+            requiresIntermediateTexture = true;
             _recreateSystems = true;
         }
 
@@ -416,7 +427,7 @@ namespace FraxinusEngine.Rendering.Ultra
             RenderingData renderingData = frameData.Get<RenderingData>();
 
             CameraTargetBuffer buffer = inCameraTarget.value;
-            
+
             if (!buffer.IsValid())
                 return;
 
@@ -449,7 +460,7 @@ namespace FraxinusEngine.Rendering.Ultra
         private void RenderDecals(RenderGraph renderGraph, ContextContainer frameData)
         {
             ResourceData resourceData = frameData.Get<ResourceData>();
-            
+
             switch (_technique)
             {
                 case DecalTechnique.DBuffer:
@@ -459,7 +470,7 @@ namespace FraxinusEngine.Rendering.Ultra
                         TextureHandle dBufferDepth = _copyDepthPass.Render(renderGraph, frameData);
 
                         // Step 2: Render to DBuffer (use dBufferDepth if created, otherwise use cameraDepth)
-                        TextureHandle depthTarget = dBufferDepth.IsValid() 
+                        TextureHandle depthTarget = dBufferDepth.IsValid()
                             ? dBufferDepth
                             : resourceData.cameraDepth;
 
@@ -467,7 +478,7 @@ namespace FraxinusEngine.Rendering.Ultra
                         {
                             _dBufferRenderPass.Render(renderGraph, frameData, depthTarget);
                         }
-                        
+
                         // Step 3: Render emissive decals
                         if (_forwardEmissivePass != null && resourceData.cameraColor.IsValid() && resourceData.cameraDepth.IsValid())
                         {
@@ -503,7 +514,7 @@ namespace FraxinusEngine.Rendering.Ultra
             // Dispose passes
             _copyDepthPass?.Dispose();
             _dBufferRenderPass?.Dispose();
-            
+
             // Dispose material
             if (_dBufferClearMaterial != null)
             {

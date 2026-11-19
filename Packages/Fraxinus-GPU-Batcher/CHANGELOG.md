@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Removed per-camera closure allocation from manager-hub dispatch by passing state to static callbacks.
+- Removed the reserved, unused `GPUInstancerSceneScope` enum and `GPUInstancerProfile.scope` / `sceneGuids` fields. Existing serialized values are ignored; external code referencing these members must remove those references. Scene filtering was not implemented by these fields.
 - Replaced the official Universal RP dependency with the current Fraxinus RP, Core, Shader Graph, Burst, Collections, and Mathematics versions.
 - Integrated camera submission with the Fraxinus camera lifecycle.
 - Moved Hi-Z production and per-camera resource ownership into Fraxinus RP's `HiZDepthPass` and `HiZDepthHistory`; GPU Batcher only requests and reads framework history.

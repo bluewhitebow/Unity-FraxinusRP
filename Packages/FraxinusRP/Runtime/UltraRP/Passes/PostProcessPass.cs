@@ -19,6 +19,13 @@ namespace FraxinusEngine.Rendering.Ultra
         // this image in a sampleable intermediate target and resolve it afterward.
         public static event Action<RenderGraph, ScriptableRenderContext, ContextContainer> beforeFinalResolve;
 
+        public override bool requiresIntermediateTexture
+        {
+            // Callbacks run even with post-processing disabled and may sample camera color.
+            get => base.requiresIntermediateTexture || beforeFinalResolve != null;
+            set => base.requiresIntermediateTexture = value;
+        }
+
         static class ShaderConstants
         {
             public static readonly int _TempTarget = Shader.PropertyToID("_TempTarget");
@@ -43,14 +50,14 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             public string typeName;
             [NonSerialized] private Type _cachedType;
-            
+
             public Type passType
             {
                 get
                 {
                     if (_cachedType == null && !string.IsNullOrEmpty(typeName))
                         _cachedType = Type.GetType(typeName);
-     
+
                     return _cachedType;
                 }
                 set
@@ -59,7 +66,7 @@ namespace FraxinusEngine.Rendering.Ultra
                     typeName = value?.AssemblyQualifiedName;
                 }
             }
-            
+
             [NonSerialized] public BasePostPass passInstance;
             [SerializeField] public bool enabled = true;
         }
@@ -70,20 +77,20 @@ namespace FraxinusEngine.Rendering.Ultra
             public string typeName; // Store type name as string for serialization
             public string displayName;
             [SerializeField] public bool enabled = true;
-            
+
             [NonSerialized] private Type _cachedType;
-            
+
             public Type componentType
             {
                 get
                 {
                     if (_cachedType == null && !string.IsNullOrEmpty(typeName))
                         _cachedType = Type.GetType(typeName);
- 
+
                     return _cachedType;
                 }
             }
-            
+
             public UberEffectEntry(Type type, string name, bool defaultEnabled = true)
             {
                 typeName = type?.AssemblyQualifiedName;
@@ -446,6 +453,11 @@ namespace FraxinusEngine.Rendering.Ultra
                 // make sure we are accessing the proper camera color in case it was replaced by injected passes
                 var source = resourceData.cameraColor;
                 RenderFinalPassRenderGraph(renderGraph, frameData, in source, in overlayUITexture, in target, needsColorEncoding);
+
+                // Final post-processing owns presentation, including the debug
+                // handler's later transfer to the camera target.
+                resourceData.activeColorID = ResourceData.ActiveID.BackBuffer;
+                resourceData.activeDepthID = ResourceData.ActiveID.BackBuffer;
             }
 
             if (cameraData.captureActions != null)
@@ -539,10 +551,10 @@ namespace FraxinusEngine.Rendering.Ultra
             PostProcessingData postProcessingData   = frameData.Get<PostProcessingData>();
 
             var stack = VolumeManager.instance.stack;
-            
+
             // Update cached components once per frame (single dictionary access per component type)
             UpdateCachedComponents(stack);
-            
+
             // Still need these for non-Uber effects
             _colorAdjustments = stack.GetComponent<ColorAdjustments>();
             _tonemapping = stack.GetComponent<Tonemapping>();
@@ -663,7 +675,7 @@ namespace FraxinusEngine.Rendering.Ultra
         void SetupPostPasses()
         {
             CleanupPostPasses();
-            
+
             var passTypes = GetTypesFromAssemblies<BasePostPass>();
             var typeNames = new HashSet<string>();
 
@@ -698,8 +710,8 @@ namespace FraxinusEngine.Rendering.Ultra
                     }
                 }
             }
-            
-            CleanupRemovedEntries(_postPassEntries, typeNames, e => e.typeName, 
+
+            CleanupRemovedEntries(_postPassEntries, typeNames, e => e.typeName,
                 e => (e.passInstance as IDisposable)?.Dispose());
             _temporalAAPass = _postPassEntries.Find(entry => entry.passInstance is TAAPass)?.passInstance as TAAPass;
             if (_temporalAAPass == null)
@@ -735,7 +747,7 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             var processorTypes = GetTypesFromAssemblies<IUberEffectProcessor>(includeInterfaces: false);
             var discoveredProcessors = new Dictionary<Type, IUberEffectProcessor>();
-            
+
             foreach (var type in processorTypes)
             {
                 var processor = Activator.CreateInstance(type) as IUberEffectProcessor;
@@ -776,30 +788,30 @@ namespace FraxinusEngine.Rendering.Ultra
                     });
                 }
             }
-            
+
             _cachedProcessors = tempList.ToArray();
         }
 
         IEnumerable<Type> GetTypesFromAssemblies<T>(bool includeInterfaces = true)
         {
             return AppDomain.CurrentDomain.GetAllTypes()
-                .Where(t => typeof(T).IsAssignableFrom(t) 
+                .Where(t => typeof(T).IsAssignableFrom(t)
                             && !t.IsAbstract
                             && !t.ContainsGenericParameters
                             && (includeInterfaces || !t.IsInterface)
                             && t != typeof(T)
                             && (t.IsValueType || t.GetConstructor(Type.EmptyTypes) != null));
         }
-        
 
-        void CleanupRemovedEntries<T>(List<T> entries, HashSet<string> validTypeNames, 
+
+        void CleanupRemovedEntries<T>(List<T> entries, HashSet<string> validTypeNames,
             Func<T, string> getTypeName, Action<T> disposeAction)
         {
             for (int i = entries.Count - 1; i >= 0; i--)
             {
                 var entry = entries[i];
                 var typeName = getTypeName(entry);
-                
+
                 if (string.IsNullOrEmpty(typeName) || !validTypeNames.Contains(typeName))
                 {
                     disposeAction?.Invoke(entry);
@@ -819,7 +831,7 @@ namespace FraxinusEngine.Rendering.Ultra
             for (int i = 0; i < _cachedProcessors.Length; i++)
             {
                 ref var cached = ref _cachedProcessors[i];
-    
+
                 var postProcessComponent = cached.component as IPostProcessComponent;
                 if (postProcessComponent == null)
                     continue;

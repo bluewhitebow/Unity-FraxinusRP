@@ -65,6 +65,42 @@ Open the graph's `Inject Passes` panel and toggle a pass type to enable or disab
 
 The next render updates bindings and input texture requirements. Disabling a pass removes requirements contributed only by that pass; other enabled consumers retain their shared resources. Explicit graph nodes and child-context injection policies remain separate controls. Scripts can use `graph.SetInjectPassEnabled(typeof(MyInjectPass), enabled)` and `graph.IsInjectPassEnabled(typeof(MyInjectPass))` on a `ScriptableRendererGraph`.
 
+Before allocating camera textures, the renderer calls `ResetFrame` on all
+injectors, including disabled ones, then `PrepareFrameResources` once on each
+enabled, bound injector. Store activation and resource snapshots in `frameData`,
+and return a `RenderPassInputSummary` describing this pass's requirements.
+Return `default` when no resources are needed. The renderer combines these
+summaries with `MergeFrom`, preserving other consumers' requests, then applies
+dependencies such as Motion requiring Depth. Do not modify
+`RenderingData.renderPassInputs` directly. `Execute` consumes the prepared
+state after the requested textures are available.
+
+Ordinary nodes contribute their `input` and `requiresIntermediateTexture`
+through the same summary. Set `requiresIntermediateTexture` only when a pass
+needs intermediate camera color; participating in the graph alone does not
+request it. GTAO and Contact Shadows request the depth, normals and prepasses
+they use without forcing intermediate color. Decal nodes request the camera
+attachments used by their implementation. `CopyFromMain` contexts and
+`beforeFinalResolve` callbacks request sampleable camera color through their
+own nodes.
+
+The renderer decides the final output path. After the last camera in a stack
+records its passes, it resolves color that remains in an intermediate target.
+It adds no extra Blit when post-processing has already resolved the output.
+The Base camera allocates the stack's intermediate color attachments; Overlay
+cameras reuse those attachments and preserve the Base camera's draws and
+post-processing result. Hi-Z and probe sampling debug may request depth without
+requiring intermediate color. Query consumable requests, such as a single
+probe-debug sample, once during preparation and save the result for execution.
+
+Custom injectors that previously overrode `bool PrepareFrame(...)` must override
+`RenderPassInputSummary PrepareFrameResources(...)` instead. Replace direct
+input mutations and the old boolean return with a summary of the resources
+actually used; return `default` on inactive paths. If the effect samples or
+otherwise requires intermediate camera color, set `requiresIntermediateTexture`
+in that summary. The old boolean return did not enable or disable injection;
+activation still belongs to the prepared per-camera state.
+
 ## UltraRP render contexts
 
 `ContextBeginNode` and `ContextEndNode` delimit a render scope within an UltraRP graph. Keep the camera's `RenderDriven` setup before the first Begin, and connect camera-target ports in execution order. For a simple scope, connect the parent target to `Begin.inCameraTarget`, `Begin.outCameraTarget` through the child rendering passes, and the last child target to `End.inCameraTarget`. Continue parent rendering from `End.outCameraTarget`.

@@ -4,11 +4,18 @@ using UnityEngine;
 
 namespace Fraxinus.GPUBatcher
 {
-    /// <summary>
-    /// The object that owns a profile-created manager.  Managers implement this
-    /// small boundary so profile factories do not have to know about the
-    /// manager's runtime implementation details.
-    /// </summary>
+    public interface IGPUInstancerProfile
+    {
+        bool enabled { get; }
+        string displayName { get; }
+        GPUInstancerManager CreateManager();
+    }
+
+    public interface IGPUInstancerProfile<TMgr> : IGPUInstancerProfile  where TMgr : GPUInstancerManager
+    {
+        new TMgr CreateManager();
+    }
+
     public interface IGPUInstancerProfileHost
     {
         GPUInstancerProfile profile { get; }
@@ -16,17 +23,9 @@ namespace Fraxinus.GPUBatcher
         void SetProfile(GPUInstancerProfile profile);
     }
 
-    /// <summary>
-    /// Common, serializable configuration for one GPU Instancer channel.
-    /// Profiles are deliberately plain managed objects.  They are stored as
-    /// managed references by <see cref="GPUInstancerRuntimeConfig"/> and are
-    /// not UnityEngine.Objects or scene components.
-    /// </summary>
     [Serializable]
     public abstract class GPUInstancerProfile : IGPUInstancerProfile
     {
-        // Keep this field public for direct API access. The
-        // value is generated once and is also used by TerrainProxy bindings.
         [SerializeField]
         public string id;
 
@@ -63,34 +62,24 @@ namespace Fraxinus.GPUBatcher
         [SerializeField]
         public bool lightProbeDisabled = false;
 
-        // Scene filtering is intentionally only a data reservation. Driver
-        // implementations may opt into it later
-        // without changing the serialized profile shape.
-        [SerializeField]
-        public GPUInstancerSceneScope scope = GPUInstancerSceneScope.Everywhere;
-
-        [SerializeField]
-        public List<string> sceneGuids = new List<string>();
-
         protected GPUInstancerProfile()
         {
             InitializeAuthoringData();
         }
 
-        /// <summary>Whether the channel is created and registered by the Driver.</summary>
         public bool enabled
         {
             get => _enabled;
             set => _enabled = value;
         }
 
-        /// <summary>An editor-facing label.  It is stable even when no custom label was supplied.</summary>
         public virtual string displayName
         {
             get
             {
                 if (!string.IsNullOrWhiteSpace(_displayName))
                     return _displayName;
+
                 return GetDefaultDisplayName();
             }
             set => _displayName = value;
@@ -102,41 +91,31 @@ namespace Fraxinus.GPUBatcher
             const string suffix = "Profile";
             if (typeName.EndsWith(suffix, StringComparison.Ordinal))
                 typeName = typeName.Substring(0, typeName.Length - suffix.Length);
+
             return typeName;
         }
 
-        /// <summary>Initializes and validates data for a newly authored profile.</summary>
         public void InitializeAuthoringData()
         {
             if (string.IsNullOrWhiteSpace(id))
                 id = Guid.NewGuid().ToString("N");
+
             if (prototypeList == null)
                 prototypeList = new List<GPUInstancerPrototype>();
-            if (sceneGuids == null)
-                sceneGuids = new List<string>();
         }
 
-        /// <summary>Creates the runtime manager associated with this profile.</summary>
         public virtual GPUInstancerManager CreateManager()
         {
             return CreateManagerCore();
         }
 
-        /// <summary>
-        /// Dispatch hook used by the non-generic profile contract.  Built-in
-        /// profiles also expose a strongly typed public <c>CreateManager()</c>
-        /// method; this hook keeps calls made through <see cref="GPUInstancerProfile"/>
-        /// polymorphic on runtimes that do not support covariant return overrides.
-        /// </summary>
         protected virtual GPUInstancerManager CreateManagerCore()
         {
-            throw new NotSupportedException(
-                "Profile type does not provide a runtime manager factory: " + GetType().FullName);
+            throw new NotSupportedException("Profile type does not provide a runtime manager factory: " + GetType().FullName);
         }
 
     }
 
-    /// <summary>Serialized list of channels owned by project settings.</summary>
     [Serializable]
     public class GPUInstancerRuntimeConfig
     {
@@ -207,8 +186,6 @@ namespace Fraxinus.GPUBatcher
         }
 
     }
-
-    /// <summary>Prefab-instancing channel configuration.</summary>
     [Serializable]
     public class GPUInstancerPrefabProfile : GPUInstancerProfile, IGPUInstancerProfile<GPUInstancerPrefabManager>
     {
@@ -291,8 +268,7 @@ namespace Fraxinus.GPUBatcher
     /// <summary>Compile-time profile factory; no runtime interface reflection is used.</summary>
     internal static class GPUInstancerProfileFactory
     {
-        public static TManager CreateManager<TManager>(GPUInstancerProfile profile, Func<TManager> factory)
-            where TManager : GPUInstancerManager
+        public static TManager CreateManager<TManager>(GPUInstancerProfile profile, Func<TManager> factory) where TManager : GPUInstancerManager
         {
             if (profile == null)
                 throw new ArgumentNullException(nameof(profile));
@@ -330,34 +306,5 @@ namespace Fraxinus.GPUBatcher
                 throw;
             }
         }
-    }
-
-    /// <summary>
-    /// Reserved scene-filter mode.  Driver scene filtering is intentionally
-    /// deferred, but serializing the enum now keeps the profile schema stable.
-    /// </summary>
-    public enum GPUInstancerSceneScope
-    {
-        Everywhere = 0,
-        OnlyListedScenes = 1,
-        ExceptListedScenes = 2
-    }
-
-    /// <summary>Non-generic profile contract used by Driver/config code.</summary>
-    public interface IGPUInstancerProfile
-    {
-        bool enabled { get; }
-        string displayName { get; }
-        GPUInstancerManager CreateManager();
-    }
-
-    /// <summary>
-    /// Typed profile contract.  The generic return type is a compile-time aid;
-    /// Driver code should consume the non-generic base contract.
-    /// </summary>
-    public interface IGPUInstancerProfile<TMgr> : IGPUInstancerProfile
-        where TMgr : GPUInstancerManager
-    {
-        new TMgr CreateManager();
     }
 }

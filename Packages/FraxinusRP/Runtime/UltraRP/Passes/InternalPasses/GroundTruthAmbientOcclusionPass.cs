@@ -74,17 +74,17 @@ namespace FraxinusEngine.Rendering.Ultra
             Publish(graph, TextureHandle.nullHandle, false, 0f);
         }
 
-        public override bool PrepareFrame(RenderGraph graph, ContextContainer frame)
+        public override RenderPassInputSummary PrepareFrameResources(RenderGraph graph, ContextContainer frame)
         {
             var data = frame.GetOrCreate<AmbientOcclusionData>();
             var camera = frame.Get<CameraData>();
             if (!IsCameraSupported(camera))
-                return false;
+                return default;
             var settings = VolumeManager.instance.stack.GetComponent<GroundTruthAmbientOcclusion>();
             if (settings == null || !settings.IsActive() ||
                 !HasActiveMainInjection(camera.renderer, frame) ||
                 !RenderPipelineGraphicsSettingsCompatibility.TryGetRenderPipelineSettings<UltraRenderPipelineRuntimeShaders>(out var shaders))
-                return false;
+                return default;
 
             if (!ReferenceEquals(_shader, shaders.groundTruthAmbientOcclusionCS))
             {
@@ -96,7 +96,7 @@ namespace FraxinusEngine.Rendering.Ultra
             }
             int denoiseKernel = settings.downSample.value ? _blurUpsampleKernel : _spatialDenoiseKernel;
             if (_shader == null || _downsampleKernel < 0 || _traceKernel < 0 || denoiseKernel < 0)
-                return false;
+                return default;
 
             data.shader = _shader;
             data.downsampleKernel = _downsampleKernel;
@@ -127,14 +127,14 @@ namespace FraxinusEngine.Rendering.Ultra
 
             // All opaque geometry must be available before both Forward and GBuffer
             // lighting. A partial Deferred prepass contains only ForwardOnly objects.
-            var rendering = frame.Get<RenderingData>();
-            rendering.renderPassInputs.requiresDepthTexture = true;
-            rendering.renderPassInputs.requiresNormalsTexture = true;
-            rendering.renderPassInputs.requiresDepthPrepass = true;
-            rendering.renderPassInputs.requiresFullDepthPrepass = true;
-            rendering.renderPassInputs.requiresIntermediateTexture = true;
-            rendering.renderPassInputs.disableFramebufferFetch = true;
-            return true;
+            return new RenderPassInputSummary
+            {
+                requiresDepthTexture = true,
+                requiresNormalsTexture = true,
+                requiresDepthPrepass = true,
+                requiresFullDepthPrepass = true,
+                disableFramebufferFetch = true,
+            };
         }
 
         static bool SupportsFormat(GraphicsFormat format) =>

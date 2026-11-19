@@ -467,7 +467,7 @@ namespace FraxinusEngine.Rendering.Ultra
             return false;
         }
 
-        public override void UpdateComputeOrder(IEnumerable<BaseNode> computedNodes) 
+        public override void UpdateComputeOrder(IEnumerable<BaseNode> computedNodes)
         {
             _sortedNodes.Clear();
 
@@ -479,7 +479,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 targetNodes.Add(graph.postNode);
             if (graph.drivenNode != null)
                 targetNodes.Add(graph.drivenNode);
-            
+
             AddPairedContextNodesToTargets(targetNodes);
 
             HashSet<BaseNode> finalNodes = new HashSet<BaseNode>();
@@ -491,7 +491,7 @@ namespace FraxinusEngine.Rendering.Ultra
                         finalNodes.Add(dep);
                 }
             }
-            
+
             RemoveUnpairedContextNodes(finalNodes);
 
             _sortedNodes = finalNodes
@@ -506,7 +506,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
             InjectPassToRenderPassNode();
         }
-        
+
 
         private void AddPairedContextNodesToTargets(HashSet<BaseNode> targetNodes)
         {
@@ -520,7 +520,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 }
             }
         }
-        
+
         private ContextBeginNode FindPairedContextBegin(ContextEndNode endNode)
         {
             var visited = new HashSet<BaseNode>();
@@ -550,7 +550,7 @@ namespace FraxinusEngine.Rendering.Ultra
         private void RemoveUnpairedContextNodes(HashSet<BaseNode> nodes)
         {
             var toRemove = new List<BaseNode>();
-            
+
             foreach (var node in nodes)
             {
                 if (node is ContextEndNode endNode)
@@ -574,7 +574,7 @@ namespace FraxinusEngine.Rendering.Ultra
                         toRemove.Add(beginNode);
                 }
             }
-            
+
             foreach (var node in toRemove)
                 nodes.Remove(node);
         }
@@ -710,25 +710,22 @@ namespace FraxinusEngine.Rendering.Ultra
             InjectPassToRenderPassNode();
         }
 
-        internal bool PrepareInjectPasses(RenderGraph renderGraph, ContextContainer frameData)
+        internal void PrepareInjectPassResources(RenderGraph renderGraph, ContextContainer frameData)
         {
-            bool requiresFinalBlit = false;
             foreach (var module in _moduleContainer.Values)
             {
                 if (module is InjectPass pass)
                     pass.ResetFrame(renderGraph, frameData);
             }
 
+            var rendering = frameData.Get<RenderingData>();
             foreach (var module in _moduleContainer.Values)
             {
                 if (module is InjectPass pass && _boundInjectPasses.Contains(pass) && graph.IsInjectPassEnabled(pass.GetType()))
-                    requiresFinalBlit |= pass.PrepareFrame(renderGraph, frameData);
+                    rendering.renderPassInputs.MergeFrom(pass.PrepareFrameResources(renderGraph, frameData));
             }
 
-            var rendering = frameData.Get<RenderingData>();
             rendering.renderPassInputs.requiresDepthTexture |= rendering.renderPassInputs.requiresMotionVectors;
-            rendering.renderPassInputs.requiresIntermediateTexture |= requiresFinalBlit;
-            return requiresFinalBlit;
         }
 
         internal void ProcessFallbackInjections(RenderGraph renderGraph, ScriptableRenderContext context, ContextContainer frameData)
@@ -810,7 +807,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 var child = inputNodes.Pop();
                 if (!dependencies.Add(child))
                     continue;
-                
+
                 if (child.computeOrder >= 0)
                 {
                     foreach (var parent in child.GetInputNodes())
@@ -862,7 +859,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 });
             }
         }
-       
+
         internal void SetupRenderGraphCameraProperties(RenderGraph renderGraph, bool isTargetBackbuffer)
         {
             using (var builder = renderGraph.AddRasterRenderPass<PassData>("SetupCameraProperties", out var passData, Profiling.setupCamera))

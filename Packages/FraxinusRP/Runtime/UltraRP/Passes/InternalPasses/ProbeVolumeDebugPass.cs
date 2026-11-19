@@ -54,28 +54,29 @@ namespace FraxinusEngine.Rendering.Ultra
             frameData.GetOrCreate<PreparedSampling>().Reset();
         }
 
-        public override bool PrepareFrame(RenderGraph renderGraph, ContextContainer frameData)
+        public override RenderPassInputSummary PrepareFrameResources(RenderGraph renderGraph, ContextContainer frameData)
         {
             var pipeline = UltraRenderPipeline.asset;
             if (pipeline == null || !pipeline.supportProbeVolume || _computeShader == null)
-                return false;
+                return default;
+
             var volume = ProbeReferenceVolumeProvider.instance;
             if (!volume.isInitialized)
-                return false;
+                return default;
 
             var prepared = frameData.GetOrCreate<PreparedSampling>();
             // Query once: the provider consumes single-update debug requests.
             // Execution uses this snapshot after its required textures are ready.
-            prepared.active = volume.GetProbeSamplingDebugResources(frameData.Get<CameraData>().camera,
-                out prepared.resultBuffer, out prepared.coordinates);
-            if (prepared.active)
+            prepared.active = volume.GetProbeSamplingDebugResources(frameData.Get<CameraData>().camera, out prepared.resultBuffer, out prepared.coordinates);
+            if (!prepared.active)
+                return default;
+
+            return new RenderPassInputSummary
             {
-                var rendering = frameData.Get<RenderingData>();
-                rendering.renderPassInputs.requiresDepthTexture = true;
-                rendering.renderPassInputs.requiresNormalsTexture = true;
-                rendering.renderPassInputs.requiresDepthPrepass = true;
-            }
-            return false;
+                requiresDepthTexture = true,
+                requiresNormalsTexture = true,
+                requiresDepthPrepass = true,
+            };
         }
 
         public override bool IsEligibleToInject(ScriptableRenderer renderer, ScriptableRenderPassNode node)

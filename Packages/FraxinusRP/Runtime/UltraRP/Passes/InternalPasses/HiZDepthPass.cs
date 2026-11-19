@@ -48,11 +48,11 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public override void ResetFrame(RenderGraph graph, ContextContainer frame) => frame.GetOrCreate<FrameData>().Reset();
 
-        public override bool PrepareFrame(RenderGraph graph, ContextContainer frame)
+        public override RenderPassInputSummary PrepareFrameResources(RenderGraph graph, ContextContainer frame)
         {
             var camera = frame.Get<CameraData>();
             if (!IsCameraSupported(camera))
-                return false;
+                return default;
 
             // beginCameraRendering can request history on a camera which did not
             // have additional data when the pipeline first inspected it. Pick up
@@ -63,7 +63,7 @@ namespace FraxinusEngine.Rendering.Ultra
             if (history == null || !history.requestedThisFrame ||
                 !HasActiveMainInjection(camera.renderer, frame) ||
                 !RenderPipelineGraphicsSettingsCompatibility.TryGetRenderPipelineSettings<UltraRenderPipelineRuntimeShaders>(out var shaders))
-                return false;
+                return default;
 
             // Resolve kernels on first use and when the resource is replaced.
             if (!ReferenceEquals(_shader, shaders.hiZDepthCS))
@@ -73,7 +73,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 _reduceKernel = _shader != null && _shader.HasKernel("ReduceDepth") ? _shader.FindKernel("ReduceDepth") : -1;
             }
             if (_shader == null || _copyKernel < 0 || _reduceKernel < 0)
-                return false;
+                return default;
 
             var prepared = frame.GetOrCreate<FrameData>();
             prepared.shader = _shader;
@@ -81,12 +81,13 @@ namespace FraxinusEngine.Rendering.Ultra
             prepared.reduceKernel = _reduceKernel;
             prepared.active = true;
 
-            var rendering = frame.Get<RenderingData>();
-            rendering.renderPassInputs.requiresDepthTexture = true;
-            rendering.renderPassInputs.requiresDepthPrepass = true;
-            rendering.renderPassInputs.requiresFullDepthPrepass = true;
-            rendering.renderPassInputs.disableFramebufferFetch = true;
-            return false;
+            return new RenderPassInputSummary
+            {
+                requiresDepthTexture = true,
+                requiresDepthPrepass = true,
+                requiresFullDepthPrepass = true,
+                disableFramebufferFetch = true,
+            };
         }
 
         internal static bool HasActiveMainInjection(ScriptableRenderer renderer, ContextContainer frame = null)

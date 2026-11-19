@@ -120,20 +120,20 @@ namespace Fraxinus.GPUBatcher
 
         internal static void Tick()
         {
-            ForEach(manager => manager.Tick());
+            ForEach(static (manager, _) => manager.Tick(), 0);
         }
 
         internal static void PrepareFrame()
         {
-            ForEach(manager => manager.PrepareFrame());
+            ForEach(static (manager, _) => manager.PrepareFrame(), 0);
         }
 
         internal static void RenderForCamera(UnityEngine.Camera camera)
         {
-            ForEach(manager => manager.RenderForCamera(camera));
+            ForEach(static (manager, targetCamera) => manager.RenderForCamera(targetCamera), camera);
         }
 
-        private static void ForEach(Action<GPUInstancerManager> action)
+        private static void ForEach<TState>(Action<GPUInstancerManager, TState> action, TState state)
         {
             CopyToSnapshot();
             for (int i = 0; i < s_snapshot.Count; i++)
@@ -144,7 +144,7 @@ namespace Fraxinus.GPUBatcher
 
                 try
                 {
-                    action(manager);
+                    action(manager, state);
                 }
                 catch (Exception exception)
                 {
