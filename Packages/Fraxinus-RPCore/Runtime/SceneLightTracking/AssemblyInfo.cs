@@ -5,3 +5,4 @@ using System.Runtime.CompilerServices;
 // It lives in Core so both pipelines can share scene tracking independently.
 [assembly: InternalsVisibleTo("Unity.RenderPipelines.Universal.Runtime")]
 [assembly: InternalsVisibleTo("Fraxinus.Runtime")]
+[assembly: InternalsVisibleTo("Fraxinus.GPUBatcher.Runtime")]

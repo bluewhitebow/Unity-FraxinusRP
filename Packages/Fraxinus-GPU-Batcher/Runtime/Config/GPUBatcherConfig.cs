@@ -1,0 +1,644 @@
+// Copyright (c) 2026 Milk_Drinker01. All rights reserved.
+
+using Unity.Mathematics;
+using UnityEngine;
+
+namespace Fraxinus.GPUBatcher
+{
+    /// <summary>singleton config for BRG instanced renderer.</summary>
+    public class GPUBatcherConfig : ScriptableObject
+    {
+        private static GPUBatcherConfig _instance;
+
+        // Automatic configuration assets belong to the project rather than the embedded package.
+        private const string kFallbackFolder = "Assets/FraxinusGPUBatcherData";
+        private const string kConfigFileName = "FraxinusGPUBatcherConfig.asset";
+        private const string kDefaultAssetPath = kFallbackFolder + "/" + kConfigFileName;
+        public const string PackagePath = "Packages/com.bluewhitebow.fraxinus-gpu-batcher";
+        public const string ProjectAssetPath = kDefaultAssetPath;
+
+        public static GPUBatcherConfig Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+#if UNITY_EDITOR
+                    _instance = FindOrCreateAsset();
+#else
+                    var found = Resources.FindObjectsOfTypeAll<GPUBatcherConfig>();
+                    if (found.Length > 0)
+                        _instance = found[0];
+                    else
+                        Debug.LogError("GPUBatcherConfig: Instance not found. Is the config in PlayerSettings Preloaded Assets?");
+#endif
+                }
+                return _instance;
+            }
+        }
+
+        private void OnEnable()
+        {
+#if UNITY_EDITOR
+            if (_instance == null || FindInPreloadedAssets() == this)
+                _instance = this;
+            EnsureComputeShaders();
+#if FRAXINUS_RP
+            EnsureTextureGrassShader();
+#endif
+#else
+            //_instance = this;
+#endif
+        }
+
+#if UNITY_EDITOR
+        internal static GPUBatcherConfig FindInPreloadedAssets()
+        {
+            var preloaded = UnityEditor.PlayerSettings.GetPreloadedAssets();
+            foreach (var asset in preloaded)
+            {
+                if (asset is GPUBatcherConfig config)
+                    return config;
+            }
+            return null;
+        }
+
+        internal static int CountInPreloadedAssets()
+        {
+            int count = 0;
+            var preloaded = UnityEditor.PlayerSettings.GetPreloadedAssets();
+            foreach (var asset in preloaded)
+            {
+                if (asset is GPUBatcherConfig)
+                    count++;
+            }
+            return count;
+        }
+#endif
+
+        // reset on domain reload
+#if UNITY_EDITOR
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStaticInstance()
+        {
+            _instance = null;
+        }
+
+        [UnityEditor.InitializeOnLoadMethod]
+        private static void AutoCreateOnDomainReload()
+        {
+            UnityEditor.EditorApplication.delayCall += () =>
+            {
+                if (_instance == null)
+                    _ = Instance;
+            };
+        }
+#endif
+
+#if UNITY_EDITOR
+        // set while the plugin itself is being deleted
+        private static bool _suppressAssetCreation;
+
+        internal static void SuppressAssetCreation() => _suppressAssetCreation = true;
+
+        private static GPUBatcherConfig FindOrCreateAsset()
+        {
+            // 1. check preloaded assets
+            var found0 = FindInPreloadedAssets();
+            if (found0 != null) return found0;
+
+            // 2. try default path
+            var found = UnityEditor.AssetDatabase.LoadAssetAtPath<GPUBatcherConfig>(kDefaultAssetPath);
+
+            // 3. search project
+            if (found == null)
+            {
+                string[] guids = UnityEditor.AssetDatabase.FindAssets("t:GPUBatcherConfig");
+                if (guids.Length > 0)
+                {
+                    string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]);
+                    found = UnityEditor.AssetDatabase.LoadAssetAtPath<GPUBatcherConfig>(path);
+                }
+            }
+            
+
+            // 4. create at default path
+            if (found == null)
+            {
+                if (_suppressAssetCreation)
+                {
+                    // transient instance keeps callers alive until the domain reload
+                    found = CreateInstance<GPUBatcherConfig>();
+                    found.hideFlags = HideFlags.HideAndDontSave;
+                    return found;
+                }
+
+                string assetPath = ResolveConfigAssetPath();
+
+                found = CreateInstance<GPUBatcherConfig>();
+                UnityEditor.AssetDatabase.CreateAsset(found, assetPath);
+                UnityEditor.AssetDatabase.SaveAssets();
+                Debug.Log($"GPUBatcherConfig: Created config at {assetPath}");
+            }
+
+            // 5. ensure preloaded
+            EnsurePreloadedAsset(found);
+
+            // 6. auto-assign compute shaders
+            found.EnsureComputeShaders();
+
+            return found;
+        }
+
+        // Embedded packages are immutable; keep the automatically created project asset in Assets.
+        private static string ResolveConfigAssetPath()
+        {
+            if (!UnityEditor.AssetDatabase.IsValidFolder(kFallbackFolder))
+                UnityEditor.AssetDatabase.CreateFolder("Assets", "FraxinusGPUBatcherData");
+            return kDefaultAssetPath;
+        }
+
+        private static void EnsurePreloadedAsset(GPUBatcherConfig config)
+        {
+            var preloaded = UnityEditor.PlayerSettings.GetPreloadedAssets();
+
+            int emptySlot = -1;
+            for (int i = 0; i < preloaded.Length; i++)
+            {
+                if (preloaded[i] == config) return;
+                if (preloaded[i] == null && emptySlot < 0) emptySlot = i;
+            }
+
+            if (emptySlot >= 0)
+            {
+                preloaded[emptySlot] = config;
+                UnityEditor.PlayerSettings.SetPreloadedAssets(preloaded);
+            }
+            else
+            {
+                var list = new System.Collections.Generic.List<Object>(preloaded) { config };
+                UnityEditor.PlayerSettings.SetPreloadedAssets(list.ToArray());
+            }
+        }
+
+        private void EnsureComputeShaders()
+        {
+            bool dirty = false;
+
+            if (cullingShader == null)
+            {
+                cullingShader = FindComputeShaderByName("GPUBatcher_Culling");
+                if (cullingShader != null)
+                    dirty = true;
+            }
+
+            if (uploadShader == null)
+            {
+                uploadShader = FindComputeShaderByName("GPUBatcher_Upload");
+                if (uploadShader != null)
+                    dirty = true;
+            }
+
+            if (occlusionShader == null)
+            {
+                occlusionShader = FindComputeShaderByName("GPUBatcher_HZBGeneration");
+                if (occlusionShader != null)
+                    dirty = true;
+            }
+
+            if (dirty)
+            {
+                UnityEditor.EditorUtility.SetDirty(this);
+                // rebind a renderer that cached a null shader at init
+                if (GPUBatcherRenderer.HasInstance && cullingShader != null)
+                    GPUBatcherRenderer.Instance.Reinitialize();
+            }
+        }
+
+        // defer to idle so the asset db is ready
+        [UnityEditor.InitializeOnLoadMethod]
+        private static void ResolveShadersAfterReload()
+        {
+            UnityEditor.EditorApplication.delayCall += () => { if (Instance != null) Instance.EnsureComputeShaders(); };
+        }
+
+#if FRAXINUS_RP
+        // serialize the grass shader when enabled so it ships in builds, clear it otherwise
+        private void EnsureTextureGrassShader()
+        {
+            var desired = allowTextureGrass ? Shader.Find("Hidden/FraxinusGPUBatcher/TerrainTextureGrass") : null;
+            if (_textureGrassShader != desired)
+            {
+                _textureGrassShader = desired;
+                UnityEditor.EditorUtility.SetDirty(this);
+            }
+        }
+#endif
+
+        private static ComputeShader FindComputeShaderByName(string shaderName)
+        {
+            string[] guids = UnityEditor.AssetDatabase.FindAssets($"{shaderName} t:ComputeShader");
+            foreach (var guid in guids)
+            {
+                string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+                var shader = UnityEditor.AssetDatabase.LoadAssetAtPath<ComputeShader>(path);
+                // findAssets does substring matching, verify exact name
+                if (shader != null && shader.name == shaderName)
+                    return shader;
+            }
+            return null;
+        }
+
+        [UnityEditor.MenuItem("Tools/Fraxinus GPU Batcher/Select Config")]
+        public static void SelectConfig()
+        {
+            var config = Instance;
+            UnityEditor.Selection.activeObject = config;
+            UnityEditor.EditorGUIUtility.PingObject(config);
+        }
+
+        private int _prevMaxShadowCrossfadeCascade = -1;
+        private float _prevDefaultAnimatedCrossfadeDuration;
+        private float _prevDefaultSmallMeshSize;
+        private MinScreenSizeFadeMode _prevDefaultSmallMeshFadeMode;
+        private float _prevDefaultSmallMeshFadeWidth;
+        private int _prevMaxPoolRefsPerChunk;
+        private bool _prevSupportLegacyLightProbes;
+        private bool _prevEnablePerInstanceColor;
+        private bool _prevEnableSpeedTreeWind;
+        private bool _prevCombineMultiMeshLODs;
+        private NegativeScaleMode _prevNegativeScaleMode;
+        private bool _prevUseGPUOcclusionCulling;
+        private bool _prevCullDetailsAtDetailDistance;
+#if FRAXINUS_RP
+        private bool _prevAllowTextureGrass;
+#endif
+        private bool _prevValuesCached;
+        private bool _reinitScheduled;
+        private bool _rebuildBatchesScheduled;
+        private bool _occlusionToggleScheduled;
+#endif
+
+        private void OnValidate()
+        {
+
+            maxPoolRefsPerChunk = math.max(1, maxPoolRefsPerChunk);
+            initialChunkCount = math.max(1, initialChunkCount);
+            initialPoolCapacity = math.max(1, initialPoolCapacity);
+            defaultAnimatedCrossfadeDuration = math.clamp(defaultAnimatedCrossfadeDuration, 0f, 10f);
+            terrainMaxUploadsPerFrame = math.max(1, terrainMaxUploadsPerFrame);
+            terrainMaxUnloadsPerFrame = math.max(1, terrainMaxUnloadsPerFrame);
+            terrainMaxConcurrentJobs = math.max(1, terrainMaxConcurrentJobs);
+
+#if UNITY_EDITOR
+            EnsureComputeShaders();
+#if FRAXINUS_RP
+            EnsureTextureGrassShader();
+#endif
+
+            // rebuild batches when GPU prototype data changes
+            bool defaultCrossfadeChanged = _prevValuesCached &&
+                _prevDefaultAnimatedCrossfadeDuration != defaultAnimatedCrossfadeDuration;
+            if (_prevValuesCached && !_rebuildBatchesScheduled &&
+                (_prevMaxShadowCrossfadeCascade != maxShadowCrossfadeCascade ||
+                 defaultCrossfadeChanged ||
+                 _prevDefaultSmallMeshSize != defaultSmallMeshSize ||
+                 _prevDefaultSmallMeshFadeMode != defaultSmallMeshFadeMode ||
+                 _prevDefaultSmallMeshFadeWidth != defaultSmallMeshFadeWidth))
+            {
+                if (GPUBatcherRenderer.HasInstance)
+                {
+                    _rebuildBatchesScheduled = true;
+                    UnityEditor.EditorApplication.delayCall += () =>
+                    {
+                        _rebuildBatchesScheduled = false;
+                        if (GPUBatcherRenderer.HasInstance)
+                        {
+                            if (defaultCrossfadeChanged)
+                                GPUBatcherRenderer.Instance.RefreshDefaultCrossfadeDuration();
+                            GPUBatcherRenderer.Instance.RebuildBatches();
+                        }
+                    };
+                }
+            }
+            _prevMaxShadowCrossfadeCascade = maxShadowCrossfadeCascade;
+            _prevDefaultAnimatedCrossfadeDuration = defaultAnimatedCrossfadeDuration;
+            _prevDefaultSmallMeshSize = defaultSmallMeshSize;
+            _prevDefaultSmallMeshFadeMode = defaultSmallMeshFadeMode;
+            _prevDefaultSmallMeshFadeWidth = defaultSmallMeshFadeWidth;
+
+            // reinitialize when buffer layout changes
+            if (_prevValuesCached && !_reinitScheduled &&
+                (_prevSupportLegacyLightProbes != supportLegacyLightProbes ||
+                 _prevEnablePerInstanceColor != enablePerInstanceColor ||
+                 _prevEnableSpeedTreeWind != enableSpeedTreeWind ||
+                 _prevCombineMultiMeshLODs != combineMultiMeshLODs ||
+                 _prevMaxPoolRefsPerChunk != maxPoolRefsPerChunk ||
+                 _prevNegativeScaleMode != negativeScaleMode))
+            {
+                if (GPUBatcherRenderer.HasInstance)
+                {
+                    _reinitScheduled = true;
+                    UnityEditor.EditorApplication.delayCall += () =>
+                    {
+                        _reinitScheduled = false;
+                        if (GPUBatcherRenderer.HasInstance)
+                            GPUBatcherRenderer.Instance.Reinitialize();
+                    };
+                }
+            }
+            // GPU occlusion toggle: bump buffer pool generation + clean up HZB state
+            if (_prevValuesCached && !_occlusionToggleScheduled && _prevUseGPUOcclusionCulling != useGPUOcclusionCulling)
+            {
+                if (GPUBatcherRenderer.HasInstance)
+                {
+                    _occlusionToggleScheduled = true;
+                    UnityEditor.EditorApplication.delayCall += () =>
+                    {
+                        _occlusionToggleScheduled = false;
+                        if (GPUBatcherRenderer.HasInstance)
+                            GPUBatcherRenderer.Instance.OnGPUOcclusionToggled();
+                    };
+                }
+            }
+
+            // runtime refresh when terrain detail cull toggle changes
+            if (_prevValuesCached && _prevCullDetailsAtDetailDistance != cullDetailsAtDetailDistance)
+            {
+                if (GPUBatcherRenderer.HasInstance)
+                {
+                    UnityEditor.EditorApplication.delayCall += () =>
+                    {
+                        if (GPUBatcherRenderer.HasInstance)
+                            GPUBatcherRenderer.Instance.RuntimeRefresh();
+                    };
+                }
+            }
+
+#if FRAXINUS_RP
+            // runtime refresh so texture grass protos build/tear down when the toggle changes
+            if (_prevValuesCached && _prevAllowTextureGrass != allowTextureGrass)
+            {
+                if (GPUBatcherRenderer.HasInstance)
+                {
+                    UnityEditor.EditorApplication.delayCall += () =>
+                    {
+                        if (GPUBatcherRenderer.HasInstance)
+                            GPUBatcherRenderer.Instance.RuntimeRefresh();
+                    };
+                }
+            }
+#endif
+
+            _prevSupportLegacyLightProbes = supportLegacyLightProbes;
+            _prevEnablePerInstanceColor = enablePerInstanceColor;
+            _prevEnableSpeedTreeWind = enableSpeedTreeWind;
+            _prevCombineMultiMeshLODs = combineMultiMeshLODs;
+            _prevMaxPoolRefsPerChunk = maxPoolRefsPerChunk;
+            _prevNegativeScaleMode = negativeScaleMode;
+            _prevUseGPUOcclusionCulling = useGPUOcclusionCulling;
+            _prevCullDetailsAtDetailDistance = cullDetailsAtDetailDistance;
+#if FRAXINUS_RP
+            _prevAllowTextureGrass = allowTextureGrass;
+#endif
+            _prevValuesCached = true;
+#endif
+        }
+
+        [Header("Compute Shaders")]
+        [Tooltip("Compute shader for hierarchical GPU culling, LOD selection, and shadow cascade filtering.")]
+        public ComputeShader cullingShader;
+
+        [Tooltip("Compute shader for GPU buffer uploads, matrix computation, and animated crossfade state updates.")]
+        public ComputeShader uploadShader;
+
+        [Tooltip("Compute shader for HZB generation (GPUBatcher_HZBGeneration).")]
+        public ComputeShader occlusionShader;
+
+        [Header("Culling")]
+        [Tooltip("Test chunk AABBs against Unity's baked occlusion culling buffer each frame.")]
+        public bool useBakedOcclusionCulling = true;
+
+        [Tooltip("Two-pass HZB occlusion culling. Pass 0 tests against last frame's depth, HZB is rebuilt from this frame's depth prepass, Pass 1 re-tests occluded instances. Requires deferred culling (URP/HDRP) and depth prepass.")]
+        [SerializeField] private bool useGPUOcclusionCulling = false;
+
+        public bool UseGPUOcclusionCulling => useGPUOcclusionCulling;
+
+        public void SetGPUOcclusionCulling(bool value)
+        {
+            if (useGPUOcclusionCulling == value) return;
+            useGPUOcclusionCulling = value;
+            if (GPUBatcherRenderer.HasInstance)
+                GPUBatcherRenderer.Instance.OnGPUOcclusionToggled();
+        }
+
+        [Tooltip("Enable HZB retest pass. After depth prepass, re-tests instances that were occluded in Pass 0 against fresh HZB. Requires render pipeline support (URP built-in, HDRP requires depth prepass patch).")]
+        public bool useHZBRetestPass = false;
+
+        [Range(0f, 8f)]
+        [Tooltip("Fixed pixel expansion for HZB occlusion test (in HZB texels). Compensates for temporal mismatch between previous frame's depth and current camera. ~2-3 covers typical camera speeds at 60fps.")]
+        public float hzbPixelExpansion = 2f;
+
+        [Tooltip("Cull shadow casters whose entire swept shadow volume is hidden behind the previous frame's depth. Directional lights only, requires GPU occlusion culling. Worst case artifact: a shadow reappears one frame late after a fast disocclusion.")]
+        public bool shadowCasterOcclusion = true;
+
+        [Tooltip("Default minimum screen size (%) for game object prototypes that don't define their own. 0 = disabled. " +
+                 "\n\nApplies only to non-LODGroup, non-MeshLOD prototypes without a per-prototype override.")]
+        [Range(0f, 5f)]
+        public float defaultSmallMeshSize = 0.3f;
+
+        [Tooltip("Fade mode for the default small mesh screen size cull boundary. Crossfade costs some performance by doubling the draw calls for non-LOD prototypes.")]
+        public MinScreenSizeFadeMode defaultSmallMeshFadeMode = MinScreenSizeFadeMode.None;
+
+        [Tooltip("Fade transition width for the default small mesh cull zone (0-1). " +
+                 "Only used with stateless Crossfade mode. 0 = hard cull.")]
+        [Range(0f, 1f)]
+        public float defaultSmallMeshFadeWidth = 0.5f;
+
+        [Header("Pooling & Memory")]
+        [Tooltip("Maximum pools a single chunk can use. Each pool holds 16 instances.")]
+        public int maxPoolRefsPerChunk = 128;
+
+        [Tooltip("Initial number of chunk slots. Grows automatically when full.")]
+        public int initialChunkCount = 256;
+
+        [Tooltip("Initial number of instance pools. Each pool holds 16 instances. Grows automatically when full.")]
+        public int initialPoolCapacity = 4096;
+
+        [Tooltip("Automatically compact instance buffers when waste exceeds 50% (instances <= half of allocated slots). Reduces memory but causes brief hitches during compaction.")]
+        public bool enableAutoCompaction = false;
+
+        [Tooltip("Seconds to keep an unused prototype (refcount 0) alive before auto-purging. Allows fast re-registration during scene transitions. 0 = purge on next frame.")]
+        [Range(0f, 120f)]
+        public float prototypeIdleGracePeriod = 30f;
+
+        [Header("Rendering")]
+        [InspectorName("Combine multi-mesh LODs")]
+        [Tooltip("Combine multiple sub-meshes of a prefab/LOD into a single mesh, baking their offset transforms into the vertices. " +
+                 "\n\nWhen disabled, only the first mesh of each LOD is used and child offset transforms are ignored (no combining, no per-prefab mesh allocations).")]
+        public bool combineMultiMeshLODs = true;
+
+        [Tooltip("Enable per-instance color tinting. Adds 4 bytes per instance to the matrix buffer.")]
+        public bool enablePerInstanceColor = false;
+
+        [Tooltip("Enable SpeedTree wind. When disabled, SpeedTree instances use the shared batch with no wind parameters.")]
+        public bool enableSpeedTreeWind = true;
+
+        [Tooltip("FlipWinding: preserve negative scale, emit separate draw commands with flipped winding (default). " +
+                 "\n\nForcePositiveScale: abs() all scale on CPU - zero GPU cost but mirrors are lost.")]
+        public NegativeScaleMode negativeScaleMode = NegativeScaleMode.FlipWinding;
+
+        [Tooltip("Workaround for HDRP forward rendering bug: BRG instances with non-Object motion mode are incorrectly excluded from the depth prepass when their material has 'Motion Vectors For Vertex Animation' enabled. Forces HasMotion on affected draw commands so they render via the motion vector pass instead.")]
+        public bool hdrpForwardDepthFix = false;
+
+        [Tooltip("Sample legacy light probes (SphericalHarmonicsL2) per instance. Adds 128 bytes/instance to the GPU matrix buffer (~65% total per-instance memory increase).")]
+        public bool supportLegacyLightProbes = false;
+
+        [Header("Terrain")]
+        [Tooltip("Maximum detail chunk uploads per frame across ALL terrains. Lower = smoother but slower loading.")]
+        public int terrainMaxUploadsPerFrame = 16;
+
+        [Tooltip("Maximum detail chunk unloads per frame across ALL terrains.")]
+        public int terrainMaxUnloadsPerFrame = 16;
+
+        [Tooltip("Maximum detail extraction jobs in flight simultaneously across ALL terrains (async path only).")]
+        public int terrainMaxConcurrentJobs = 32;
+
+        [Tooltip("Force extraction jobs to complete on the same frame they are scheduled. Eliminates pop-in from multi-frame async completion at the cost of a per-patch main thread stall.")]
+        public bool terrainCompleteJobsSameFrame = false;
+
+        [Tooltip("Bypass upload throttle on the first frame so all in-range patches load immediately (causes one-time hitch but no pop-in).")]
+        public bool terrainSkipThrottleOnStart = false;
+
+        [Tooltip("Extra distance (m) beyond detail render distance to keep patches loaded (hysteresis).")]
+        public float terrainDetailUnloadHysteresis = 10f;
+
+        [Tooltip("When enabled, allows per-object motion for terrain details. (prototypes use the prefab's native motion vector mode) \n\nWhen disabled (default), forces Camera motion mode, matching Unity's default terrain behavior. (UUM-43491)")]
+        public bool terrainDetailObjectMotionVectors = false;
+
+        [Tooltip("Hard-cull detail instances beyond the terrain's detail object distance. Eliminates gridding from detail chunk size.")]
+        public bool cullDetailsAtDetailDistance = true;
+
+#if FRAXINUS_RP
+        [Tooltip("Render texture-mode terrain grass (DetailRenderMode.Grass / GrassBillboard) through BRG. When enabled, the grass shader is serialized into this config so it ships in builds.")]
+        public bool allowTextureGrass = false;
+
+        [SerializeField, HideInInspector] private Shader _textureGrassShader;
+
+        public Shader TextureGrassShader => _textureGrassShader;
+#endif
+
+#if UNITY_EDITOR
+        [Tooltip("Enable click-to-select terrain trees in the scene view. Spawns a temporary proxy GameObject for transform editing.")]
+        public bool enableTerrainTreeSelection = true;
+#endif
+
+        [Header("LOD & Crossfade")]
+        [Tooltip("Number of shadow cascades that use crossfade. 0 = disabled (no crossfade), 1 = cascade 0 only, 2 = cascades 0-1, 4 = all cascades. Can be overridden per-prototype.")]
+        [Range(0, 4)]
+        public int maxShadowCrossfadeCascade = 4;
+
+        public bool debugDisableCrossfade = false;
+
+        [Tooltip("PerPrototype: All instances of a prototype fade in lockstep using a global cycle timer. Matches Default Unity Behavior." +
+                 "\n\nPerInstance: Each instance manages and tracks its own fade state independently.")]
+        public AnimatedCrossfadeMode animatedCrossfadeMode = AnimatedCrossfadeMode.PerPrototype;
+
+        [Tooltip("Default animated crossfade duration in seconds. Can be overridden per-prototype via GPUBatcherPrototypeExtraData.")]
+        public float defaultAnimatedCrossfadeDuration = 0.3f;
+        public bool skipIntermediateLODs = true;
+
+#if DEBUG
+        [Header("Debug")]
+        public bool enableDebugLogging = false;
+#endif
+        [Tooltip("Mark all chunks visible, skip CPU frustum/distance culling. GPU CullChunks still runs.")]
+        public bool debugDisableCPUChunkCulling = false;
+        [Tooltip("Skip all GPU culling dispatches and reuse the previous frame's visibility/indirect args. Useful for isolating CPU vs GPU cost.")]
+        public bool debugDisableCulling = false;
+        [Tooltip("Skip BRG rendering entirely (OnPerformCulling returns empty). GPU culling still runs. Useful for profiling culling cost without draw overhead.")]
+        public bool debugDisableRendering = false;
+        [Tooltip("Draw chunk bounds as gizmos when a registerer is selected in the scene view.")]
+        public bool showChunkBounds = false;
+#if UNITY_EDITOR
+        // session-only: survives domain reloads, resets on editor restart
+        public bool debugDrawBoundingSpheres
+        {
+            get => UnityEditor.SessionState.GetBool("FraxinusGPUBatcher_DrawBoundingSpheres", false);
+            set => UnityEditor.SessionState.SetBool("FraxinusGPUBatcher_DrawBoundingSpheres", value);
+        }
+
+        public bool debugVisualizeCullingInSceneView
+        {
+            get => UnityEditor.SessionState.GetBool("FraxinusGPUBatcher_VisualizeCullingInSceneView", false);
+            set => UnityEditor.SessionState.SetBool("FraxinusGPUBatcher_VisualizeCullingInSceneView", value);
+        }
+
+        // set by HDRP patcher or URP injector on domain reload - indicates pass 1 retest is available
+        public static bool HZBRetestPassCompatible
+        {
+            get => UnityEditor.SessionState.GetBool("FraxinusGPUBatcher_HZBRetestPassCompatible", false);
+            set => UnityEditor.SessionState.SetBool("FraxinusGPUBatcher_HZBRetestPassCompatible", value);
+        }
+
+        [Tooltip("Defer pool frees until after FlushStagedUploads. Prevents freed pools from being reused before staged overrides flush.")]
+        public bool debugDeferPoolFrees = false;
+
+        public bool debugValidateUploads
+        {
+            get => UnityEditor.SessionState.GetBool("FraxinusGPUBatcher_ValidateUploads", false);
+            set => UnityEditor.SessionState.SetBool("FraxinusGPUBatcher_ValidateUploads", value);
+        }
+#endif
+
+        // gathered allocations, records peak usage for sizing
+#if UNITY_EDITOR
+        [Header("Gathered Allocations")]
+        [Tooltip("Record peak allocation sizes during play mode.")]
+        public bool recordAllocations = false;
+
+        [Tooltip("Peak chunk slot count observed during runtime.")]
+        public int gatheredMaxChunks;
+
+        [Tooltip("Peak pool count observed during runtime.")]
+        public int gatheredPoolCapacity;
+
+        [Tooltip("Peak total instance count observed during runtime.")]
+        public int gatheredMaxInstances;
+
+        public void CopyGatheredToInitial(float padding = 1f)
+        {
+            if (gatheredMaxChunks > 0)
+                initialChunkCount = (int)(gatheredMaxChunks * padding);
+            if (gatheredPoolCapacity > 0)
+                initialPoolCapacity = (int)(gatheredPoolCapacity * padding);
+        }
+
+        public void ClearGatheredData()
+        {
+            gatheredMaxChunks = 0;
+            gatheredPoolCapacity = 0;
+            gatheredMaxInstances = 0;
+        }
+#endif
+
+        public static string FormatBytes(long bytes)
+        {
+            if (bytes < 1024) return $"{bytes} B";
+            if (bytes < 1024 * 1024) return $"{bytes / 1024f:F1} KB";
+            if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024f * 1024f):F2} MB";
+            return $"{bytes / (1024f * 1024f * 1024f):F2} GB";
+        }
+
+#if UNITY_EDITOR
+        public void RecordHighWaterMarks(int chunkCount, int poolCount, int instanceCount)
+        {
+            bool dirty = false;
+            if (chunkCount > gatheredMaxChunks) { gatheredMaxChunks = chunkCount; dirty = true; }
+            if (poolCount > gatheredPoolCapacity) { gatheredPoolCapacity = poolCount; dirty = true; }
+            if (instanceCount > gatheredMaxInstances) { gatheredMaxInstances = instanceCount; dirty = true; }
+            if (dirty) UnityEditor.EditorUtility.SetDirty(this);
+        }
+#endif
+    }
+}

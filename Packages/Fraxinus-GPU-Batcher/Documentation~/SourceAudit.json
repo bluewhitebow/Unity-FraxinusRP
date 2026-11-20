@@ -1,0 +1,641 @@
+{
+  "source": "D:\\Unity\\BRGInstance\\Assets\\BRGInstancedRenderer",
+  "target": "D:\\Unity\\Duckov-Recovered\\ExportedProject\\Packages\\com.bluewhitebow.fraxinus-gpu-batcher",
+  "scope": "Explicit identifier/package renames and asset GUID remapping; comments/whitespace ignored. Changed tokens and excluded reference integrations are NOT evidence of equivalence.",
+  "files": [
+    {
+      "source": "Editor/Scripts/BRGCameraSettingsEditor.cs",
+      "target": "Editor/GPUBatcherCameraSettingsEditor.cs",
+      "source_sha256": "0a63229f25c7b4952d547bb550a5583da94dddda6185f5c1f40e2fca54cfe636",
+      "target_sha256": "8c5d04018e5360c00f28a92f5f6f1d5605fc63a84d2c0dd7bdbebf133105eb9d",
+      "status": "changed",
+      "diff": "Editor/GPUBatcherCameraSettingsEditor.cs.diff"
+    },
+    {
+      "source": "Editor/Scripts/BRGEditorIntegration.cs",
+      "target": "Editor/GPUBatcherEditorIntegration.cs",
+      "source_sha256": "8b70651a4d5cc7454964ba3b8429e4d6f2f0af1f1295db7af2e597a102b2629d",
+      "target_sha256": "5a04babc6affb8980b290ba10a3220e40d0ec2a90f4541821eac0531e0792adf",
+      "status": "changed",
+      "diff": "Editor/GPUBatcherEditorIntegration.cs.diff"
+    },
+    {
+      "source": "Editor/Scripts/BRGGameObjectGroupEditor.cs",
+      "target": "Editor/GPUBatcherGameObjectGroupEditor.cs",
+      "source_sha256": "98ec8a02b7cd50f5b02c8a1cdb2777fd653797f9cec444ce0e9fc269442cb2bc",
+      "target_sha256": "85c6b9480c969dc852357772e0a0847908aa4c199770e74c2b72c1f5bfbcf9eb",
+      "status": "changed",
+      "diff": "Editor/GPUBatcherGameObjectGroupEditor.cs.diff"
+    },
+    {
+      "source": "Editor/Scripts/BRGGameObjectLinkEditor.cs",
+      "target": "Editor/GPUBatcherGameObjectLinkEditor.cs",
+      "source_sha256": "45de0277fd0db1aef42c6ea64f63a264a7ccad1df6c412822d1aa908a60c9f4d",
+      "target_sha256": "3a64445f232c04771f51dbea448305d6fc4aaf08a6f74004f121ea087f6840fb",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Editor/Scripts/BRGInspectorGUI.cs",
+      "target": "Editor/GPUBatcherInspectorGUI.cs",
+      "source_sha256": "5ebd460fcda43e5e8bde9a392412fe36f6a0ca738e3d1ea7b0289b47c5f8b378",
+      "target_sha256": "12cbba0f2a70d221abc8d95f754d04831bcf7ed9ae5e3b955ae6c668e23b55a3",
+      "status": "changed",
+      "diff": "Editor/GPUBatcherInspectorGUI.cs.diff"
+    },
+    {
+      "source": "Editor/Scripts/BRGInstancedRendererConfigEditor.cs",
+      "target": "Editor/GPUBatcherConfigEditor.cs",
+      "source_sha256": "89308c313c814a109a22caf140b71bc65f53dbf7e9ad5b6cb58b150260ccc78e",
+      "target_sha256": "30aa29157cb18b0fe9b2452feef875b56c2ee89ff705e364fe3391b395b53050",
+      "status": "changed",
+      "diff": "Editor/GPUBatcherConfigEditor.cs.diff"
+    },
+    {
+      "source": "Editor/Scripts/BRGInstancedRendererWindow.cs",
+      "target": "Editor/GPUBatcherRendererWindow.cs",
+      "source_sha256": "9b9add27b7139a287252220632c85b0b1df91d59ea0d8e036c734d76cf687c3a",
+      "target_sha256": "6573321b173a87b4bcaf64f1d212af4e8352f8a60141d44b5dee0f225ea9af8b",
+      "status": "changed",
+      "diff": "Editor/GPUBatcherRendererWindow.cs.diff"
+    },
+    {
+      "source": "Editor/Scripts/BRGMeshLodDataEditor.cs",
+      "target": "Editor/GPUBatcherMeshLodDataEditor.cs",
+      "source_sha256": "722460767cdc2e794bde1732d8ab28596fad4349b6c7f7c483adcf28289c2d83",
+      "target_sha256": "c96cf7a9a2c689cd88a972ea09079d084566e755c9f8c35091eca75adacd9249",
+      "status": "changed",
+      "diff": "Editor/GPUBatcherMeshLodDataEditor.cs.diff"
+    },
+    {
+      "source": "Editor/Scripts/BRGPrefabPostprocessor.cs",
+      "target": "Editor/GPUBatcherPrefabPostprocessor.cs",
+      "source_sha256": "41d228ee57af921f4e1cd47bfc6206f40e4ad98ea0198dd2a7e2373f8d5c1549",
+      "target_sha256": "fdcfae4138e5f0d85e3cfb51f410aed997c68ccc763b6763c750dd78bc9304b5",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Editor/Scripts/BRGPrototypeExtraDataEditor.cs",
+      "target": "Editor/GPUBatcherPrototypeExtraDataEditor.cs",
+      "source_sha256": "b90f240c6bbc2c6aaa84f7036478dc8c2a352c7959a3eaae14bcdb6792742126",
+      "target_sha256": "721b71464bdd23cc75adefb93ab71b7d54bd0112a71327eeefdbaa1537da2d6a",
+      "status": "changed",
+      "diff": "Editor/GPUBatcherPrototypeExtraDataEditor.cs.diff"
+    },
+    {
+      "source": "Editor/Scripts/BRGTerrainDetailOverrideEditor.cs",
+      "target": "Editor/GPUBatcherTerrainDetailOverrideEditor.cs",
+      "source_sha256": "6d8d86ef5b25505b19efcb0109557d7fbaf8bb28f09aecc1dd5496d3c17045a3",
+      "target_sha256": "7aac5a11a951215ab7d7fe01c6dade8bdfdd8405c9f64903c10e8482b92a314d",
+      "status": "changed",
+      "diff": "Editor/GPUBatcherTerrainDetailOverrideEditor.cs.diff"
+    },
+    {
+      "source": "Editor/Scripts/BRGTextureGrassShaderGate.cs",
+      "target": null,
+      "source_sha256": "4dad0b2f1518f07495f541882649b77944e482e2e53b4f9f4c93510906d1da1d",
+      "status": "excluded_pipeline_patcher_or_integration"
+    },
+    {
+      "source": "Editor/Scripts/HDRP/HDRPCrossfadePatcher.cs",
+      "target": null,
+      "source_sha256": "1aada65bc5af4d04522460804bcbea121cf31650a5e55543aedc0dfb301d12df",
+      "status": "excluded_pipeline_patcher_or_integration"
+    },
+    {
+      "source": "Editor/Scripts/HDRP/HDRPDepthPrepassPatcher.cs",
+      "target": null,
+      "source_sha256": "b2ac2bf146a82374cb9943429a121d3cd66101819c9b02011da77a23363bab1d",
+      "status": "excluded_pipeline_patcher_or_integration"
+    },
+    {
+      "source": "Editor/Scripts/Registerers/BRGInstanceGroupEditor.cs",
+      "target": "Editor/Registerers/GPUBatcherInstanceGroupEditor.cs",
+      "source_sha256": "e29832435a313bfc638b818acf1dddf7b69b8fdb30b0a30ab76a980839fa187b",
+      "target_sha256": "1711519da576c1b09cad17abf825f9b051b46054d48006845eebd6ab7ca7853a",
+      "status": "changed",
+      "diff": "Editor/Registerers/GPUBatcherInstanceGroupEditor.cs.diff"
+    },
+    {
+      "source": "Editor/Scripts/Registerers/TerrainBRGRegistererEditor.cs",
+      "target": "Editor/Registerers/TerrainGPUBatcherRegistererEditor.cs",
+      "source_sha256": "b1a181a19443bad86e9d91897e2dd01fd2f66f82966d43ddfcb69611345b979f",
+      "target_sha256": "8f882451b9527858d118002f04fde25df909fddb2c7b89a92ef2d0eecb8f950c",
+      "status": "changed",
+      "diff": "Editor/Registerers/TerrainGPUBatcherRegistererEditor.cs.diff"
+    },
+    {
+      "source": "Editor/Scripts/Tools/ConvertToTerrainPrefab.cs",
+      "target": "Editor/Tools/ConvertToTerrainPrefab.cs",
+      "source_sha256": "6b14ab837b22bcf00e12263f6f39d70dd5c03409267c2b69d36017f7bf57a17f",
+      "target_sha256": "bf82b95cb471c479070ea1bd345df11359787cb3d6c2217649cc9b6a84e13f21",
+      "status": "changed",
+      "diff": "Editor/Tools/ConvertToTerrainPrefab.cs.diff"
+    },
+    {
+      "source": "Editor/Scripts/Tools/TerrainTreeSelector.cs",
+      "target": "Editor/Tools/TerrainTreeSelector.cs",
+      "source_sha256": "d4d1f3f44d932f7f36369bbb708bcd9e4bd8c65b18a826dbfc88962e8ec1929b",
+      "target_sha256": "1a183d025c9c16f20c041736e2f928f232694edb047c8481f33fa2a56aab3182",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Editor/Scripts/URP/URPMobileIndirectFixPatcher.cs",
+      "target": null,
+      "source_sha256": "1e98f75c4eae0b38c13d174dd792573d81870b04ffd3250293afecfa83da4903",
+      "status": "excluded_pipeline_patcher_or_integration"
+    },
+    {
+      "source": "Editor/Shaders/BRGDebugBoundingSphere.compute",
+      "target": "Editor/Shaders/GPUBatcherDebugBoundingSphere.compute",
+      "source_sha256": "785f20d5efa1efc6ddd9895ecaefe90fa4938b3544372cd9f5c644a9d01dd543",
+      "target_sha256": "785f20d5efa1efc6ddd9895ecaefe90fa4938b3544372cd9f5c644a9d01dd543",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Editor/Shaders/DebugBoundingSphere.shadergraph",
+      "target": "Editor/Shaders/DebugBoundingSphere.shader",
+      "source_sha256": "052fd87be12bd6bbec45d0419e448a8c0c50957cdf31144da375558a5cc5390a",
+      "target_sha256": "8a1ce635e7b38ca58bf81291f705e38e13494d86040a7fbbdc6ef882ede9314b",
+      "status": "changed",
+      "diff": "Editor/Shaders/DebugBoundingSphere.shadergraph.diff"
+    },
+    {
+      "source": "Editor/Shaders/DrawBoundsDebug.hlsl",
+      "target": "Editor/Shaders/DrawBoundsDebug.hlsl",
+      "source_sha256": "ef72eee1e62f97c5be88ca761d07d12a8856fa08bf507520b02b835fb9e5b3ab",
+      "target_sha256": "aba2b55f3e211da7bcb5e68e55bfd2e1ed90537928f7f3e2429b0a3ca7cf400c",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/AssemblyInfo.cs",
+      "target": "Runtime/GPUBatcherVersion.cs",
+      "source_sha256": "f957ca7216c129dfa03f3763c30b0c593c29368b9417715fbc7f43b9260dc2d9",
+      "target_sha256": "a058069bc025eacbf9d39d2604cd6097b65336baa870cbe23f45440a31c4bbfb",
+      "status": "changed",
+      "diff": "Runtime/GPUBatcherVersion.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Config/BRGCameraSettings.cs",
+      "target": "Runtime/Config/GPUBatcherCameraSettings.cs",
+      "source_sha256": "53d3a1cbb199c58a9ba66a52113dd956f464cdc8d698625b290841280bd6034d",
+      "target_sha256": "abe50ffaafe1d5aad8566c28ac22498c29cd8d63063f12be0d2f5ac23bfc1eac",
+      "status": "changed",
+      "diff": "Runtime/Config/GPUBatcherCameraSettings.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Config/BRGInstancedRendererConfig.cs",
+      "target": "Runtime/Config/GPUBatcherConfig.cs",
+      "source_sha256": "700a484e4f4a0919a8edefbb384156e5a4d3d8a561dee1586d1459c5d5fe09f6",
+      "target_sha256": "18ea03948b6f8f542263660e8f0746c7b6fbd6716fb65018704a02486939d971",
+      "status": "changed",
+      "diff": "Runtime/Config/GPUBatcherConfig.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Config/BRGMeshLodData.cs",
+      "target": "Runtime/Config/GPUBatcherMeshLodData.cs",
+      "source_sha256": "d83852c788cbefd716040c062eceb11ff222b36fe63eea47e6051e31e37859a7",
+      "target_sha256": "f95e249adc0990a495ebe43ec131594c0732c3d660b4428ade5a4a8987578439",
+      "status": "changed",
+      "diff": "Runtime/Config/GPUBatcherMeshLodData.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Config/BRGPrototypeExtraData.cs",
+      "target": "Runtime/Config/GPUBatcherPrototypeExtraData.cs",
+      "source_sha256": "dec69c5a9203a5aec411cb0d92ae0a7d03d25c594bfc1ed76cdc4577b64e4451",
+      "target_sha256": "8f326f4c28c845a6f37492fc98126ae992774f7c8f8591dac05c93358421b2e8",
+      "status": "changed",
+      "diff": "Runtime/Config/GPUBatcherPrototypeExtraData.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Config/BRGPrototypeGroup.cs",
+      "target": "Runtime/Config/GPUBatcherPrototypeGroup.cs",
+      "source_sha256": "e38d3aaa6d126c9a7946c713cefae2a08b06c2b383b551ea03079955d08371be",
+      "target_sha256": "65a0be90e5d068b46e3478703db2c70e55253ce045cb3053c5c7fc4fc0dcc633",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Core/BRGInstancedRenderer.Batches.cs",
+      "target": "Runtime/Core/GPUBatcherRenderer.Batches.cs",
+      "source_sha256": "0cfbeed90dce54b37e38673bfa754f597e4db656a7fbfb2c8abbfbe9d12d80ff",
+      "target_sha256": "025e9988435d28f792ca086ec7a0b2acb6627840de808ee0aa0dc4fcc9a04ed4",
+      "status": "changed",
+      "diff": "Runtime/Core/GPUBatcherRenderer.Batches.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Core/BRGInstancedRenderer.Chunks.cs",
+      "target": "Runtime/Core/GPUBatcherRenderer.Chunks.cs",
+      "source_sha256": "a54f748a6b1d20cac72777f1901fadb9f3f47aab0f9df4ffdb9eeb4fc0eafb32",
+      "target_sha256": "3bb8b9ef42cf1065a2bb70016844c8e44d353849e43a29ed76675a6ac3ed4f5e",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Core/BRGInstancedRenderer.cs",
+      "target": "Runtime/Core/GPUBatcherRenderer.cs",
+      "source_sha256": "4e6ae638200f1679bc7b864c0ea740716f890d22714935f9f8101e17d1d5a41c",
+      "target_sha256": "786887784086a6d74d613bab08526d04cc4626ff1be5568e39545fef7eb03057",
+      "status": "changed",
+      "diff": "Runtime/Core/GPUBatcherRenderer.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Core/BRGInstancedRenderer.Culling.cs",
+      "target": "Runtime/Core/GPUBatcherRenderer.Culling.cs",
+      "source_sha256": "ae1efe070d4b0792cafdf1b7b932421ae48dddcc5ce80552041720421198906b",
+      "target_sha256": "e3db832bf148f7e7ab736648f066e7cb37afdcd4cbd1b5a41a721814426b1b2d",
+      "status": "changed",
+      "diff": "Runtime/Core/GPUBatcherRenderer.Culling.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Core/BRGInstancedRenderer.Debug.cs",
+      "target": "Runtime/Core/GPUBatcherRenderer.Debug.cs",
+      "source_sha256": "f0bdcf93c3d0a84592500807a3b1b47e7ef77da0e45424514611e4ceaafb637c",
+      "target_sha256": "d97124f4de24e53a640040c1edd975ca53088bd80140b13e7338118a24121692",
+      "status": "changed",
+      "diff": "Runtime/Core/GPUBatcherRenderer.Debug.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Core/BRGInstancedRenderer.HZB.cs",
+      "target": "Runtime/Core/GPUBatcherRenderer.HZB.cs",
+      "source_sha256": "30932683814b06b93b793d9d9ef2b6a122ff3c2e3d271355fbcbb4fda8fefd3e",
+      "target_sha256": "ed4cbd46789f7f732bd7a247ccb1856aee99622538e466edeb458a07815e4887",
+      "status": "changed",
+      "diff": "Runtime/Core/GPUBatcherRenderer.HZB.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Core/BRGInstancedRenderer.Prototypes.cs",
+      "target": "Runtime/Core/GPUBatcherRenderer.Prototypes.cs",
+      "source_sha256": "88c63889b9447de995ae2fecf876f4a63c9b0b9e9962ef1e2791becbc3777e72",
+      "target_sha256": "97ca28090581e1e040cf7bdb7cd6b8cb3177fbdf4d5837dbfcb8cfe3245f120f",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Core/BRGInstancedRenderer.SpeedTree.cs",
+      "target": "Runtime/Core/GPUBatcherRenderer.SpeedTree.cs",
+      "source_sha256": "3c8cf6fd929560190659932c28908f8621812582e3cdbe8d8e57cd306558c2b6",
+      "target_sha256": "c91a966adbdeb1624f20398652ba356d7091c7849fb3fe4ea646c5facba0a7b6",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Core/BRGInstancedRenderer.Upload.cs",
+      "target": "Runtime/Core/GPUBatcherRenderer.Upload.cs",
+      "source_sha256": "10783819e0decd23702749d16748ae9064b82874ddd3f07d5f9e730654591cb9",
+      "target_sha256": "c80e7cd52ea01bac8d539eb903b7b06fe9318e48f7df8ee966f2442dc79342de",
+      "status": "changed",
+      "diff": "Runtime/Core/GPUBatcherRenderer.Upload.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Core/BRGLightProbes.cs",
+      "target": "Runtime/Core/GPUBatcherLightProbes.cs",
+      "source_sha256": "083f8aaf8d2d4bd46b75bf833dbdff774f892f3cced954378b9814131924f1f0",
+      "target_sha256": "813c8359d7581ae89a9f443b445825365e18561fe1ec0c6a95f7b0ecbbbb2204",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Core/BRGRenderGraphPasses.cs",
+      "target": "Runtime/Integration/GPUBatcherRenderGraphPasses.cs",
+      "source_sha256": "6478dfbf7fa5e5e19f194df4d991286dc506e1a20f6c4151d6165b14c23aced3",
+      "target_sha256": "39ca819efba611603b20c322801eed9aa3bd9703232c358a756ce6722e6fe2c6",
+      "status": "changed",
+      "diff": "Runtime/Integration/GPUBatcherRenderGraphPasses.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Core/Compute/BRG_Common.hlsl",
+      "target": "Runtime/Core/Compute/GPUBatcher_Common.hlsl",
+      "source_sha256": "78401c7437e648b6e1c37f0a4af1025010a3429f59816eb40037fc6bac7618c1",
+      "target_sha256": "89c58b4037bc407bbc700495173f8612058cd8c68e0e54309394bba4fc16c956",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Core/Compute/BRG_Culling.compute",
+      "target": "Runtime/Core/Compute/GPUBatcher_Culling.compute",
+      "source_sha256": "3a32968352706e8046d6ca4b3a36724feabf100f2b014239846160b2227194eb",
+      "target_sha256": "7bf8eecf0a74e48413ac2d2dc834f14f2083582f1f036028619d064156054f1b",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Core/Compute/BRG_HZB.hlsl",
+      "target": "Runtime/Core/Compute/GPUBatcher_HZB.hlsl",
+      "source_sha256": "59f9c6732ecc64a14afdc5668c7c634d7e8610b70ca46621042129dcfd437007",
+      "target_sha256": "c8190be0dc7da076131bdfde3c02cf8f211a027af8abc60304c5657f2e150fe3",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Core/Compute/BRG_HZBGeneration.compute",
+      "target": "Runtime/Core/Compute/GPUBatcher_HZBGeneration.compute",
+      "source_sha256": "030bc5595e64bcdec56ba5e7c07f80812b59af295c735f07f8eceedeb03027e7",
+      "target_sha256": "04a58dd558727a37731942c047350a17a03e69f846edc5489d7ea8f0c02719f6",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Core/Compute/BRG_Upload.compute",
+      "target": "Runtime/Core/Compute/GPUBatcher_Upload.compute",
+      "source_sha256": "5d2c43a4cb014ec38845e7ba16011e3f081080ffb19762d60bee49d74940a444",
+      "target_sha256": "484f61a8ea617a3424a775495684f6a7e474c78e01618263514197a863a63c26",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Core/DataStructures.cs",
+      "target": "Runtime/Core/DataStructures.cs",
+      "source_sha256": "34b1812e7adb3442071450004096477a395c4af7be3a2b6702944fa8f79d5331",
+      "target_sha256": "b66d6e6056d8c794d1d3e6278b69ad9b0b953ac8eee14cb1e973b90d3bd22840",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Core/GPUDrivenBridge/BRGChangeTracker.cs",
+      "target": "Runtime/Integration/GPUBatcherChangeTracker.cs",
+      "source_sha256": "79e6fdf8f74e497c6af7722859328c9b1cdf050a63ce91687a8031e5b997633c",
+      "target_sha256": "8b982b47558426b8f89c3095226c45bc7b593f4629f61c02ca172263b24b57b3",
+      "status": "changed",
+      "diff": "Runtime/Integration/GPUBatcherChangeTracker.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Core/GPUDrivenBridge/BRGHZBBridge.cs",
+      "target": "Runtime/Integration/GPUBatcherHZBBridge.cs",
+      "source_sha256": "ad6fcbb03305a331a1af630180ebea87f2bc0d6361d9e39d4cc59c8b24c0f648",
+      "target_sha256": "f4c3306ab38845053b2805a715ee384422a157da59ed312c8815d65f5de0f44d",
+      "status": "changed",
+      "diff": "Runtime/Integration/GPUBatcherHZBBridge.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Core/GPUDrivenBridge/BRGOcclusionBridge.cs",
+      "target": "Runtime/Integration/GPUBatcherOcclusionBridge.cs",
+      "source_sha256": "54921281f71e94bbbcded6deb931b498e902a9f0868ed87887748a453a72c2d0",
+      "target_sha256": "658bf5d60d11d715ca15de6749b4f09ace5bf2952d3fe601e1c000cc780233d3",
+      "status": "changed",
+      "diff": "Runtime/Integration/GPUBatcherOcclusionBridge.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Core/GPUDrivenBridge/BRGSpeedTreeWindBridge.cs",
+      "target": "Runtime/Integration/GPUBatcherSpeedTreeWindBridge.cs",
+      "source_sha256": "25bd504f32a4e59515d27e67e71f06afc14981027047c9169a9607b7375d0d0a",
+      "target_sha256": "d94ee8d871d96b7daea19d5a924d0602e6ee03c7497640e0e21d6a6077b76c91",
+      "status": "changed",
+      "diff": "Runtime/Integration/GPUBatcherSpeedTreeWindBridge.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Core/HDRP/BRGCullingInjectorHDRP.cs",
+      "target": null,
+      "source_sha256": "00658d144a02a9f5801be8ca4387bebf846c9d600a6f9a5475c0320b20e1b43c",
+      "status": "excluded_pipeline_patcher_or_integration"
+    },
+    {
+      "source": "Runtime/Scripts/Core/MeshCombineCache.cs",
+      "target": "Runtime/Core/MeshCombineCache.cs",
+      "source_sha256": "5aedab80af296f3268ff8a4a33393a4d388ef64d4d048686f5641fe8da5d9546",
+      "target_sha256": "3c4ac604c1bc38fe282a682b70339ed40a986ea040c953db63fe8b4642c1b3b3",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Core/URP/BRGCullingInjector.cs",
+      "target": "Runtime/Integration/GPUBatcherCullingInjector.cs",
+      "source_sha256": "96b557f14d79edc7c3083cab266b04078ecbb4393354efbd4546992a21a1f312",
+      "target_sha256": "bba88ccf718d71beb9c21cfa5f19dec1d2eee2854048be46954c1bde387c20c0",
+      "status": "changed",
+      "diff": "Runtime/Integration/GPUBatcherCullingInjector.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/Baked/BRGChunkBuilder.cs",
+      "target": "Runtime/Registration/Baked/GPUBatcherChunkBuilder.cs",
+      "source_sha256": "3e2b0d7f9671a9926397e839ebf285ed39fe1cc15db01a6908805b9e9154bbdf",
+      "target_sha256": "e9bcc692e6936ba424c2959dd8e16295cabc604f32ea2891138225810fd19f20",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/Baked/BRGInstanceGroup.Bake.cs",
+      "target": "Runtime/Registration/Baked/GPUBatcherInstanceGroup.Bake.cs",
+      "source_sha256": "462bf0100e3dfb0dc7cfed65b6a4959acd64e0bbd49c9515b01f0afc4f6e0277",
+      "target_sha256": "2339fda2265ea7d0f759773398932430f464280d829f495f1aab36d8de6a66d6",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/Baked/BRGInstanceGroup.cs",
+      "target": "Runtime/Registration/Baked/GPUBatcherInstanceGroup.cs",
+      "source_sha256": "5a5f9b94beca767e339dd9b69157e3262502ef45c6ae786601961a6318245ec8",
+      "target_sha256": "69ab38a54da0f726e1434e9ea09aa67209e42be2b97acd23bc170dfd7f3b8945",
+      "status": "changed",
+      "diff": "Runtime/Registration/Baked/GPUBatcherInstanceGroup.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/BRGRegisterer.cs",
+      "target": "Runtime/Registration/GPUBatcherRegisterer.cs",
+      "source_sha256": "38c7d1e87bc0378864ddca43ca8249aebca83d175ae33c1a807d022b9a9a6532",
+      "target_sha256": "eff945c0be5ded35b6e8ed7165cf0e69193c8f59adc28c1a5b24a6ca4688e9ca",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/BRGRegistrationTracker.cs",
+      "target": "Runtime/Registration/GPUBatcherRegistrationTracker.cs",
+      "source_sha256": "2e15fab51248c274d718c41f2ae613d1c6578417b355961687343e7c0fb2091b",
+      "target_sha256": "4f44d294717bb93f1a1023a853b611a529a10c150bd33988b2d1ecdf75768f5a",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/GameObjects/BRGGameObjectGroup.cs",
+      "target": "Runtime/Registration/GameObjects/GPUBatcherGameObjectGroup.cs",
+      "source_sha256": "fb963cb8fc6b9aaa44c150e9669bd3a783cc5281cc60efb9183b1fb970166b49",
+      "target_sha256": "c36da420690a2582ae061cba7fd85e71c7b21d4977d6685f8de6d05670941872",
+      "status": "changed",
+      "diff": "Runtime/Registration/GameObjects/GPUBatcherGameObjectGroup.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/GameObjects/BRGGameObjectLink.cs",
+      "target": "Runtime/Registration/GameObjects/GPUBatcherGameObjectLink.cs",
+      "source_sha256": "f5b3c8ae2d14421158330e125892455e361762b1c275688921a3b3c15a14c24d",
+      "target_sha256": "9adc0f61a059bd1eb00876143a16460b2d465cc9cdd67257a8d1f7bfa16cf6bc",
+      "status": "changed",
+      "diff": "Runtime/Registration/GameObjects/GPUBatcherGameObjectLink.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/Terrain/BRGTerrainDetailOverride.cs",
+      "target": "Runtime/Registration/Terrain/GPUBatcherTerrainDetailOverride.cs",
+      "source_sha256": "1f589624c4fcd6865f178ffb2ec01c95ab6d408f1f7c200eb763988b780c9d63",
+      "target_sha256": "0dea13d971fb3a59acb6748ad41e8a064c7d7a287ef8cd2ac52ce71c37a8368a",
+      "status": "changed",
+      "diff": "Runtime/Registration/Terrain/GPUBatcherTerrainDetailOverride.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/Terrain/DetailExtractionJob.cs",
+      "target": "Runtime/Registration/Terrain/DetailExtractionJob.cs",
+      "source_sha256": "8a453c6401f986b797b223e986fe44f7a0952e29fedbac0837c26cc98e29ab63",
+      "target_sha256": "cfdb09df5a80e448fd465a16d31db9783a1d2bdf57facf7ffb0b93afed672ff7",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.cs",
+      "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.cs",
+      "source_sha256": "3101eb4bb8d50100c2742adc37356b5cb4f5063900d61369e17bcbee270e8152",
+      "target_sha256": "1f45885654d2fbf201099a156cd5f30b3cfa38a6e6dc7b9c2216a5ff926e88cc",
+      "status": "changed",
+      "diff": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.cs.diff"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.Details.cs",
+      "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.Details.cs",
+      "source_sha256": "cdf0c1fe9f9f5f21e8d07f5979718bd4d47e4812c67473e284c6b251901a245a",
+      "target_sha256": "959db6f27d383684db505aa7d2ff3caacc8584f40c283e304a6165e22b77f655",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.Details.Editor.cs",
+      "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.Details.Editor.cs",
+      "source_sha256": "d1a561f3359aced372cb254573762875320474cd546a32d7168bde280852c9d6",
+      "target_sha256": "043ee6ac023d2b24f42573f2ba3ca033f74e9c51bba9917e67c5da914f5f45eb",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.Details.Extraction.cs",
+      "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.Details.Extraction.cs",
+      "source_sha256": "ead343ff54b922fc90eca6e6885fb8d9d59a0b070bee59327c16601498586a86",
+      "target_sha256": "223e351136b1820f16d53d1ff2fa01223ed7fdd3244bedebf32df93c1dadf90f",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.Details.TextureGrass.cs",
+      "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.Details.TextureGrass.cs",
+      "source_sha256": "748558eabe65aecb6bed54060e7fdcdd647c036177fb497027e28ab38e983095",
+      "target_sha256": "5150e81bf3429512887e7044dc1a2cc77b3a38c5177a6ffc77af76c1ef66e37a",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.Editor.cs",
+      "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.Editor.cs",
+      "source_sha256": "1159f36dcb5f9f8d215baa7f586006ba7499889efbf42f11a9a36bb99e522b72",
+      "target_sha256": "129f4a9d64a6ea3ffb6e34ec23e1886c2378cb6c977d38b3c5481933c2f78a2b",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.Trees.cs",
+      "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.Trees.cs",
+      "source_sha256": "73e77c11e09a78f65b7b0b9d0270f43c3d271a17a80d394ad4d0aa785873175c",
+      "target_sha256": "c4d0ff86e4c5b85237aa445c91e09cd9bfee3596bc5e067a55c36e579ef19f99",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.Trees.Editor.cs",
+      "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.Trees.Editor.cs",
+      "source_sha256": "85792c9023f6780cc311e646dd2b4865dfdf1d9d6805d760bf6dc0357d803f13",
+      "target_sha256": "4e7d5aeeb12385f609093d532269c6097f84b12ff4fd565e09961f8e66b5b3c6",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Shaders/BRGIRTerrainTextureGrass.hlsl",
+      "target": "Runtime/Shaders/FraxinusGPUBatcherTerrainTextureGrass.hlsl",
+      "source_sha256": "32ec0d7e821a8afd3bd9c3d36ca164395400308e6d992a67aaf5fccc9713994e",
+      "target_sha256": "3a6f70345820fe73edc000f2208d03384a3249e1eb4be4b1855f979de8114b25",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Shaders/BRGIRTerrainTextureGrass.shader",
+      "target": "Runtime/Shaders/FraxinusGPUBatcherTerrainTextureGrass.shader",
+      "source_sha256": "19fbd259527da38786c77f7b3f7ea541ded11608b1ac9095b5222c55fc3133a6",
+      "target_sha256": "5819de2c4a018b77906ecfa32707c4481ac3f9ffe24f0a89114820a122784efc",
+      "status": "changed",
+      "diff": "Runtime/Shaders/FraxinusGPUBatcherTerrainTextureGrass.shader.diff"
+    },
+    {
+      "source": "Runtime/Shaders/Subgraphs/BRG_ShaderFeatures.hlsl",
+      "target": "Runtime/Shaders/Subgraphs/GPUBatcher_ShaderFeatures.hlsl",
+      "source_sha256": "1d02af3c44a14f7c77aa2d6e27b886517baaa8010318bfd6a3c685f9ac197971",
+      "target_sha256": "1b95219343011754521cbc6dfd701251aecd82a2d3d0c0304d898e686c5bce10",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Shaders/Subgraphs/BRGIR_Color.shadersubgraph",
+      "target": "Runtime/Shaders/Subgraphs/FraxinusGPUBatcher_Color.shadersubgraph",
+      "source_sha256": "a515d8bcdb1b3a06459ea7950bb027b2cb62487e032d53a9bbefa1e81ed665f8",
+      "target_sha256": "92627aad41bbb39d01c6ccaf1cefb7fa0fc4f24fb261e8884e0c1fd42569c594",
+      "status": "renamed_tokens_equal"
+    },
+    {
+      "source": "Runtime/Shaders/Subgraphs/BRGIR_InstanceID.shadersubgraph",
+      "target": "Runtime/Shaders/Subgraphs/FraxinusGPUBatcher_InstanceID.shadersubgraph",
+      "source_sha256": "ad3393fe1ab4d624cc01dac6d027ce795f07cf878fe5cd21b6c943ad1f9499fd",
+      "target_sha256": "9b5ae1b9a4baa9691e73d6a8e38c6c66ca97e76b7a0a1aa9b1d76e54b459b170",
+      "status": "renamed_tokens_equal"
+    }
+  ],
+  "counts": {
+    "changed": 36,
+    "excluded_pipeline_patcher_or_integration": 5,
+    "renamed_tokens_equal": 33
+  },
+  "validation": {
+    "timestamp_utc": "2026-11-20T06:01:58.037107+00:00",
+    "unity_version": "2022.3.62f3",
+    "graphics_device": "Direct3D11",
+    "compile_report": "Library/GPUBatcherFramework/compile-20261120T055959286373Z/compile-results.json",
+    "compile_scopes": [
+      {
+        "assembly": "Unity.RenderPipelines.Universal.2D.Internal",
+        "android_conditionals": false,
+        "success": true,
+        "warnings": 0
+      },
+      {
+        "assembly": "Fraxinus.Runtime",
+        "android_conditionals": false,
+        "success": true,
+        "warnings": 27
+      },
+      {
+        "assembly": "Fraxinus.GPUBatcher.Runtime",
+        "android_conditionals": false,
+        "success": true,
+        "warnings": 3
+      },
+      {
+        "assembly": "Fraxinus.GPUBatcher.Editor",
+        "android_conditionals": false,
+        "success": true,
+        "warnings": 0
+      },
+      {
+        "assembly": "Unity.RenderPipelines.Universal.2D.Internal",
+        "android_conditionals": true,
+        "success": true,
+        "warnings": 0
+      },
+      {
+        "assembly": "Fraxinus.GPUBatcher.Runtime",
+        "android_conditionals": true,
+        "success": true,
+        "warnings": 14
+      }
+    ],
+    "compile_limit": "Android conditional compilation uses Editor dependency DLLs; no Player build.",
+    "shader_programs": 93,
+    "kernel_keyword_checks": 56,
+    "subgraphs": 2,
+    "runtime_checks": 11,
+    "native_checks": 5,
+    "culling": {
+      "success": true,
+      "unityVersion": "2022.3.62f3",
+      "graphicsDevice": "Direct3D11",
+      "error": "",
+      "scope": "Reference expectations for generated camera/shadow command flags, LOD/cascade counts, ranges and byte offsets; actual GPU finalization and readback of generated arguments. No native draw submission, full frustum/occlusion culling, or visual comparison.",
+      "cameraCommands": 9,
+      "shadowCommands": 6,
+      "gpuArgumentsChecked": 96
+    },
+    "hzb_assertions": 69,
+    "hzb_cases": 8,
+    "all_suites_passed": true,
+    "validated_code_matches_working_copy": true,
+    "equivalent_except_submission": false,
+    "remaining_native_gaps": [
+      "Requested indirect draw submission placeholder",
+      "SpeedTree current/history wind binding",
+      "Umbra context buffer and AABB query binding"
+    ],
+    "limitations": [
+      "No native indirect rendering or image/performance equivalence test",
+      "No full-scene multi-camera/shadow rendering or XR validation",
+      "Stereo HZB and MSAA array-depth resolving remain excluded; normal Fraxinus camera attachments force MSAA=1"
+    ],
+    "logs": [
+      "Library/GPUBatcherPort/Audit/unity-validation.log (shader suite passed; later behavior fixture failures corrected)",
+      "Library/GPUBatcherPort/Audit/unity-behavior-validation.log (runtime/native/culling suites passed; HZB fixture bootstrap corrected)",
+      "Library/GPUBatcherPort/Audit/unity-hzb-validation.log (HZB suite passed, exit 0)"
+    ]
+  }
+}

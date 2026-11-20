@@ -1,0 +1,164 @@
+// Copyright (c) 2026 Milk_Drinker01. All rights reserved.
+
+// HZB construction kernels
+
+#pragma use_dxc vulkan metal
+
+#pragma only_renderers d3d11 vulkan metal webgpu playstation xboxseries switch
+
+#pragma kernel HZBDownscaleSPD
+#pragma kernel HZBDownscaleTail
+
+
+#pragma multi_compile_local _ HZB_SOURCE_TEXARRAY
+
+#include "GPUBatcher_Common.hlsl"
+#include "GPUBatcher_HZB.hlsl"
+
+
+// HZB downscale: build atlas-based depth pyramid, min = farthest in reversed-Z
+
+// HDRP uses Texture2DArray for depth; URP uses Texture2D
+#ifdef HZB_SOURCE_TEXARRAY
+Texture2DArray<float> _HZBSource;
+SamplerState          sampler_HZBSource;
+#define GATHER_HZB_SOURCE(uv) _HZBSource.GatherRed(sampler_HZBSource, float3(uv, 0))
+#else
+Texture2D<float>      _HZBSource;
+SamplerState          sampler_HZBSource;
+#define GATHER_HZB_SOURCE(uv) _HZBSource.GatherRed(sampler_HZBSource, uv)
+#endif
+
+RWTexture2D<float> _HZBMipOut;
+int2 _HZBSourceSize;
+
+// single-pass downsampler, SPD pattern.
+// mips 0-4: each 16x16 workgroup reduces its tile via groupshared.
+// mips 5+: handled by tail kernel (separate dispatch).
+
+#define SPD_TILE 16
+#define SPD_THREADS (SPD_TILE * SPD_TILE)
+
+groupshared float s_spd[SPD_THREADS];
+
+[numthreads(SPD_TILE, SPD_TILE, 1)]
+void HZBDownscaleSPD(uint3 groupId : SV_GroupID, uint3 lid : SV_GroupThreadID)
+{
+    uint flatIdx = lid.y * SPD_TILE + lid.x;
+
+    // mip 0: each thread reduces 8x8 block from depth source via 16 GatherRed
+    uint2 mip0Coord = groupId.xy * SPD_TILE + lid.xy;
+    uint2 srcBase = mip0Coord * 8;
+    float2 invSrcSize = 1.0 / float2(_HZBSourceSize);
+
+    float d = 1.0;
+    [unroll] for (uint gy = 0; gy < 4; gy++)
+    [unroll] for (uint gx = 0; gx < 4; gx++)
+    {
+        float2 uv = (float2(srcBase) + float2(gx * 2 + 1, gy * 2 + 1)) * invSrcSize;
+        float4 g = GATHER_HZB_SOURCE(uv);
+        d = min(d, min(min(g.x, g.y), min(g.z, g.w)));
+    }
+
+    int4 bounds = _OccluderMipBounds[0];
+    if (mip0Coord.x < (uint)bounds.z && mip0Coord.y < (uint)bounds.w)
+        _HZBMipOut[mip0Coord + uint2(bounds.xy)] = d;
+
+    s_spd[flatIdx] = d;
+    GroupMemoryBarrierWithGroupSync();
+
+    // mip 1: 8x8 per group
+    if (lid.x < 8 && lid.y < 8)
+    {
+        uint b = (lid.y * 2) * SPD_TILE + lid.x * 2;
+        d = min(min(s_spd[b], s_spd[b + 1]), min(s_spd[b + SPD_TILE], s_spd[b + SPD_TILE + 1]));
+
+        bounds = _OccluderMipBounds[1];
+        uint2 mipCoord = groupId.xy * 8 + lid.xy;
+        if (mipCoord.x < (uint)bounds.z && mipCoord.y < (uint)bounds.w)
+            _HZBMipOut[mipCoord + uint2(bounds.xy)] = d;
+
+        s_spd[flatIdx] = d;
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    // mip 2: 4x4 per group
+    if (lid.x < 4 && lid.y < 4)
+    {
+        uint b = (lid.y * 2) * SPD_TILE + lid.x * 2;
+        d = min(min(s_spd[b], s_spd[b + 1]), min(s_spd[b + SPD_TILE], s_spd[b + SPD_TILE + 1]));
+
+        bounds = _OccluderMipBounds[2];
+        uint2 mipCoord = groupId.xy * 4 + lid.xy;
+        if (mipCoord.x < (uint)bounds.z && mipCoord.y < (uint)bounds.w)
+            _HZBMipOut[mipCoord + uint2(bounds.xy)] = d;
+
+        s_spd[flatIdx] = d;
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    // mip 3: 2x2 per group
+    if (lid.x < 2 && lid.y < 2)
+    {
+        uint b = (lid.y * 2) * SPD_TILE + lid.x * 2;
+        d = min(min(s_spd[b], s_spd[b + 1]), min(s_spd[b + SPD_TILE], s_spd[b + SPD_TILE + 1]));
+
+        bounds = _OccluderMipBounds[3];
+        uint2 mipCoord = groupId.xy * 2 + lid.xy;
+        if (mipCoord.x < (uint)bounds.z && mipCoord.y < (uint)bounds.w)
+            _HZBMipOut[mipCoord + uint2(bounds.xy)] = d;
+
+        s_spd[flatIdx] = d;
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    // mip 4: 1x1 per group
+    if (lid.x == 0 && lid.y == 0)
+    {
+        d = min(min(s_spd[0], s_spd[1]), min(s_spd[SPD_TILE], s_spd[SPD_TILE + 1]));
+
+        bounds = _OccluderMipBounds[4];
+        uint2 mipCoord = groupId.xy;
+        if (mipCoord.x < (uint)bounds.z && mipCoord.y < (uint)bounds.w)
+            _HZBMipOut[mipCoord + uint2(bounds.xy)] = d;
+    }
+}
+
+
+// tail kernel: reduces mips 5+ via sequential UAV reads (one dispatch, one workgroup)
+
+int _HZBTailStartMip;
+int _HZBTailMipCount;
+
+#define HZB_TAIL_THREADS 64
+
+[numthreads(HZB_TAIL_THREADS, 1, 1)]
+void HZBDownscaleTail(uint3 lid : SV_GroupThreadID)
+{
+    for (int mip = _HZBTailStartMip; mip < _HZBTailMipCount; mip++)
+    {
+        int4 src = _OccluderMipBounds[mip - 1];
+        int4 dst = _OccluderMipBounds[mip];
+        uint totalPixels = (uint)(dst.z * dst.w);
+
+        for (uint i = lid.x; i < totalPixels; i += HZB_TAIL_THREADS)
+        {
+            uint2 dstCoord = uint2(i % (uint)dst.z, i / (uint)dst.z);
+            uint2 srcBase = dstCoord * 2 + uint2(src.xy);
+            uint2 srcMax = uint2(src.x + src.z - 1, src.y + src.w - 1);
+
+            uint2 c00 = srcBase;
+            uint2 c10 = uint2(min(srcBase.x + 1, srcMax.x), srcBase.y);
+            uint2 c01 = uint2(srcBase.x, min(srcBase.y + 1, srcMax.y));
+            uint2 c11 = uint2(min(srcBase.x + 1, srcMax.x), min(srcBase.y + 1, srcMax.y));
+
+            float d = HZBFarthestDepth(float4(
+                _HZBMipOut[c00], _HZBMipOut[c10],
+                _HZBMipOut[c01], _HZBMipOut[c11]));
+
+            _HZBMipOut[dstCoord + uint2(dst.xy)] = d;
+        }
+
+        AllMemoryBarrierWithGroupSync();
+    }
+}

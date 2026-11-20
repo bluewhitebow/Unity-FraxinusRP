@@ -6,12 +6,12 @@
         "Unity.Collections",
         "Unity.Mathematics",
         "Unity.RenderPipelines.Core.Runtime",
-        "Fraxinus.Runtime",
-        "UnityEngine.UI"
+        "Unity.RenderPipelines.Universal.2D.Internal",
+        "Fraxinus.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
-    "allowUnsafeCode": false,
+    "allowUnsafeCode": true,
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
@@ -20,22 +20,12 @@
         {
             "name": "com.bluewhitebow.fraxinus-rp",
             "expression": "0.1.0",
-            "define": "GPUI_FRAXINUS"
+            "define": "FRAXINUS_RP"
         },
         {
             "name": "com.unity.modules.vr",
             "expression": "1.0.0",
-            "define": "GPUI_VR"
-        },
-        {
-            "name": "com.unity.modules.xr",
-            "expression": "1.0.0",
-            "define": "GPUI_XR"
-        },
-        {
-            "name": "com.unity.burst",
-            "expression": "1.0.0",
-            "define": "GPUI_BURST"
+            "define": "ENABLE_VR_MODULE"
         }
     ],
     "noEngineReferences": false

@@ -60,11 +60,11 @@ Renderer Graph 支持 Forward、Forward+、Stencil Deferred、Deferred+ 与 GPU 
 | [Fraxinus-RPCore](Packages/Fraxinus-RPCore/README.zh-CN.md) | `com.unity.render-pipelines.core` | `14.0.99` | RenderGraph、共享渲染工具、探针烘焙与数据管理。 |
 | [Fraxinus-ShaderGraph](Packages/Fraxinus-ShaderGraph/FraxinusChanges.md) | `com.unity.shadergraph` | `14.0.12` | 为 UltraRP Target 开放所需内部 API 的 Shader Graph 分支。 |
 | [Fraxinus-Light-Transport](Packages/Fraxinus-Light-Transport/README.zh-CN.md) | `com.fraxinus.rendering.light-transport` | `1.0.1` | Compute 射线查询、加速结构与采样。 |
-| [Fraxinus-GPU-Batcher](Packages/Fraxinus-GPU-Batcher/README.md) | `com.bluewhitebow.fraxinus-gpu-batcher` | `0.1.0` | 可选的 GPU 实例化、地形／细节批处理与 UltraRP Hi-Z 遮挡剔除。 |
+| [Fraxinus-GPU-Batcher](Packages/Fraxinus-GPU-Batcher/README.md) | `com.bluewhitebow.fraxinus-gpu-batcher` | `0.1.0` | 可选的 BRG 实例存储、注册、剔除与 LOD；原生间接绘制仍在开发中。 |
 
 各 UPM 包保留自己的版本号。四个配套包及选装的 GPU Batcher 应来自同一份 checkout 或同一个 Git 提交；版本号相同不代表官方包与定制分支可以互换。依赖示例包含全部五个包，不需要 GPU Batcher 时可省略它的条目。
 
-GPU Batcher 使用 UltraRP 的 `HiZDepthPass` 与每相机 `HiZDepthHistory`。遮挡剔除需要 Base Game 相机上一帧的有效深度，目标须为二维、非立体且未启用动态缩放。关闭该 Pass 或历史失效时跳过遮挡剔除，视锥和距离剔除仍可使用。参见 [GPU Batcher 配置](docs/Usage.zh-CN.md#可选-gpu-batcher)。
+**GPU Batcher 当前是开发中的 BRG 移植，尚未实现原生间接绘制。** 注册会接管原 Renderer／Terrain，因此在 `BRGIndirectSubmission.TrySubmit` 仍为空实现时，注册物体没有间接绘制输出。Bake 会删除源子 GameObject。本次替换了旧 GPUInstancer 实现、Profile、API 和示例，不提供自动迁移。接入前请阅读 [GPU Batcher 状态与配置](docs/Usage.zh-CN.md#可选-gpu-batcher)。
 
 ## 开始使用
 
@@ -73,7 +73,7 @@ GPU Batcher 使用 UltraRP 的 `HiZDepthPass` 与每相机 `HiZDepthHistory`。�
 3. 通过 **Assets > Create > FraxinusEngine > UltraRP > UltraRP Asset** 创建管线资产及关联的 Renderer Graph，按[图配置说明](Packages/FraxinusRP/Documentation~/Installation.md)连接绘制、阴影与后处理节点。
 4. 在 **Project Settings > Graphics** 指定 UltraRP 资产，检查当前 **Quality** 等级的覆盖设置。使用包内 UltraRP Shader，或通过 **Assets > Create > Shader Graph > UltraRP** 创建 Lit / Unlit 图。
 
-本仓库提供包和文档；Editor 应打开引用这些包的 Unity 工程。FraxinusRP 当前不发布示例场景或示例生成器；可选的 GPU Batcher 包提供了自己的可导入示例。
+本仓库提供包和文档；Editor 应打开引用这些包的 Unity 工程。FraxinusRP 当前不发布示例场景或示例生成器；当前 BRG GPU Batcher 移植也不再包含旧包示例。
 
 ## 支持范围与验证
 

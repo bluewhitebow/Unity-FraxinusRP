@@ -1,0 +1,811 @@
+// Copyright (c) 2026 Milk_Drinker01. All rights reserved.
+
+// use dxc on vulkan/metal for smaller code sizes
+#pragma use_dxc vulkan metal
+
+#pragma only_renderers d3d11 vulkan metal webgpu playstation xboxseries switch
+
+// buffer upload + copy kernels
+#pragma kernel CopyBufferRegion
+#pragma kernel CopyChunkRegion
+#pragma kernel CopyFadeStateRegion
+#pragma kernel ScatterWriteChunks
+#pragma kernel SettleMotionVectors
+#pragma kernel InitFadeStateTyped
+#pragma kernel ComputeMatricesFromTRSBatched
+#pragma kernel BatchUploadInstances
+#pragma kernel TRSPatchInstances
+#pragma kernel BatchComputeMatrices
+#pragma kernel BatchClearInstances
+#pragma kernel BatchUploadInts
+#pragma kernel BatchInitFadeStates
+#pragma kernel CopyInstanceBuffer
+#pragma kernel CopyRotScaleBuffer
+#pragma kernel ScatterWriteColors
+#pragma kernel ScatterWriteSigOverrides
+#pragma kernel ScatterWriteSignatures
+
+// floating origin shift
+#pragma kernel ShiftAllInstances
+#pragma kernel ShiftAllChunks
+
+// animated crossfade kernels
+#pragma kernel UpdateFadeStatesPerInstance
+#pragma kernel UpdateFadeStatesPerPrototype
+
+#include "GPUBatcher_Common.hlsl"
+
+// instance data (post-matrix: cull data; pre-matrix: position + sigDensityPacked)
+StructuredBuffer<InstanceInput> _Instances;
+RWStructuredBuffer<InstanceInput> _InstancesRW;          // rw binding for ComputeMatricesFromTRSBatched
+StructuredBuffer<InstanceRotationScale> _InstanceRotScale; // rotation + scale (read-only after upload)
+StructuredBuffer<SignatureInfo> _Signatures;
+
+// animated crossfade
+RWStructuredBuffer<FadeState> _FadeStates;
+StructuredBuffer<uint> _AnimatedPools;  // compact list of pool indices with animated crossfade
+int _AnimatedPoolCount;                 // number of entries in _AnimatedPools
+
+// animated crossfade uniforms
+float _DeltaTime;
+int _SkipIntermediateLODs;
+int _SnapFadeStates;  // when 1, skip animation and snap to target LOD immediately
+int _AnimatedCrossfadeMode;  // 0 = PerPrototype, 1 = PerInstance
+
+struct ProtoCrossfadeState { float cycleProgress; int isBoundary; };
+StructuredBuffer<ProtoCrossfadeState> _ProtoCrossfadeStates;
+
+
+// kernels - ordered by GPU pipeline execution
+
+
+// stage 1: buffer uploads & clears
+
+// raw buffer copy
+// RW: self-copy binds same buffer; SRV+UAV unbinds SRV on DX11
+RWByteAddressBuffer _CopySrc;
+RWByteAddressBuffer _CopyDst;
+uint _CopySrcOffsetBytes;
+uint _CopyDstOffsetBytes;
+uint _CopyCountUint4;   // number of 16-byte chunks
+uint _CopyTailUints;    // remaining 4-byte elements
+
+// copy a buffer region on GPU, uint4 bulk + uint tail for non-aligned remainders
+[numthreads(256,1,1)]
+void CopyBufferRegion(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, 256);
+    if (id < _CopyCountUint4)
+    {
+        uint srcAddr = _CopySrcOffsetBytes + id * 16;
+        uint dstAddr = _CopyDstOffsetBytes + id * 16;
+        _CopyDst.Store4(dstAddr, _CopySrc.Load4(srcAddr));
+    }
+    else
+    {
+        uint tailIdx = id - _CopyCountUint4;
+        if (tailIdx < _CopyTailUints)
+        {
+            uint srcAddr = _CopySrcOffsetBytes + _CopyCountUint4 * 16 + tailIdx * 4;
+            uint dstAddr = _CopyDstOffsetBytes + _CopyCountUint4 * 16 + tailIdx * 4;
+            _CopyDst.Store(dstAddr, _CopySrc.Load(srcAddr));
+        }
+    }
+}
+
+// batched settle: copy O2W -> PrevM for slots that stopped moving
+StructuredBuffer<uint> _SettleSlotIndices;
+uint _SettleCount;
+uint _SettlePrevMBaseBytes;   // = totalSlots * 2 * 48
+
+[numthreads(256,1,1)]
+void SettleMotionVectors(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, 256);
+    if (id >= _SettleCount) return;
+    uint slot = _SettleSlotIndices[id];
+    uint slotBytes = slot * 48;
+
+    // O2W -> PrevM
+    uint o2wAddr = slotBytes;
+    uint prevMAddr = _SettlePrevMBaseBytes + slotBytes;
+    _CopyDst.Store4(prevMAddr,      _CopyDst.Load4(o2wAddr));
+    _CopyDst.Store4(prevMAddr + 16, _CopyDst.Load4(o2wAddr + 16));
+    _CopyDst.Store4(prevMAddr + 32, _CopyDst.Load4(o2wAddr + 32));
+}
+
+// compute OTW + WTO matrices from TRS data in _Instances, storing to _CopyDst
+// _TRSTotalSlots = total slots
+uint _TRSTotalSlots;
+// _TRSPrevMMode (PrevM is otherwise owned by the SettleMotionVectors kernel - this kernel never snapshots):
+//   0 = recompute O2W/WTO, preserve PrevM (moved slot - snapshot already done at patch time)
+//   1 = init: PrevM = new O2W (new instances, zero motion)
+uint _TRSPrevMMode;
+
+// per-instance color region offset in uint elements
+uint _ColorRegionOffsetUint; // byte offset / 4
+uint _ColorEnabled;          // 1 if per-instance color is active, 0 otherwise
+
+// compute OTW + WTO + PrevM for a slot, overwrite InstanceInput with cull data
+void ComputeMatrixForInstance(uint idx, uint totalSlots, uint prevMMode)
+{
+    uint otwAddr = idx * 48;
+    uint wtoAddr = (totalSlots + idx) * 48;
+    uint prevMAddr = (totalSlots * 2 + idx) * 48;
+
+    // read from _InstancesRW
+    InstanceInput inst = _InstancesRW[idx];
+    InstanceRotationScale rs = _InstanceRotScale[idx];
+
+    // quaternion to rotation matrix
+    float4 q = rs.rotation;
+    float x2 = q.x + q.x, y2 = q.y + q.y, z2 = q.z + q.z;
+    float xx = q.x * x2, xy = q.x * y2, xz = q.x * z2;
+    float yy = q.y * y2, yz = q.y * z2, zz = q.z * z2;
+    float wx = q.w * x2, wy = q.w * y2, wz = q.w * z2;
+
+    // OTW rotation columns scaled by instance scale
+    float3 col0 = float3(1 - yy - zz, xy + wz, xz - wy) * rs.scale.x;
+    float3 col1 = float3(xy - wz, 1 - xx - zz, yz + wx) * rs.scale.y;
+    float3 col2 = float3(xz + wy, yz - wx, 1 - xx - yy) * rs.scale.z;
+    float3 t = inst.positionOrBoundsCenter; // still raw position at this stage
+
+    // store OTW float3x4
+    float4 otw0 = float4(col0.x, col0.y, col0.z, col1.x);
+    float4 otw1 = float4(col1.y, col1.z, col2.x, col2.y);
+    float4 otw2 = float4(col2.z, t.x,    t.y,    t.z);
+    _CopyDst.Store4(otwAddr,      asuint(otw0));
+    _CopyDst.Store4(otwAddr + 16, asuint(otw1));
+    _CopyDst.Store4(otwAddr + 32, asuint(otw2));
+
+    // WTO inverse: transpose(rotation) / scale, via column norms
+    float is0 = rcp(max(dot(col0, col0), 1e-20));
+    float is1 = rcp(max(dot(col1, col1), 1e-20));
+    float is2 = rcp(max(dot(col2, col2), 1e-20));
+
+    float3 wto_c0 = float3(col0.x * is0, col1.x * is1, col2.x * is2);
+    float3 wto_c1 = float3(col0.y * is0, col1.y * is1, col2.y * is2);
+    float3 wto_c2 = float3(col0.z * is0, col1.z * is1, col2.z * is2);
+
+    float3 wto_c3 = float3(
+        -(wto_c0.x * t.x + wto_c1.x * t.y + wto_c2.x * t.z),
+        -(wto_c0.y * t.x + wto_c1.y * t.y + wto_c2.y * t.z),
+        -(wto_c0.z * t.x + wto_c1.z * t.y + wto_c2.z * t.z)
+    );
+
+    // store WTO
+    _CopyDst.Store4(wtoAddr,      asuint(float4(wto_c0.x, wto_c0.y, wto_c0.z, wto_c1.x)));
+    _CopyDst.Store4(wtoAddr + 16, asuint(float4(wto_c1.y, wto_c1.z, wto_c2.x, wto_c2.y)));
+    _CopyDst.Store4(wtoAddr + 32, asuint(float4(wto_c2.z, wto_c3.x, wto_c3.y, wto_c3.z)));
+
+    // mode 1: init PrevM = new O2W, zero initial motion
+    if (prevMMode == 1)
+    {
+        _CopyDst.Store4(prevMAddr,      asuint(otw0));
+        _CopyDst.Store4(prevMAddr + 16, asuint(otw1));
+        _CopyDst.Store4(prevMAddr + 32, asuint(otw2));
+
+        // reset per-instance color to white for new/recycled slots
+        if (_ColorEnabled)
+            _CopyDst.Store((_ColorRegionOffsetUint + idx) * 4, 0u);
+    }
+
+    // overwrite InstanceInput with precomputed cull data
+    int sigIdx = InstSignatureIndex(inst);
+    if (sigIdx >= 0)
+    {
+        SignatureInfo sig = _Signatures[sigIdx];
+        float3 localCenter = sig.boundsCenter * rs.scale;
+        float3 worldCenter = t + QuatMulVec(rs.rotation, localCenter);
+        float maxScale = max(max(abs(rs.scale.x), abs(rs.scale.y)), abs(rs.scale.z));
+        bool isFlipped = (rs.scale.x * rs.scale.y * rs.scale.z < 0.0);
+
+        InstanceInput cull;
+        cull.positionOrBoundsCenter = worldCenter;
+        cull.padOrMaxScale = isFlipped ? -maxScale : maxScale;
+        cull.sigDensityPacked = inst.sigDensityPacked;
+        _InstancesRW[idx] = cull;
+    }
+}
+
+// batched ComputeMatricesFromTRS for scattered slot indices
+uint _TRSBatchCount;
+
+[numthreads(256,1,1)]
+void ComputeMatricesFromTRSBatched(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, 256);
+    if (id >= _TRSBatchCount) return;
+    ComputeMatrixForInstance(_SettleSlotIndices[id], _TRSTotalSlots, _TRSPrevMMode);
+}
+
+// typed upload kernels, structured-only
+
+// shared upload parameters
+uint _UploadSrcOffset;   // element index in source buffer
+uint _UploadDstOffset;   // element index in destination buffer
+uint _UploadCount;        // number of elements to copy
+
+// structured staging -> structured live InstanceBuffer (split upload)
+StructuredBuffer<StagedInstance> _UploadStagedSrc;
+RWStructuredBuffer<InstanceInput> _UploadInstanceDst;
+RWStructuredBuffer<InstanceRotationScale> _UploadRotScaleDst;
+
+// structured staging -> structured live PoolRefBuffer
+StructuredBuffer<int> _UploadIntSrc;
+RWStructuredBuffer<int> _UploadIntDst;
+
+// writes zeroed InstanceInput with signatureIndex=-1
+RWStructuredBuffer<InstanceInput> _ClearInstanceDst;
+RWStructuredBuffer<InstanceRotationScale> _ClearRotScaleDst;
+
+// batched dispatch: one thread group per command, threads loop within
+StructuredBuffer<uint3> _BatchCmds;  // (srcOffset/unused, liveOffset, count)
+uint _BatchCmdCount;
+
+[numthreads(256,1,1)]
+void BatchUploadInstances(uint3 gid : SV_GroupID, uint tid : SV_GroupIndex)
+{
+    uint cmdIdx = GetLinearGroupId(gid);
+    if (cmdIdx >= _BatchCmdCount) return;
+    uint3 cmd = _BatchCmds[cmdIdx];
+    for (uint i = tid; i < cmd.z; i += 256)
+    {
+        StagedInstance s = _UploadStagedSrc[cmd.x + i];
+        uint dstIdx = cmd.y + i;
+
+        InstanceInput d;
+        d.positionOrBoundsCenter = s.position;
+        d.padOrMaxScale = 0;
+        d.sigDensityPacked = s.sigDensityPacked;
+        _UploadInstanceDst[dstIdx] = d;
+
+        InstanceRotationScale rs;
+        rs.rotation = s.rotation;
+        rs.scale = s.scale;
+        _UploadRotScaleDst[dstIdx] = rs;
+    }
+}
+
+// patch-based instance update for MoveInstance
+struct TRSPatchEntry
+{
+    uint slotIndex;
+    uint flags;       // bit 0 = position, bit 1 = rotation, bit 2 = scale
+    float3 position;
+    float4 rotation;
+    float3 scale;
+};
+
+StructuredBuffer<TRSPatchEntry> _TRSPatchSrc;
+uint _TRSPatchCount;
+
+[numthreads(256,1,1)]
+void TRSPatchInstances(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, 256);
+    if (id >= _TRSPatchCount) return;
+    TRSPatchEntry p = _TRSPatchSrc[id];
+
+    // read position from OTW matrix translation
+    float3 position = (p.flags & 1u)
+        ? p.position
+        : asfloat(_CopyDst.Load4(p.slotIndex * 48 + 32).yzw);
+
+    InstanceRotationScale rs = _UploadRotScaleDst[p.slotIndex];
+    if (p.flags & 2u) rs.rotation = p.rotation;
+    if (p.flags & 4u) rs.scale    = p.scale;
+    _UploadRotScaleDst[p.slotIndex] = rs;
+
+    int sigIdx = InstSignatureIndex(_UploadInstanceDst[p.slotIndex]);
+
+    InstanceInput inst;
+    inst.positionOrBoundsCenter = position;
+    inst.padOrMaxScale = 0; // recomputed later
+    inst.sigDensityPacked = PackSigDensity(sigIdx, StableDensityHash(position));
+    _UploadInstanceDst[p.slotIndex] = inst;
+}
+
+[numthreads(256,1,1)]
+void BatchComputeMatrices(uint3 gid : SV_GroupID, uint tid : SV_GroupIndex)
+{
+    uint cmdIdx = GetLinearGroupId(gid);
+    if (cmdIdx >= _BatchCmdCount) return;
+    uint3 cmd = _BatchCmds[cmdIdx];
+    for (uint i = tid; i < cmd.z; i += 256)
+        ComputeMatrixForInstance(cmd.y + i, _TRSTotalSlots, _TRSPrevMMode);
+}
+
+[numthreads(256,1,1)]
+void BatchClearInstances(uint3 gid : SV_GroupID, uint tid : SV_GroupIndex)
+{
+    uint cmdIdx = GetLinearGroupId(gid);
+    if (cmdIdx >= _BatchCmdCount) return;
+    uint3 cmd = _BatchCmds[cmdIdx];
+    InstanceInput d = (InstanceInput)0;
+    d.sigDensityPacked = 0xFFFFu; // signatureIndex = -1, densityHash = 0
+    InstanceRotationScale rsZero = (InstanceRotationScale)0;
+    for (uint i = tid; i < cmd.z; i += 256)
+    {
+        uint dstIdx = cmd.y + i;
+        _ClearInstanceDst[dstIdx] = d;
+        _ClearRotScaleDst[dstIdx] = rsZero;
+    }
+}
+
+[numthreads(256,1,1)]
+void BatchUploadInts(uint3 gid : SV_GroupID, uint tid : SV_GroupIndex)
+{
+    uint cmdIdx = GetLinearGroupId(gid);
+    if (cmdIdx >= _BatchCmdCount) return;
+    uint3 cmd = _BatchCmds[cmdIdx];
+    for (uint i = tid; i < cmd.z; i += 256)
+        _UploadIntDst[cmd.y + i] = _UploadIntSrc[cmd.x + i];
+}
+
+RWStructuredBuffer<FadeState> _InitFadeDst;
+uint _InitFadeDstOffset;
+uint _InitFadeCount;
+
+[numthreads(256,1,1)]
+void InitFadeStateTyped(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, 256);
+    if (id >= _InitFadeCount) return;
+    _InitFadeDst[_InitFadeDstOffset + id] = PackFadeState(-1, -1, 0);
+}
+
+// batched fade state init: processes multiple (offset, count) commands in a single dispatch.
+// _BatchCmds[gid.x] = (unused, dstOffset, count). One thread group per command.
+[numthreads(256,1,1)]
+void BatchInitFadeStates(uint3 gid : SV_GroupID, uint tid : SV_GroupIndex)
+{
+    uint cmdIdx = GetLinearGroupId(gid);
+    if (cmdIdx >= _BatchCmdCount) return;
+    uint3 cmd = _BatchCmds[cmdIdx];
+    FadeState f = PackFadeState(-1, -1, 0);
+    for (uint i = tid; i < cmd.z; i += 256)
+        _InitFadeDst[cmd.y + i] = f;
+}
+
+// structured -> structured copy for ChunkInfo during resize.
+StructuredBuffer<ChunkInfo> _CopyChunkSrc;
+RWStructuredBuffer<ChunkInfo> _CopyChunkDst;
+
+[numthreads(256,1,1)]
+void CopyChunkRegion(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, 256);
+    if (id >= _UploadCount) return;
+    _CopyChunkDst[_UploadDstOffset + id] = _CopyChunkSrc[_UploadSrcOffset + id];
+}
+
+// structured -> structured copy for FadeState during resize.
+StructuredBuffer<FadeState> _CopyFadeSrc;
+RWStructuredBuffer<FadeState> _CopyFadeDst;
+
+[numthreads(256,1,1)]
+void CopyFadeStateRegion(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, 256);
+    if (id >= _UploadCount) return;
+    _CopyFadeDst[_UploadDstOffset + id] = _CopyFadeSrc[_UploadSrcOffset + id];
+}
+
+// structured -> structured copy for InstanceInput during resize.
+StructuredBuffer<InstanceInput> _CopyInstanceSrc;
+RWStructuredBuffer<InstanceInput> _CopyInstanceDst;
+
+[numthreads(256,1,1)]
+void CopyInstanceBuffer(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, 256);
+    if (id >= _UploadCount) return;
+    _CopyInstanceDst[_UploadDstOffset + id] = _CopyInstanceSrc[_UploadSrcOffset + id];
+}
+
+// structured -> structured copy for InstanceRotationScale during resize.
+StructuredBuffer<InstanceRotationScale> _CopyRotScaleSrc;
+RWStructuredBuffer<InstanceRotationScale> _CopyRotScaleDst;
+
+[numthreads(256,1,1)]
+void CopyRotScaleBuffer(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, 256);
+    if (id >= _UploadCount) return;
+    _CopyRotScaleDst[_UploadDstOffset + id] = _CopyRotScaleSrc[_UploadSrcOffset + id];
+}
+
+// scatter-write staged chunk metadata to live ChunkBuffer
+StructuredBuffer<ChunkInfo> _ChunkStagingSrc;
+StructuredBuffer<uint> _ChunkStagingIndices;
+RWStructuredBuffer<ChunkInfo> _ChunkScatterDst;
+uint _ChunkScatterCount;
+
+[numthreads(256,1,1)]
+void ScatterWriteChunks(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, 256);
+    if (id >= _ChunkScatterCount) return;
+    _ChunkScatterDst[_ChunkStagingIndices[id]] = _ChunkStagingSrc[id];
+}
+
+
+// per-instance color scatter-write
+struct ColorEntry { uint slotIndex; uint packedColor; };
+StructuredBuffer<ColorEntry> _ColorStagingSrc;
+uint _ColorScatterCount;
+
+[numthreads(256,1,1)]
+void ScatterWriteColors(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, 256);
+    if (id >= _ColorScatterCount) return;
+    ColorEntry e = _ColorStagingSrc[id];
+    _CopyDst.Store((_ColorRegionOffsetUint + e.slotIndex) * 4, e.packedColor);
+}
+
+// per-instance sig override scatter-write (enable/disable)
+struct SigOverrideEntry { uint slotIndex; int sigIdx; };
+StructuredBuffer<SigOverrideEntry> _SigOverrideSrc;
+uint _SigOverrideCount;
+
+[numthreads(256,1,1)]
+void ScatterWriteSigOverrides(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, 256);
+    if (id >= _SigOverrideCount) return;
+    SigOverrideEntry e = _SigOverrideSrc[id];
+    InstanceInput inst = _UploadInstanceDst[e.slotIndex];
+    uint denBits = inst.sigDensityPacked & 0xFFFF0000u;
+    uint sigBits = (e.sigIdx < 0) ? 0xFFFFu : ((uint)e.sigIdx & 0xFFFFu);
+    inst.sigDensityPacked = denBits | sigBits;
+    _UploadInstanceDst[e.slotIndex] = inst;
+}
+
+// per-prototype signature scatter-write
+StructuredBuffer<SignatureInfo> _SigStagingSrc;
+StructuredBuffer<uint> _SigStagingIndices;
+RWStructuredBuffer<SignatureInfo> _SigScatterDst;
+uint _SigScatterCount;
+
+[numthreads(64,1,1)]
+void ScatterWriteSignatures(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, 64);
+    if (id >= _SigScatterCount) return;
+    _SigScatterDst[_SigStagingIndices[id]] = _SigStagingSrc[id];
+}
+
+// stage 2: fade state management
+
+// per-prototype mode: global cycle timer, decisions at cycle boundaries
+// fadeProgress read from _ProtoCrossfadeStates
+void UpdateFadeStatePerPrototype(inout FadeState state, int desiredLOD, SignatureInfo sig, int sigIdx)
+{
+    ProtoCrossfadeState cycle = _ProtoCrossfadeStates[sigIdx];
+    int currentLOD = GetCurrentLOD(state);
+    int targetLOD = GetTargetLOD(state);
+
+    if (cycle.isBoundary)
+    {
+        // snap completed transitions
+        if (targetLOD >= 0)
+            currentLOD = targetLOD;
+        else if (targetLOD == -2)
+            currentLOD = -1;
+        targetLOD = -1;
+
+        // start new transition if needed
+        if (desiredLOD != currentLOD)
+        {
+            if (SigCrossfadeEnabled(sig) != 0)
+            {
+                if (desiredLOD < 0 && currentLOD >= 0)
+                    targetLOD = -2;
+                else if (currentLOD < 0 && desiredLOD >= 0)
+                    targetLOD = desiredLOD;
+                else if (currentLOD >= 0 && desiredLOD >= 0)
+                    targetLOD = desiredLOD;  // always skip intermediate in prototype mode
+            }
+            else
+            {
+                currentLOD = desiredLOD;
+            }
+        }
+
+        state = PackFadeState(currentLOD, targetLOD, 0.0);
+    }
+}
+
+// per-instance mode: advance fadeProgress via delta time
+void UpdateFadeStatePerInstance(inout FadeState state, int desiredLOD, SignatureInfo sig)
+{
+    int currentLOD = GetCurrentLOD(state);
+    int targetLOD = GetTargetLOD(state);
+    float fadeProgress = state.fadeProgress;
+    bool isFading = (targetLOD != -1);
+
+    if (isFading)
+    {
+        fadeProgress += _DeltaTime / max(0.001, SigFadeDuration(sig));
+
+        if (fadeProgress >= 1.0)
+        {
+            if (targetLOD == -2)
+                currentLOD = -1;
+            else
+                currentLOD = targetLOD;
+            targetLOD = -1;
+            fadeProgress = 0.0;
+        }
+        else
+        {
+            // check if we need to reverse direction
+            bool canReverse = false;
+
+            if (targetLOD == -2)
+                canReverse = (desiredLOD >= 0);
+            else if (currentLOD == -1)
+                canReverse = (desiredLOD < 0);
+            else
+            {
+                bool fadingDowngrade = (targetLOD > currentLOD);
+                if (fadingDowngrade)
+                    canReverse = (desiredLOD >= 0 && desiredLOD < currentLOD);
+                else
+                    canReverse = (desiredLOD > currentLOD) || (desiredLOD < 0);
+            }
+
+            if (canReverse || desiredLOD == currentLOD)
+            {
+                int temp = currentLOD;
+                currentLOD = targetLOD;
+                targetLOD = temp;
+                fadeProgress = 1.0 - fadeProgress;
+
+                if (currentLOD == -2)
+                    currentLOD = -1;
+                if (targetLOD == -1 && desiredLOD < 0)
+                    targetLOD = -2;
+            }
+        }
+    }
+    else
+    {
+        if (desiredLOD != currentLOD)
+        {
+            if (SigCrossfadeEnabled(sig) != 0)
+            {
+                if (desiredLOD < 0 && currentLOD >= 0)
+                {
+                    targetLOD = -2;
+                    fadeProgress = 0.0;
+                }
+                else if (currentLOD < 0 && desiredLOD >= 0)
+                {
+                    targetLOD = desiredLOD;
+                    fadeProgress = 0.0;
+                }
+                else if (currentLOD >= 0 && desiredLOD >= 0)
+                {
+                    int nextLOD;
+                    if (_SkipIntermediateLODs != 0)
+                        nextLOD = desiredLOD;
+                    else if (desiredLOD > currentLOD)
+                        nextLOD = currentLOD + 1;
+                    else
+                        nextLOD = currentLOD - 1;
+
+                    targetLOD = nextLOD;
+                    fadeProgress = 0.0;
+                }
+            }
+            else
+            {
+                currentLOD = desiredLOD;
+            }
+        }
+    }
+
+    state = PackFadeState(currentLOD, targetLOD, fadeProgress);
+}
+
+// map thread to global instance, load state, compute desiredLOD
+bool FadeStatePreamble(uint id, out uint globalIdx, out int sigIdx, out SignatureInfo sig,
+                       out FadeState state, out int desiredLOD)
+{
+    globalIdx = 0; sigIdx = -1; sig = (SignatureInfo)0; state = (FadeState)0; desiredLOD = -1;
+
+    uint totalSlots = (uint)_AnimatedPoolCount << (uint)_PoolSizeShift;
+    if (id >= totalSlots)
+        return false;
+
+    uint poolListIdx = id >> (uint)_PoolSizeShift;
+    uint localIdx = id & (uint)_PoolSizeMask;
+    globalIdx = _AnimatedPools[poolListIdx] * (uint)_PoolSize + localIdx;
+
+    InstanceInput inst = _Instances[globalIdx];
+    sigIdx = InstSignatureIndex(inst);
+    if (sigIdx < 0)
+        return false;
+
+    sig = _Signatures[sigIdx];
+    if (SigUseAnimatedCrossfade(sig) == 0)
+        return false;
+
+    state = _FadeStates[globalIdx];
+
+    InstanceWorldData wd = CalcInstanceWorldData(inst, sig);
+    float screenRatio = CalcScreenRatio(wd.worldSize, wd.distSq);
+    desiredLOD = SelectLOD(screenRatio, SigLodScreenSizes0(sig), SigLodScreenSizes1(sig), SigLodCount(sig));
+
+    // distance density: override desiredLOD to -1 for density-culled instances (global density scales the distance curve)
+    if (SigDistanceDensityMode(sig) != 0 && desiredLOD >= 0)
+    {
+        float distanceDensity = ComputeDistanceDensity(SigDistanceDensityMode(sig), screenRatio, wd.distSq,
+                                                 SigDistanceDensityParam1(sig), SigDistanceDensityParam2(sig), SigDistanceDensityMinFraction(sig));
+        float density = distanceDensity * SigGroupDensity(sig);
+        if (InstDensityHash(inst) > density)
+            desiredLOD = -1;
+    }
+
+    return true;
+}
+
+// per-instance mode: dispatched every frame, each instance advances fadeProgress independently
+[numthreads(THREADS_INSTANCES,1,1)]
+void UpdateFadeStatesPerInstance(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, THREADS_INSTANCES);
+    uint globalIdx; int sigIdx; SignatureInfo sig; FadeState state; int desiredLOD;
+    if (!FadeStatePreamble(id, globalIdx, sigIdx, sig, state, desiredLOD))
+        return;
+
+    if (_SnapFadeStates != 0)
+    {
+        _FadeStates[globalIdx] = PackFadeState(desiredLOD, -1, 0.0);
+        return;
+    }
+
+    int currentLOD = GetCurrentLOD(state);
+    bool currentIsPct = currentLOD >= 0 && (SigPercentageFadeMask(sig) & (1u << (uint)currentLOD));
+    bool desiredIsPct = desiredLOD >= 0 && (SigPercentageFadeMask(sig) & (1u << (uint)desiredLOD));
+    if (currentIsPct && desiredIsPct)
+    {
+        _FadeStates[globalIdx] = PackFadeState(desiredLOD, -1, 0.0);
+        return;
+    }
+
+    UpdateFadeStatePerInstance(state, desiredLOD, sig);
+    _FadeStates[globalIdx] = state;
+}
+
+// per-prototype mode: dispatched on frames with cycle boundaries
+[numthreads(THREADS_INSTANCES,1,1)]
+void UpdateFadeStatesPerPrototype(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, THREADS_INSTANCES);
+    uint totalSlots = (uint)_AnimatedPoolCount << (uint)_PoolSizeShift;
+    if (id >= totalSlots)
+        return;
+
+    uint poolListIdx = id >> (uint)_PoolSizeShift;
+    uint localIdx = id & (uint)_PoolSizeMask;
+    uint globalIdx = _AnimatedPools[poolListIdx] * (uint)_PoolSize + localIdx;
+
+    InstanceInput inst = _Instances[globalIdx];
+    int sigIdx = InstSignatureIndex(inst);
+    if (sigIdx < 0)
+        return;
+
+    SignatureInfo sig = _Signatures[sigIdx];
+    if (SigUseAnimatedCrossfade(sig) == 0)
+        return;
+
+    // early-exit: no boundary this frame
+    if (_SnapFadeStates == 0 && _ProtoCrossfadeStates[sigIdx].isBoundary == 0)
+        return;
+
+    FadeState state = _FadeStates[globalIdx];
+
+    if (_SnapFadeStates != 0)
+    {
+        InstanceWorldData wd = CalcInstanceWorldData(inst, sig);
+        float screenRatio = CalcScreenRatio(wd.worldSize, wd.distSq);
+        int desiredLOD = SelectLOD(screenRatio, SigLodScreenSizes0(sig), SigLodScreenSizes1(sig), SigLodCount(sig));
+        _FadeStates[globalIdx] = PackFadeState(desiredLOD, -1, 0.0);
+        return;
+    }
+
+    // boundary frame: compute desired LOD and update state
+    {
+        InstanceWorldData wd = CalcInstanceWorldData(inst, sig);
+        float screenRatio = CalcScreenRatio(wd.worldSize, wd.distSq);
+        int desiredLOD = SelectLOD(screenRatio, SigLodScreenSizes0(sig), SigLodScreenSizes1(sig), SigLodCount(sig));
+
+        if (SigDistanceDensityMode(sig) != 0 && desiredLOD >= 0)
+        {
+            float distanceDensity = ComputeDistanceDensity(SigDistanceDensityMode(sig), screenRatio, wd.distSq,
+                                                     SigDistanceDensityParam1(sig), SigDistanceDensityParam2(sig), SigDistanceDensityMinFraction(sig));
+            float density = distanceDensity * SigGroupDensity(sig);
+            if (InstDensityHash(inst) > density)
+                desiredLOD = -1;
+        }
+
+        int currentLOD = GetCurrentLOD(state);
+        bool currentIsPct = currentLOD >= 0 && (SigPercentageFadeMask(sig) & (1u << (uint)currentLOD));
+        bool desiredIsPct = desiredLOD >= 0 && (SigPercentageFadeMask(sig) & (1u << (uint)desiredLOD));
+        if (currentIsPct && desiredIsPct)
+        {
+            _FadeStates[globalIdx] = PackFadeState(desiredLOD, -1, 0.0);
+            return;
+        }
+
+        UpdateFadeStatePerPrototype(state, desiredLOD, sig, sigIdx);
+        _FadeStates[globalIdx] = state;
+    }
+}
+
+// floating origin shift
+
+float3 _ShiftOffset;
+uint _ShiftCount;
+uint _ShiftTotalSlots;
+
+[numthreads(256,1,1)]
+void ShiftAllInstances(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, 256);
+    if (id >= _ShiftCount) return;
+
+    uint idx = id;
+    float3 offset = _ShiftOffset;
+
+    // bounds center
+    InstanceInput inst = _InstancesRW[idx];
+    inst.positionOrBoundsCenter += offset;
+    _InstancesRW[idx] = inst;
+
+    uint otwAddr   = idx * 48;
+    uint wtoAddr   = (_ShiftTotalSlots + idx) * 48;
+    uint prevMAddr = (_ShiftTotalSlots * 2 + idx) * 48;
+
+    // O2W translation - packed row2 = (col2.z, t.x, t.y, t.z), translation in .yzw
+    float4 otw2 = asfloat(_CopyDst.Load4(otwAddr + 32));
+    otw2.yzw += offset;
+    _CopyDst.Store4(otwAddr + 32, asuint(otw2));
+
+    // W2O translation - new_t = old_t - W2O_3x3 * offset
+    float4 r0 = asfloat(_CopyDst.Load4(wtoAddr));
+    float4 r1 = asfloat(_CopyDst.Load4(wtoAddr + 16));
+    float4 r2 = asfloat(_CopyDst.Load4(wtoAddr + 32));
+
+    float3 wtoTimesOffset = float3(
+        r0.x * offset.x + r0.w * offset.y + r1.z * offset.z,
+        r0.y * offset.x + r1.x * offset.y + r1.w * offset.z,
+        r0.z * offset.x + r1.y * offset.y + r2.x * offset.z
+    );
+
+    r2.yzw -= wtoTimesOffset;
+    _CopyDst.Store4(wtoAddr + 32, asuint(r2));
+
+    // PrevM translation - same layout as O2W
+    float4 prev2 = asfloat(_CopyDst.Load4(prevMAddr + 32));
+    prev2.yzw += offset;
+    _CopyDst.Store4(prevMAddr + 32, asuint(prev2));
+}
+
+[numthreads(64,1,1)]
+void ShiftAllChunks(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, 64);
+    if (id >= _ShiftCount) return;
+
+    ChunkInfo chunk = _ChunkScatterDst[id];
+    chunk.boundsMinXZ += _ShiftOffset.xz;
+    chunk.boundsMaxXZ += _ShiftOffset.xz;
+    chunk.boundsMinY  += _ShiftOffset.y;
+    chunk.boundsMaxY  += _ShiftOffset.y;
+    _ChunkScatterDst[id] = chunk;
+}

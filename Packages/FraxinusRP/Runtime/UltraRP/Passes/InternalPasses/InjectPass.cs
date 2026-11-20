@@ -75,6 +75,12 @@ namespace FraxinusEngine.Rendering.Ultra
             return true;
         }
 
+        /// <summary>
+        /// Per-camera selection among already bound nodes. Called before the
+        /// injection is marked executed, so a skipped candidate does not consume it.
+        /// </summary>
+        public virtual bool ShouldExecute(ScriptableRenderPassNode node, ContextContainer frameData) => true;
+
         protected abstract void OnDispose();
 
         protected abstract void OnCameraCleanup(CommandBuffer cmd);

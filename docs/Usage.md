@@ -4,9 +4,9 @@
 
 Use **Unity 2022.3**, with **2022.3.62f3** matching the source project. This repository is a collection of UPM packages. A consuming Unity project supplies its own `Assets`, `ProjectSettings` and `Packages/manifest.json`.
 
-The repository contains the four companion packages for **ScriptableNode / UltraRP**: Core, Light Transport, Shader Graph and FraxinusRP, plus the optional **Fraxinus GPU Batcher**. The examples below install all five; omit `com.bluewhitebow.fraxinus-gpu-batcher` if GPU instancing is not needed. UltraRP does not require URP.
+The repository contains the four companion packages for **ScriptableNode / UltraRP**: Core, Light Transport, Shader Graph and FraxinusRP, plus the optional **Fraxinus GPU Batcher**. The examples below install all five. GPU Batcher is a development port whose native indirect draw submission is not implemented; omit `com.bluewhitebow.fraxinus-gpu-batcher` unless evaluating that implementation. UltraRP does not require URP.
 
-Use the four companion packages and, when installed, GPU Batcher from the same revision.
+Use the four companion packages and, when installed, GPU Batcher from the same revision. The BRG port requires Core's native object-change tracking wrapper and UltraRP's per-node injection execution hook; matching package version numbers alone are insufficient.
 
 ## Install from a local checkout
 
@@ -69,11 +69,15 @@ The matching Shader Graph fork is required for UltraRP's internal target APIs. I
 
 ## Optional GPU Batcher
 
-[Fraxinus GPU Batcher](../Packages/Fraxinus-GPU-Batcher/README.md) adds GPU instancing for prefabs, terrain, details and trees. It depends on FraxinusRP `0.1.0` and the matching Core / Shader Graph forks. Use **Tools > Fraxinus GPU Batcher > Check Fraxinus Integration** to check the active pipeline. Runtime managers are created from the Profiles in its project settings; cameras do not need a separate handler. Generated project data is stored in `Assets/FraxinusGPUBatcherData/`.
+[Fraxinus GPU Batcher](../Packages/Fraxinus-GPU-Batcher/README.md) is a BRG port for instance registration, storage, transform upload, camera / shadow culling, LOD and indirect-argument generation. **Native indirect submission is not implemented:** `BRGIndirectSubmission.TrySubmit` returns `false`. Registration still takes over source Renderers / Terrain, so registered objects have no indirect rendering output. Bake removes source child GameObjects; use a disposable scene copy when evaluating these workflows.
 
-For occlusion culling, keep `HiZDepthPass` enabled in the Renderer Graph. UltraRP owns the depth prepass, pyramid and per-camera history; GPU Batcher only requests and borrows that history. Runtime rendering covers base Game cameras. Hi-Z requires 2D, non-stereo targets without dynamic scaling. The first frame, expired history, or a change to the camera target, size, pipeline or render scale skips occlusion until valid depth is available. Disabling the pass also skips occlusion; frustum and distance culling continue. The algorithm uses previous-frame depth, so evaluate rapid camera movement in the consuming scene.
+The BRG implementation replaces the previous GPUInstancer code, Profiles, public APIs and importable demos without automatic migration. Existing project data must be recreated for the new components and config; keeping the same UPM identifier and `0.1.0` version does not preserve those contracts.
 
-Import **Fraxinus GPU Batcher Demos** through Package Manager for the optional examples. Their presence does not change FraxinusRP's sample availability.
+Open **Tools > Fraxinus GPU Batcher > System Window** to inspect the new system. Configuration is discovered or created at `Assets/FraxinusGPUBatcherData/FraxinusGPUBatcherConfig.asset`; existing project configs are found first, shader references are repaired, and the selected config is added to Player Settings preloaded assets. GameObject and terrain registration use the new `GPUBatcher*` / `TerrainGPUBatcherRegisterer` components.
+
+Install the matching Core and FraxinusRP revision together. Core provides native ObjectDispatcher tracking through `NativeObjectChangeTracker`; the RP's `InjectPass.ShouldExecute` hook lets HZB history select the final supported opaque pass. The BRG package owns its history HZB and current-frame retest paths: history is built after opaque rendering without a full prepass, while retest requests complete prepass depth. This replaces the old GPU Batcher's use of `HiZDepthHistory`.
+
+Unity 2022 also lacks the required native SpeedTree wind extraction and Umbra AABB-query bindings. The port supplies neutral wind and retains Umbra candidates. See the [port notes](../Packages/Fraxinus-GPU-Batcher/Documentation~/Port.md) and [equivalence audit](../Packages/Fraxinus-GPU-Batcher/Documentation~/EquivalenceAudit.md) for supported algorithms, validation scope and remaining engine boundaries.
 
 ## Common setup issues
 
@@ -81,7 +85,8 @@ Import **Fraxinus GPU Batcher Demos** through Package Manager for the optional e
 | --- | --- |
 | Missing `ScopeData` or typed RenderGraph APIs | Check that UltraRP and Core come from the same repository revision, and that old embedded copies are not taking precedence. |
 | UltraRP Shader Graph access / target compilation errors | Confirm `com.unity.shadergraph` resolves to `Fraxinus-ShaderGraph`, not the registry package. |
-| GPU Batcher cannot find `HiZDepthHistory` | Update FraxinusRP and GPU Batcher together from the same revision; their unchanged version numbers do not guarantee matching APIs. |
+| GPU Batcher cannot find native tracking or injection APIs | Update Core, FraxinusRP and GPU Batcher together from the same revision. |
+| Registered GPU Batcher objects disappear | Native indirect submission is not implemented; registration takes over the original Renderer / Terrain. This development port does not yet provide their replacement draws. |
 | Missing package / invalid Git path | Check access to GitHub, that `?path=/Packages/...` matches the exact directory, and that all references use an available revision. |
 | Pipeline looks unchanged | Check Graphics and the current Quality pipeline asset; installing packages alone does not select a pipeline. |
 | Pink materials or an empty UltraRP view | Check shader compatibility, the Renderer Graph connections and drawing tags. URP Renderer Features are not UltraRP graph nodes. |

@@ -1,0 +1,1433 @@
+// Copyright (c) 2026 Milk_Drinker01. All rights reserved.
+
+// dxc produces ~50% smaller code vs fxc on vulkan and metal
+// not used on dx12 (3x larger) or dx11 (unsupported)
+// source: https://docs.google.com/document/d/1yHARKE5NwOGmWKZY2z3EPwSz5V_ZxTDT8RnRl521iyE/edit?tab=t.0
+#pragma use_dxc vulkan metal
+
+#pragma only_renderers d3d11 vulkan metal webgpu playstation xboxseries switch
+
+// camera culling kernels
+#pragma kernel ResetCullingState
+#pragma kernel CullChunks
+#pragma kernel CullInstances
+#pragma kernel FinalizeDrawArgs
+
+#pragma multi_compile _ HZB_ENABLED
+#pragma multi_compile _ RAW_INDIRECT_ARGS
+
+// shadow culling kernels
+#pragma kernel CullChunksShadow
+#pragma kernel CullInstancesShadow
+#pragma kernel FinalizeShadowDrawArgs
+
+#include "GPUBatcher_Common.hlsl"
+#include "GPUBatcher_HZB.hlsl"
+
+// instance data
+StructuredBuffer<InstanceInput> _Instances;
+StructuredBuffer<SignatureInfo> _Signatures;
+
+// animated crossfade
+StructuredBuffer<FadeState> _FadeStates;
+int _AnimatedCrossfadeMode;  // 0 = PerPrototype, 1 = PerInstance
+struct ProtoCrossfadeState { float cycleProgress; int isBoundary; };
+StructuredBuffer<ProtoCrossfadeState> _ProtoCrossfadeStates;
+
+// camera culling output
+RWStructuredBuffer<DrawBucket> _DrawBuckets;
+RWByteAddressBuffer _VisibilityBuffer;
+#if !defined(RAW_INDIRECT_ARGS)
+RWStructuredBuffer<uint> _IndirectArgs;
+#else
+RWByteAddressBuffer _IndirectArgs;
+#endif
+StructuredBuffer<uint> _ArgsToBucket;
+
+// shadow culling output
+RWStructuredBuffer<DrawBucket> _ShadowDrawBuckets;
+RWByteAddressBuffer _ShadowVisibilityBuffer;
+#if !defined(RAW_INDIRECT_ARGS)
+RWStructuredBuffer<uint> _ShadowIndirectArgs;
+#else
+RWByteAddressBuffer _ShadowIndirectArgs;
+#endif
+StructuredBuffer<uint> _ShadowArgsToBucket;
+
+// shadow chunk culling (hierarchical)
+// visible chunks store: chunkIdx (bits 0-23) | cascadeMask (bits 24-27)
+RWStructuredBuffer<uint> _VisibleShadowChunks;
+#if !defined(RAW_INDIRECT_ARGS)
+RWStructuredBuffer<uint> _VisibleShadowChunkCount;  // [numGroupsX, 1, 1, visibleCount]
+#else
+RWByteAddressBuffer _VisibleShadowChunkCount;  // [numGroupsX, 1, 1, visibleCount]
+#endif
+StructuredBuffer<int> _ShadowChunkIds;  // CPU-compacted enabled active chunk IDs (input to CullChunksShadow)
+int _ShadowChunkCount;                  // number of entries in _ShadowChunkIds
+uint _CullingLayerMask;                 // combined camera+light layer mask for chunk filtering
+
+// pool-based chunk buffers
+StructuredBuffer<ChunkInfo> _Chunks;
+StructuredBuffer<int> _PoolRefs;  // pool reference indices
+
+// cpu-compacted visible chunk input
+StructuredBuffer<int> _CpuVisibleChunkIds;
+int _CpuVisibleChunkCount;
+
+// GPU-side counter reset
+#if !defined(RAW_INDIRECT_ARGS)
+RWStructuredBuffer<uint> _CounterBuffer;
+#else
+RWByteAddressBuffer _CounterBuffer;
+#endif
+
+// camera visible chunks
+RWStructuredBuffer<uint> _VisibleChunks;
+#if !defined(RAW_INDIRECT_ARGS)
+RWStructuredBuffer<uint> _VisibleChunkCount;
+#else
+RWByteAddressBuffer _VisibleChunkCount;
+#endif
+
+// uniforms
+int _BucketCount;
+int _DrawCommandCount;
+int _InitialVisibleCount; // pre-loaded visible chunk count (skips CullChunks when > 0)
+
+// shadow culling uniforms
+int _CascadeCount;
+int _ApplyCascadeLimits;   // 1 directional (per-proto cascade limits), 0 point/spot faces
+int4 _CascadePlaneCounts[2];  // int[N] is broken with SetInts (16B padding), but int4 is fine
+float4 _CascadePlanes[36];  // 6 cascades * 6 planes max
+
+// light-space cascade culling - port of SRP Core ReceiverSphereCuller
+float4x4 _WorldToLightRotation;  // 3x3 rotation packed in 4x4 for SetMatrix
+float4 _CascadeSpheres[6];       // light space: xyz=center_LS, w=radius
+float4 _CascadeBlendFactors[2];  // per-cascade blend factor
+float4 _LightFacingPlanes[6];    // receiver planes facing light, world space
+int _LightFacingPlaneCount;
+
+// perspective receiver cull planes, light-facing + silhouette, spot/point only
+float4 _ReceiverCullPlanes[18];
+int _ReceiverCullPlaneCount;     // 0 for directional, >0 for spot/point
+
+int _ShadowDrawCommandCount;
+
+// culling-specific defines
+#define THREADS_CHUNKS 64
+#define THREADS_FINALIZE 64
+#define THREADS_CULL_HEAVY 128  // register-heavy kernels, stays within DX11 16384 budget
+#define MAX_CASCADES 6
+
+// culling-specific uniforms
+float4 _FrustumPlanes[6];
+int _InstanceMultiplierShift; // 0 mono, 1 stereo single-pass instanced
+float _CrossFadeWidth;
+
+// helper functions - frustum & culling tests
+
+bool SphereInFrustum(float3 center, float radius)
+{
+    [unroll]
+    for (int i = 0; i < 6; i++)
+    {
+        float d = dot(_FrustumPlanes[i].xyz, center) + _FrustumPlanes[i].w;
+        if (d < -radius)
+            return false;
+    }
+    return true;
+}
+
+// extract AABB from ChunkInfo
+void GetChunkAABB(ChunkInfo chunk, out float3 aabbMin, out float3 aabbMax, out float3 center)
+{
+    aabbMin = float3(chunk.boundsMinXZ.x, chunk.boundsMinY, chunk.boundsMinXZ.y);
+    aabbMax = float3(chunk.boundsMaxXZ.x, chunk.boundsMaxY, chunk.boundsMaxXZ.y);
+    center = (aabbMin + aabbMax) * 0.5;
+}
+
+// helper functions - LOD selection with crossfade
+
+int SelectLODWithFade(float screenRatio, float4 lodScreenSizes0, float4 lodScreenSizes1,
+                       float4 lodFadeWidths0, float4 lodFadeWidths1, int lodCount, out float fadeFactor)
+{
+    fadeFactor = 1.0;
+    lodCount = clamp(lodCount, 1, MAX_LOD_LEVELS);
+
+    // build threshold array for up to 8 LODs
+    float thresholds[9];
+    thresholds[0] = lodScreenSizes0.x;
+    thresholds[1] = lodScreenSizes0.y;
+    thresholds[2] = lodScreenSizes0.z;
+    thresholds[3] = lodScreenSizes0.w;
+    thresholds[4] = lodScreenSizes1.x;
+    thresholds[5] = lodScreenSizes1.y;
+    thresholds[6] = lodScreenSizes1.z;
+    thresholds[7] = lodScreenSizes1.w;
+    thresholds[8] = 0.0;
+
+    float fadeWidths[8];
+    fadeWidths[0] = lodFadeWidths0.x;
+    fadeWidths[1] = lodFadeWidths0.y;
+    fadeWidths[2] = lodFadeWidths0.z;
+    fadeWidths[3] = lodFadeWidths0.w;
+    fadeWidths[4] = lodFadeWidths1.x;
+    fadeWidths[5] = lodFadeWidths1.y;
+    fadeWidths[6] = lodFadeWidths1.z;
+    fadeWidths[7] = lodFadeWidths1.w;
+
+    // get cull threshold for last LOD
+    int lastLod = max(0, lodCount - 1);
+    float cullThreshold = (lastLod < 8) ? thresholds[lastLod] : 0.0;
+
+    // use raw fade width for cull range
+    float cullFadeWidth = (lastLod < 8) ? fadeWidths[lastLod] : 0.0;
+
+    // check for fade-to-cull range
+    if (screenRatio < cullThreshold)
+    {
+        if (cullFadeWidth > 0.0)
+        {
+            // fade-to-cull range
+            float fadeEnd = cullThreshold * (1.0 - cullFadeWidth);
+
+            if (screenRatio >= fadeEnd)
+            {
+                // in fade-to-cull range: render last LOD with crossfade
+                if (_CrossFadeWidth > 0.0)
+                {
+                    fadeFactor = (screenRatio - fadeEnd) / (cullThreshold - fadeEnd);
+                    fadeFactor = saturate(fadeFactor);
+                }
+                return lastLod;
+            }
+        }
+        // below fade range or no fade - fully culled
+        return -1;
+    }
+
+    // normal LOD selection with crossfade
+    for (int lod = 0; lod < lodCount - 1 && lod < 8; lod++)
+    {
+        float threshold = thresholds[lod];
+
+        if (screenRatio >= threshold)
+        {
+            float fadeWidth = fadeWidths[lod] * _CrossFadeWidth;
+            if (fadeWidth > 0.0 && lod < lodCount - 1)
+            {
+                float fadeStart = threshold * (1.0 + fadeWidth);
+                if (screenRatio < fadeStart)
+                {
+                    fadeFactor = (screenRatio - threshold) / (fadeStart - threshold);
+                    fadeFactor = saturate(fadeFactor);
+                }
+            }
+            return lod;
+        }
+    }
+
+    return lastLod;
+}
+
+// helper functions - crossfade resolution
+
+// convert fade progress [0,1] to complementary SNORM values
+// fadeProgress: 0=start, 1=end
+void GetCrossfadeSNORMs(float fadeProgress, out int outgoingSNORM, out int incomingSNORM)
+{
+    // outgoing LOD fades out
+    float outAlpha = 1.0 - fadeProgress;
+    int snormAbs = clamp((int)(outAlpha * 126.0 + 1.0 + 0.5), 1, 127);
+    outgoingSNORM = snormAbs;    // map [0,1] to [+1,+127]
+    incomingSNORM = -snormAbs;   // map [0,1] to [-127,-1]
+}
+
+struct EmitLODs
+{
+    int lod0;       // primary LOD to emit (-1 = skip entirely)
+    int lod1;       // secondary LOD during crossfade (-1 = none)
+    int snorm0;     // SNORM fade value for lod0 (0 = fully opaque / no crossfade)
+    int snorm1;     // SNORM fade value for lod1
+    bool fading0;   // whether lod0 needs crossfade bucket
+};
+
+// resolve LODs from animated FadeState buffer.
+// returns which LOD(s) to emit based on current fade progress.
+// sigIdx used to read per-prototype fadeProgress in PerPrototype mode.
+EmitLODs ResolveAnimatedCrossfade(FadeState state, int sigIdx)
+{
+    EmitLODs result;
+    result.lod0 = -1;
+    result.lod1 = -1;
+    result.snorm0 = 0;
+    result.snorm1 = 0;
+    result.fading0 = false;
+
+    int currentLOD = GetCurrentLOD(state);
+    int targetLOD = GetTargetLOD(state);
+
+    // fully culled, not fading
+    if (currentLOD < 0 && targetLOD == -1)
+        return result;
+
+    // read fadeProgress from per-prototype buffer or per-instance
+    float fadeProgress;
+    if (_AnimatedCrossfadeMode == 0)
+        fadeProgress = _ProtoCrossfadeStates[sigIdx].cycleProgress;
+    else
+        fadeProgress = state.fadeProgress;
+
+    int outSnorm, inSnorm;
+    GetCrossfadeSNORMs(fadeProgress, outSnorm, inSnorm);
+
+    // fade from cull: only incoming LOD visible
+    if (currentLOD < 0 && targetLOD >= 0)
+    {
+        result.lod0 = targetLOD;
+        result.snorm0 = inSnorm;
+        result.fading0 = true;
+        return result;
+    }
+
+    // fade to cull: only outgoing LOD visible
+    if (currentLOD >= 0 && targetLOD == -2)
+    {
+        result.lod0 = currentLOD;
+        result.snorm0 = outSnorm;
+        result.fading0 = true;
+        return result;
+    }
+
+    // not fading: render currentLOD
+    if (targetLOD == -1 && currentLOD >= 0)
+    {
+        result.lod0 = currentLOD;
+        return result;
+    }
+
+    // normal crossfade between two LODs
+    if (currentLOD >= 0 && targetLOD >= 0)
+    {
+        result.lod0 = currentLOD;   // outgoing
+        result.snorm0 = outSnorm;
+        result.fading0 = true;
+        result.lod1 = targetLOD;    // incoming
+        result.snorm1 = inSnorm;
+    }
+
+    return result;
+}
+
+// resolve LODs from screen ratio using stateless crossfade
+EmitLODs ResolveStatelessCrossfade(float screenRatio, SignatureInfo sig,
+    float4 ss0, float4 ss1, float4 fw0, float4 fw1)
+{
+    EmitLODs result;
+    result.lod0 = -1;
+    result.lod1 = -1;
+    result.snorm0 = 0;
+    result.snorm1 = 0;
+    result.fading0 = false;
+
+    float fadeFactor = 1.0;
+    int lodLevel = SelectLODWithFade(screenRatio, ss0, ss1, fw0, fw1, SigLodCount(sig), fadeFactor);
+    if (lodLevel < 0)
+        return result;
+
+    bool inCrossfade = (fadeFactor < 0.99) && (SigCrossfadeEnabled(sig) != 0);
+
+    // primary = incoming LOD
+    result.lod0 = lodLevel;
+
+    if (inCrossfade)
+    {
+        int outSnorm, inSnorm;
+        GetCrossfadeSNORMs(fadeFactor, outSnorm, inSnorm);
+
+        result.snorm0 = inSnorm;
+        result.fading0 = true;
+
+        // secondary = outgoing LOD, next coarser
+        int nextLod = lodLevel + 1;
+        if (nextLod < SigLodCount(sig))
+        {
+            result.lod1 = nextLod;
+            result.snorm1 = outSnorm;
+        }
+    }
+
+    return result;
+}
+
+// apply distance density to resolved LOD emissions
+bool ApplyDensityToEmission(float screenRatio, float distSq, SignatureInfo sig, float densityHash,
+                            float globalDensity, bool crossfadeActive, bool isShadow, inout EmitLODs lods)
+{
+    if (SigDistanceDensityMode(sig) == 0)
+        return true; // distance density disabled for this signature
+
+    float distanceDensity = ComputeDistanceDensity(SigDistanceDensityMode(sig), screenRatio, distSq,
+                                             SigDistanceDensityParam1(sig), SigDistanceDensityParam2(sig), SigDistanceDensityMinFraction(sig));
+    // global density uniformly scales the distance curve so near/far thin proportionally
+    float density = distanceDensity * globalDensity;
+    float hash = densityHash;
+    float surplus = hash - density;
+
+    if (surplus <= 0.0)
+        return true; // instance survives density check
+
+    // shadow-specific: snap-cull when shadow crossfade disabled for this signature
+    if (isShadow && SigMaxShadowCrossfadeCascade(sig) == 0)
+        return false;
+
+    float fadeWidth = SigDistanceDensityFadeWidth(sig);
+    if (fadeWidth > 0.0 && surplus < fadeWidth && crossfadeActive)
+    {
+        // in density fade band - apply density opacity to SNORMs
+        float densityOpacity = 1.0 - (surplus / fadeWidth); // 1->0
+
+        if (lods.fading0)
+        {
+            // LOD crossfade active: scale both LODs' SNORMs by density opacity, preserving sign
+            int mag0 = clamp((int)((abs(lods.snorm0) - 1) * densityOpacity + 1.0), 1, 127);
+            lods.snorm0 = (lods.snorm0 < 0) ? -mag0 : mag0;
+
+            if (lods.lod1 >= 0)
+            {
+                int mag1 = clamp((int)((abs(lods.snorm1) - 1) * densityOpacity + 1.0), 1, 127);
+                lods.snorm1 = (lods.snorm1 < 0) ? -mag1 : mag1;
+            }
+        }
+        else
+        {
+            // no LOD crossfade: inject density SNORM
+            int outSnorm = clamp((int)(densityOpacity * 126.0 + 1.0), 1, 127);
+            lods.snorm0 = outSnorm;
+            lods.fading0 = true; // move to fadeState=1 bucket
+        }
+        return true; // emit with modified SNORMs
+    }
+
+    // fully density-culled
+    return false;
+}
+
+
+// helper functions - pool-based indexing
+
+// calculate global instance index, -1 if pool ref invalid
+int GetPoolInstanceIndex(ChunkInfo chunk, uint localInstanceIdx)
+{
+    uint poolLocalIdx = localInstanceIdx >> _PoolSizeShift;
+    uint instanceInPool = localInstanceIdx & _PoolSizeMask;
+
+    int poolRef = _PoolRefs[chunk.poolRefStart + poolLocalIdx];
+    if (poolRef < 0)
+        return -1;
+
+    return (int)((uint)poolRef * (uint)_PoolSize + instanceInPool);
+}
+
+// helper functions - camera emit
+
+uint GetCameraBucketIndex(uint protoOffset, int lodLevel, uint fadeState, uint pctMask)
+{
+    uint maskBelow = (1u << (uint)lodLevel) - 1u;
+    uint crossfadeBelow = countbits(~pctMask & maskBelow);
+    return protoOffset + (uint)lodLevel + crossfadeBelow + fadeState;
+}
+
+// derive bucket stride mask from percentage fade mask
+// clears highest percentage bit when mixed mode
+uint GetBucketPctMask(uint pctMask, int lodCount)
+{
+    uint lodBits = (1u << (uint)lodCount) - 1u;
+    uint activePct = pctMask & lodBits;
+    if (activePct != 0 && activePct != lodBits)
+        return pctMask & ~(1u << firstbithigh(activePct));
+    return pctMask;
+}
+
+// distance-linear fade across an LOD band for SpeedTree percentage mode
+float ComputePercentageFade(float screenRatio, float4 ss0, float4 ss1, int lod)
+{
+    float thresholds[8] = { ss0.x, ss0.y, ss0.z, ss0.w, ss1.x, ss1.y, ss1.z, ss1.w };
+    float nearThreshold = (lod > 0) ? thresholds[lod - 1] : 1e6;
+    float farThreshold = thresholds[lod];
+    float invNear = rcp(nearThreshold);
+    float invFar = rcp(max(farThreshold, 1e-6));
+    float invCurrent = rcp(max(screenRatio, 1e-6));
+    return saturate((invCurrent - invNear) * rcp(max(invFar - invNear, 1e-6)));
+}
+
+// pack SNORM fade value with local index
+uint PackVisibility(int snormFade, uint localIndex)
+{
+    return ((uint)(snormFade & 0xFF) << 24) | (localIndex & 0x00FFFFFFu);
+}
+
+// camera cull results
+struct CameraCullResult
+{
+    bool valid;
+    bool isFlipped;
+    uint bi0, vis0;
+    uint bi1, vis1;         // 0xFFFFFFFF = none
+    uint flipBucketOffset;
+};
+
+// helper functions - shadow culling
+
+// check if LOD casts shadows
+bool LODCastsShadows(SignatureInfo sig, int lodLevel)
+{
+    if (lodLevel < 0) return false;
+    return (SigLodShadowMask(sig) & (1u << (uint)lodLevel)) != 0;
+}
+
+uint GetShadowBucketIndex(uint protoOffset, int relLod, int cascade, uint fadeState, int crossfadeCascades, uint lodStride)
+{
+    uint cascadeOff = ((uint)cascade < (uint)crossfadeCascades)
+        ? (uint)(cascade * 2) + fadeState
+        : (uint)(crossfadeCascades + cascade);
+    return protoOffset + (uint)relLod * lodStride + cascadeOff;
+}
+
+bool SphereInCascadeFrustum(float3 center, float radius, uint cascade)
+{
+    if (cascade >= MAX_CASCADES) return false;
+
+    uint planeBase = cascade * 6;
+    uint planeCount = min((uint)_CascadePlaneCounts[cascade >> 2][cascade & 3], 6u);
+
+    [unroll(6)]
+    for (uint i = 0; i < planeCount; i++)
+    {
+        float4 plane = _CascadePlanes[planeBase + i];
+        if (dot(plane.xyz, center) + plane.w < -radius)
+            return false;
+    }
+    return true;
+}
+
+// AABB vs cascade frustum test for chunk culling, p-vertex method
+bool AABBInCascadeFrustum(float3 aabbMin, float3 aabbMax, uint cascade)
+{
+    if (cascade >= MAX_CASCADES) return false;
+
+    uint planeBase = cascade * 6;
+    uint planeCount = min((uint)_CascadePlaneCounts[cascade >> 2][cascade & 3], 6u);
+
+    [unroll(6)]
+    for (uint i = 0; i < planeCount; i++)
+    {
+        float4 plane = _CascadePlanes[planeBase + i];
+
+        // p-vertex: corner most aligned with plane normal
+        float3 pVertex = float3(
+            plane.x >= 0 ? aabbMax.x : aabbMin.x,
+            plane.y >= 0 ? aabbMax.y : aabbMin.y,
+            plane.z >= 0 ? aabbMax.z : aabbMin.z
+        );
+
+        if (dot(plane.xyz, pVertex) + plane.w < 0)
+            return false;
+    }
+    return true;
+}
+
+// test AABB against receiver cull planes for shadow tightening
+bool AABBInReceiverFrustum(float3 aabbMin, float3 aabbMax)
+{
+    if (_ReceiverCullPlaneCount <= 0) return true;
+    for (int i = 0; i < _ReceiverCullPlaneCount; i++)
+    {
+        float4 plane = _ReceiverCullPlanes[i];
+        float3 pVertex = float3(
+            plane.x >= 0 ? aabbMax.x : aabbMin.x,
+            plane.y >= 0 ? aabbMax.y : aabbMin.y,
+            plane.z >= 0 ? aabbMax.z : aabbMin.z);
+        if (dot(plane.xyz, pVertex) + plane.w < 0)
+            return false;
+    }
+    return true;
+}
+
+// test sphere against receiver cull planes
+bool SphereInReceiverFrustum(float3 center, float radius)
+{
+    if (_ReceiverCullPlaneCount <= 0) return true;
+    for (int i = 0; i < _ReceiverCullPlaneCount; i++)
+    {
+        float4 plane = _ReceiverCullPlanes[i];
+        if (dot(plane.xyz, center) + plane.w < -radius)
+            return false;
+    }
+    return true;
+}
+
+// returns bitmask of which cascades the AABB intersects (bit N = cascade N)
+uint GetCascadeMask(float3 aabbMin, float3 aabbMax)
+{
+    uint mask = 0;
+    [unroll(6)]
+    for (uint c = 0; c < (uint)_CascadeCount; c++)
+    {
+        if (AABBInCascadeFrustum(aabbMin, aabbMax, c))
+            mask |= (1u << c);
+    }
+    return mask;
+}
+
+// find smallest cascade containing this sphere, -1 if none
+int FindMinCascade(float3 center, float radius, uint cascadeMask)
+{
+    int start = cascadeMask ? (int)firstbitlow(cascadeMask) : _CascadeCount;
+    for (int c = start; c < _CascadeCount; c++)
+    {
+        if (SphereInCascadeFrustum(center, radius, (uint)c))
+            return c;
+    }
+    return -1;
+}
+
+// unpack chunk index and cascade mask from packed value
+void UnpackShadowChunk(uint packedChunk, out uint chunkIdx, out uint cascadeMask)
+{
+    chunkIdx = packedChunk & 0x00FFFFFFu;
+    cascadeMask = packedChunk >> 24;
+}
+
+// find max cascade from cascade mask
+int GetMaxCascadeFromMask(uint cascadeMask)
+{
+    return cascadeMask ? (int)firstbithigh(cascadeMask) : -1;
+}
+
+// port of ReceiverSphereCuller.DistanceUntilCylinderFullyCrossesPlane
+float DistanceUntilCylinderFullyCrossesPlane(
+    float3 cylinderCenter, float3 cylinderDir, float cylinderRadius, float4 plane)
+{
+    float cosEpsilon = 0.001;
+    float cosTheta = max(abs(dot(plane.xyz, cylinderDir)), cosEpsilon);
+    float rcpCos = rcp(cosTheta);
+    float heightAbovePlane = dot(plane.xyz, cylinderCenter) + plane.w;
+    float centerDist = heightAbovePlane * rcpCos;
+    float sinTheta = sqrt(max(1.0 - cosTheta * cosTheta, 0.0));
+    float edgeDist = cylinderRadius * sinTheta * rcpCos;
+    return centerDist + edgeDist;
+}
+
+// compute shadow capsule length
+float ComputeShadowLength(float3 casterCenterWS, float casterRadius)
+{
+    // shadowDir = light Z direction in world space = row 2 of worldToLightRotation
+    float3 shadowDir = _WorldToLightRotation[2].xyz;
+    float sLen = 1e10;
+    for (int i = 0; i < _LightFacingPlaneCount; i++)
+        sLen = min(sLen, DistanceUntilCylinderFullyCrossesPlane(
+            casterCenterWS, shadowDir, casterRadius, _LightFacingPlanes[i]));
+    return max(sLen, 0.0);
+}
+
+// full per-instance cascade visibility, port of ReceiverSphereCuller.ComputeSplitVisibilityMask
+// shadowLen out for the caster occlusion capsule, valid when light-facing planes exist
+void ComputeCascadeVisibilityMask(float3 worldCenter, float worldRadius, int minCasc, int maxCasc,
+                                   inout uint visMask, out float shadowLen)
+{
+    shadowLen = 0.0;
+
+    // no receiver spheres: per-face frustum test so a caster only goes into faces it overlaps
+    if (_LightFacingPlaneCount <= 0)
+    {
+        for (int c = minCasc; c <= maxCasc; c++)
+            if (SphereInCascadeFrustum(worldCenter, worldRadius, (uint)c))
+                visMask |= (1u << c);
+        return;
+    }
+
+    float3 casterLS = mul((float3x3)_WorldToLightRotation, worldCenter);
+    shadowLen = ComputeShadowLength(worldCenter, worldRadius);
+
+    for (int cs = minCasc; cs <= maxCasc; cs++)
+    {
+        float4 recvSph = _CascadeSpheres[cs]; // xyz=center_LS, w=radius
+        float3 recvToCaster = casterLS - recvSph.xyz;
+        float receiverRadius = recvSph.w;
+
+        // test 1: XY overlap
+        float sphereIntMaxDist = worldRadius + receiverRadius;
+        float zSqAtInt = sphereIntMaxDist * sphereIntMaxDist
+                       - dot(recvToCaster.xy, recvToCaster.xy);
+        if (zSqAtInt < 0.0)
+            continue;
+
+        // test 2: Z direction
+        if (recvToCaster.z > 0.0 && recvToCaster.z * recvToCaster.z > zSqAtInt)
+            continue;
+
+        // visible in this cascade
+        visMask |= (1u << cs);
+
+        // test 3: capsule exclusion
+        float blendFactor = _CascadeBlendFactors[cs >> 2][cs & 3];
+        float coreRadius = receiverRadius * blendFactor;
+        float3 recvToShadowEnd = recvToCaster + float3(0, 0, shadowLen);
+        float capsuleMaxDist = coreRadius - worldRadius;
+        float capsuleDistSq = max(dot(recvToCaster, recvToCaster), dot(recvToShadowEnd, recvToShadowEnd));
+        if (capsuleMaxDist > 0.0 && capsuleDistSq < capsuleMaxDist * capsuleMaxDist)
+            break;
+    }
+}
+
+// shadow LOD resolution: animated -> stateless -> simple
+EmitLODs ResolveShadowLODs(SignatureInfo sig, float screenRatio, uint globalIdx, int sigIdx,
+    float4 ss0, float4 ss1)
+{
+    EmitLODs result = (EmitLODs)0;
+    bool useCrossfadeEffect = (SigCrossfadeEnabled(sig) != 0 && SigMaxShadowCrossfadeCascade(sig) > 0);
+    if (SigUseAnimatedCrossfade(sig) != 0 && _CrossFadeWidth > 0)
+        result = ResolveAnimatedCrossfade(_FadeStates[globalIdx], sigIdx);
+    else if (useCrossfadeEffect)
+    {
+        float4 fw0 = SigLodFadeWidths0(sig);
+        float4 fw1 = SigLodFadeWidths1(sig);
+        result = ResolveStatelessCrossfade(screenRatio, sig, ss0, ss1, fw0, fw1);
+    }
+    else
+    {
+        result.lod0 = SelectLOD(screenRatio, ss0, ss1, SigLodCount(sig));
+        result.lod1 = -1;
+    }
+    return result;
+}
+
+
+// stage 3: camera culling pipeline
+
+#define THREADS_RESET 64
+
+[numthreads(THREADS_RESET,1,1)]
+void ResetCullingState(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, THREADS_RESET);
+    if (id == 0)
+    {
+#if !defined(RAW_INDIRECT_ARGS)
+        _CounterBuffer[0] = _InitialVisibleCount;
+        _CounterBuffer[1] = 1;
+        _CounterBuffer[2] = 1;
+        _CounterBuffer[3] = _InitialVisibleCount;
+#else
+        _CounterBuffer.Store(0, _InitialVisibleCount);
+        _CounterBuffer.Store(4, 1);
+        _CounterBuffer.Store(8, 1);
+        _CounterBuffer.Store(12, _InitialVisibleCount);
+#endif
+    }
+
+    if (id < (uint)_BucketCount)
+        _DrawBuckets[id].instanceCount = 0;
+
+    if (id < (uint)_DrawCommandCount)
+#if !defined(RAW_INDIRECT_ARGS)
+        _IndirectArgs[id * 5 + 1] = 0;
+#else
+        _IndirectArgs.Store((id * 5 + 1) * 4, 0);
+#endif
+}
+
+groupshared uint s_chunkLocalCount;
+groupshared uint s_chunkLocalIndices[THREADS_CHUNKS];
+groupshared uint s_chunkGlobalBase;
+
+[numthreads(THREADS_CHUNKS,1,1)]
+void CullChunks(uint3 groupId : SV_GroupID, uint3 localId : SV_GroupThreadID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(groupId, gi, THREADS_CHUNKS);
+    // phase 1: initialize groupshared, then each thread culls its chunk
+    if (localId.x == 0) s_chunkLocalCount = 0;
+    GroupMemoryBarrierWithGroupSync();
+
+    bool visible = false;
+    uint chunkId = 0;
+    if (id < (uint)_CpuVisibleChunkCount)
+    {
+        chunkId = (uint)_CpuVisibleChunkIds[id];
+        ChunkInfo chunk = _Chunks[chunkId];
+        visible = chunk.poolCount > 0;
+
+#if HZB_ENABLED
+        if (visible)
+        {
+            float3 aabbMin, aabbMax, center;
+            GetChunkAABB(chunk, aabbMin, aabbMax, center);
+            if (!IsChunkHZBVisible(aabbMin, aabbMax))
+                visible = false;
+        }
+#endif
+    }
+
+    // write visible chunk index to groupshared
+    uint localSlot;
+    if (visible)
+    {
+        InterlockedAdd(s_chunkLocalCount, 1, localSlot);
+        s_chunkLocalIndices[localSlot] = chunkId;
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    // phase 2: one thread reserves a contiguous range in the global buffer
+    if (localId.x == 0)
+    {
+        s_chunkGlobalBase = 0;
+        if (s_chunkLocalCount > 0)
+#if !defined(RAW_INDIRECT_ARGS)
+            InterlockedAdd(_VisibleChunkCount[3], s_chunkLocalCount, s_chunkGlobalBase);
+#else
+            _VisibleChunkCount.InterlockedAdd(12, s_chunkLocalCount, s_chunkGlobalBase);
+#endif
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    // phase 3: parallel copy from groupshared to global buffer
+    if (localId.x < s_chunkLocalCount)
+        _VisibleChunks[s_chunkGlobalBase + localId.x] = s_chunkLocalIndices[localId.x];
+
+    // update max visible count
+    if (localId.x == 0 && s_chunkLocalCount > 0)
+#if !defined(RAW_INDIRECT_ARGS)
+        InterlockedMax(_VisibleChunkCount[0], s_chunkGlobalBase + s_chunkLocalCount);
+#else
+        _VisibleChunkCount.InterlockedMax(0, s_chunkGlobalBase + s_chunkLocalCount);
+#endif
+}
+
+// LDS hash map for atomic coalescing, 3KB total
+#define HASH_SLOTS 256
+#define HASH_MASK (HASH_SLOTS - 1)
+#define HASH_MAX_PROBES 16
+#define MAX_EMITS_PER_THREAD 8         // camera: 4 iterations * 2 emits; overflow falls back
+#define MAX_SHADOW_EMITS_PER_THREAD 8  // overflow falls back to direct atomics
+groupshared uint s_hashKeys[HASH_SLOTS];
+groupshared uint s_hashCounts[HASH_SLOTS];
+groupshared uint s_hashGlobalBase[HASH_SLOTS];
+
+// cull a single camera instance
+CameraCullResult CullCameraInstance(ChunkInfo chunk, uint localIdx)
+{
+    CameraCullResult r = (CameraCullResult)0;
+    r.bi1 = 0xFFFFFFFF;
+
+    int globalIdx = GetPoolInstanceIndex(chunk, localIdx);
+    if (globalIdx < 0) return r;
+
+    InstanceInput inst = _Instances[globalIdx];
+    int sigIdx = InstSignatureIndex(inst);
+    if (sigIdx < 0) return r;
+
+    SignatureInfo sig = _Signatures[sigIdx];
+
+    uint flipOffset = SigFlipBucketOffset(sig);
+    r.isFlipped = (flipOffset != 0u) && InstIsFlipped(inst);
+    r.flipBucketOffset = flipOffset;
+
+    // runtime density scaling - early cull (global density is a hard cutoff; distance density only scales below it)
+    float densityHash = InstDensityHash(inst);
+    float globalDensity = SigGroupDensity(sig);
+    if (densityHash > globalDensity) return r;
+
+    InstanceWorldData wd = CalcInstanceWorldData(inst, sig);
+    if (wd.distSq > chunk.instanceCullDistanceSq) return r;
+    if (!SphereInFrustum(wd.worldCenter, wd.worldRadius)) return r;
+#if HZB_ENABLED
+    if (!IsHZBVisible(wd.worldCenter, wd.worldRadius)) return r;
+#endif
+
+    float screenRatio = CalcScreenRatio(wd.worldSize, wd.distSq);
+
+    float4 ss0 = SigLodScreenSizes0(sig);
+    float4 ss1 = SigLodScreenSizes1(sig);
+
+    EmitLODs lods;
+    if (SigUseAnimatedCrossfade(sig) != 0 && _CrossFadeWidth > 0)
+        lods = ResolveAnimatedCrossfade(_FadeStates[globalIdx], sigIdx);
+    else
+    {
+        float4 fw0 = SigLodFadeWidths0(sig);
+        float4 fw1 = SigLodFadeWidths1(sig);
+        lods = ResolveStatelessCrossfade(screenRatio, sig, ss0, ss1, fw0, fw1);
+    }
+    if (lods.lod0 < 0) return r;
+
+    if (SigUseAnimatedCrossfade(sig) == 0 || _CrossFadeWidth <= 0)
+    {
+        bool crossfadeActive = (SigCrossfadeEnabled(sig) != 0 && _CrossFadeWidth > 0);
+        if (!ApplyDensityToEmission(screenRatio, wd.distSq, sig, densityHash,
+                                     globalDensity, crossfadeActive, false, lods))
+            return r;
+    }
+
+    // percentage fade override for SpeedTree mesh LODs
+    if (SigCrossfadeEnabled(sig) != 0)
+    {
+        bool lod0IsPct = lods.lod0 >= 0 && (SigPercentageFadeMask(sig) & (1u << (uint)lods.lod0));
+        bool lod1IsPct = lods.lod1 < 0  || (SigPercentageFadeMask(sig) & (1u << (uint)lods.lod1));
+        if (lod0IsPct && lod1IsPct)
+        {
+            lods.snorm0 = (int)(ComputePercentageFade(screenRatio, ss0, ss1, lods.lod0) * 127.0 + 0.5);
+            lods.fading0 = false;
+            lods.lod1 = -1;
+            lods.snorm1 = 0;
+        }
+    }
+
+    r.valid = true;
+    uint fadeState0 = lods.fading0 ? 1u : 0u;
+    uint visIdx = (uint)globalIdx;
+    uint bucketMask = GetBucketPctMask(SigPercentageFadeMask(sig), SigLodCount(sig));
+    r.bi0 = GetCameraBucketIndex(SigCameraBucketOffset(sig), lods.lod0, fadeState0, bucketMask);
+    r.vis0 = (lods.fading0 || lods.snorm0 != 0)
+        ? PackVisibility(lods.snorm0, visIdx)
+        : (visIdx & 0x00FFFFFFu);
+
+    if (lods.lod1 >= 0 && lods.lod1 < SigLodCount(sig))
+    {
+        r.bi1 = GetCameraBucketIndex(SigCameraBucketOffset(sig), lods.lod1, 1u, bucketMask);
+        r.vis1 = PackVisibility(lods.snorm1, visIdx);
+    }
+    return r;
+}
+
+// insert bucket into LDS hash map, returns slot index and local offset
+bool HashInsert(uint bucketIndex, out uint outSlot, out uint outLocalOff)
+{
+    uint h = (bucketIndex * 2654435761u) & HASH_MASK;
+    [loop] for (uint probe = 0; probe < HASH_MAX_PROBES; probe++)
+    {
+        uint slot = (h + probe) & HASH_MASK;
+        uint existing;
+        InterlockedCompareExchange(s_hashKeys[slot], 0xFFFFFFFF, bucketIndex, existing);
+        if (existing == 0xFFFFFFFF || existing == bucketIndex)
+        {
+            InterlockedAdd(s_hashCounts[slot], 1, outLocalOff);
+            outSlot = slot;
+            return true;
+        }
+    }
+    outSlot = 0;
+    outLocalOff = 0;
+    return false;
+}
+
+[numthreads(THREADS_CULL_HEAVY,1,1)]
+void CullInstances(uint3 groupId : SV_GroupID, uint3 localId : SV_GroupThreadID)
+{
+    uint chunkIdx = _VisibleChunks[groupId.x];
+    ChunkInfo chunk = _Chunks[chunkIdx];
+    uint instanceCount = chunk.poolCount << _PoolSizeShift;
+
+    // initialize LDS hash map for atomic coalescing
+    for (uint h = localId.x; h < HASH_SLOTS; h += THREADS_CULL_HEAVY)
+    {
+        s_hashKeys[h] = 0xFFFFFFFF;
+        s_hashCounts[h] = 0;
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    // per-thread emit storage (kept in registers, written in phase 3)
+    uint emitSlot[MAX_EMITS_PER_THREAD];
+    uint emitOff[MAX_EMITS_PER_THREAD];
+    uint emitVis[MAX_EMITS_PER_THREAD];
+    uint emitCount = 0;
+
+    // phase 1: cull instances, accumulate counts in LDS hash map
+    for (uint i = localId.x; i < instanceCount; i += THREADS_CULL_HEAVY)
+    {
+        CameraCullResult cr = CullCameraInstance(chunk, i);
+        if (!cr.valid) continue;
+
+        // compute actual bucket indices (apply flip offset for flipped instances)
+        uint bi0 = cr.isFlipped ? (cr.bi0 + cr.flipBucketOffset) : cr.bi0;
+        uint bi1 = cr.bi1;
+        if (bi1 != 0xFFFFFFFF && cr.isFlipped)
+            bi1 += cr.flipBucketOffset;
+
+        // emit primary LOD into hash map
+        {
+            bool hashed0 = false;
+            if (emitCount < MAX_EMITS_PER_THREAD)
+            {
+                uint slot, off;
+                if (HashInsert(bi0, slot, off))
+                {
+                    emitSlot[emitCount] = slot;
+                    emitOff[emitCount] = off;
+                    emitVis[emitCount] = cr.vis0;
+                    emitCount++;
+                    hashed0 = true;
+                }
+            }
+            if (!hashed0)
+            {
+                uint s0; InterlockedAdd(_DrawBuckets[bi0].instanceCount, 1, s0);
+                if (s0 < _DrawBuckets[bi0].maxSlots)
+                    _VisibilityBuffer.Store((_DrawBuckets[bi0].bufferOffset + s0) * 4, cr.vis0);
+            }
+        }
+
+        // emit secondary LOD (crossfade) into hash map
+        if (bi1 != 0xFFFFFFFF)
+        {
+            bool hashed1 = false;
+            if (emitCount < MAX_EMITS_PER_THREAD)
+            {
+                uint slot, off;
+                if (HashInsert(bi1, slot, off))
+                {
+                    emitSlot[emitCount] = slot;
+                    emitOff[emitCount] = off;
+                    emitVis[emitCount] = cr.vis1;
+                    emitCount++;
+                    hashed1 = true;
+                }
+            }
+            if (!hashed1)
+            {
+                uint s1; InterlockedAdd(_DrawBuckets[bi1].instanceCount, 1, s1);
+                if (s1 < _DrawBuckets[bi1].maxSlots)
+                    _VisibilityBuffer.Store((_DrawBuckets[bi1].bufferOffset + s1) * 4, cr.vis1);
+            }
+        }
+    }
+
+    // phase 2: flush hash map - one global InterlockedAdd per unique bucket
+    GroupMemoryBarrierWithGroupSync();
+
+    for (uint h2 = localId.x; h2 < HASH_SLOTS; h2 += THREADS_CULL_HEAVY)
+    {
+        if (s_hashKeys[h2] != 0xFFFFFFFF)
+            InterlockedAdd(_DrawBuckets[s_hashKeys[h2]].instanceCount, s_hashCounts[h2], s_hashGlobalBase[h2]);
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    // phase 3: scatter visibility data using reserved global offsets (no atomics)
+    for (uint e = 0; e < emitCount; e++)
+    {
+        uint slot = emitSlot[e];
+        uint bucketId = s_hashKeys[slot];
+        uint globalOff = s_hashGlobalBase[slot] + emitOff[e];
+        if (globalOff < _DrawBuckets[bucketId].maxSlots)
+            _VisibilityBuffer.Store((_DrawBuckets[bucketId].bufferOffset + globalOff) * 4, emitVis[e]);
+    }
+}
+
+[numthreads(THREADS_FINALIZE,1,1)]
+void FinalizeDrawArgs(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, THREADS_FINALIZE);
+    if (id >= (uint)_DrawCommandCount)
+        return;
+
+    uint bucketIndex = _ArgsToBucket[id];
+    uint instanceCount = _DrawBuckets[bucketIndex].instanceCount;
+
+    // clamp to maxSlots
+    uint maxSlots = _DrawBuckets[bucketIndex].maxSlots;
+    if (maxSlots > 0)
+        instanceCount = min(instanceCount, maxSlots);
+
+    // stereo single-pass instanced: double instance count
+    instanceCount <<= _InstanceMultiplierShift;
+#if !defined(RAW_INDIRECT_ARGS)
+    _IndirectArgs[id * 5 + 1] = instanceCount;
+#else
+    _IndirectArgs.Store((id * 5 + 1) * 4, instanceCount);
+#endif
+}
+
+
+// stage 4: shadow culling pipeline
+
+// cull chunks for shadow rendering, groupshared histogram
+[numthreads(THREADS_CHUNKS,1,1)]
+void CullChunksShadow(uint3 groupId : SV_GroupID, uint3 localId : SV_GroupThreadID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(groupId, gi, THREADS_CHUNKS);
+    // phase 1: initialize groupshared, then each thread culls its chunk
+    if (localId.x == 0) s_chunkLocalCount = 0;
+    GroupMemoryBarrierWithGroupSync();
+
+    uint packedResult = 0;
+    bool visible = false;
+    if (id < (uint)_ShadowChunkCount)
+    {
+        uint chunkId = (uint)_ShadowChunkIds[id];
+        ChunkInfo chunk = _Chunks[chunkId];
+        if (chunk.poolCount > 0 && (chunk.layerMask & _CullingLayerMask) != 0)
+        {
+            float3 aabbMin, aabbMax, center;
+            GetChunkAABB(chunk, aabbMin, aabbMax, center);
+
+            // per-chunk shadow distance cull using closest AABB point
+            float3 closest = clamp(_CameraPosition, aabbMin, aabbMax);
+            float3 delta = closest - _CameraPosition;
+            float distSq = dot(delta, delta);
+
+            if (chunk.shadowDistanceSq == 0 || distSq <= chunk.shadowDistanceSq)
+            {
+                // test against cascade frustums
+                uint cascadeMask = GetCascadeMask(aabbMin, aabbMax);
+                if (_ApplyCascadeLimits != 0)
+                    cascadeMask &= (1u << chunk.maxShadowCascade) - 1u;
+                if (cascadeMask != 0)
+                {
+                    // receiver sphere cull at chunk level (port of ReceiverSphereCuller)
+                    float chunkRadius = length(aabbMax - center);
+                    int minC = (int)firstbitlow(cascadeMask);
+                    int maxC = (int)firstbithigh(cascadeMask);
+                    uint refinedMask = 0;
+                    float chunkShadowLen;
+                    ComputeCascadeVisibilityMask(center, chunkRadius, minC, maxC, refinedMask, chunkShadowLen);
+                    cascadeMask &= refinedMask;
+
+                    if (cascadeMask != 0)
+                    {
+                        // receiver frustum cull
+                        if (AABBInReceiverFrustum(aabbMin, aabbMax))
+                        {
+                            visible = true;
+#if HZB_ENABLED
+                            // caster occlusion: swept shadow volume fully behind prev-frame depth
+                            if (_LightFacingPlaneCount > 0)
+                            {
+                                if (!IsShadowCapsuleHZBVisible(center, center + _WorldToLightRotation[2].xyz * chunkShadowLen, chunkRadius))
+                                    visible = false;
+                            }
+#endif
+                            packedResult = chunkId | (cascadeMask << 24);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // write visible chunk to groupshared
+    uint localSlot;
+    if (visible)
+    {
+        InterlockedAdd(s_chunkLocalCount, 1, localSlot);
+        s_chunkLocalIndices[localSlot] = packedResult;
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    // phase 2: one thread reserves a contiguous range in the global buffer
+    if (localId.x == 0)
+    {
+        s_chunkGlobalBase = 0;
+        if (s_chunkLocalCount > 0)
+#if !defined(RAW_INDIRECT_ARGS)
+            InterlockedAdd(_VisibleShadowChunkCount[3], s_chunkLocalCount, s_chunkGlobalBase);
+#else
+            _VisibleShadowChunkCount.InterlockedAdd(12, s_chunkLocalCount, s_chunkGlobalBase);
+#endif
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    // phase 3: parallel copy from groupshared to global buffer
+    if (localId.x < s_chunkLocalCount)
+        _VisibleShadowChunks[s_chunkGlobalBase + localId.x] = s_chunkLocalIndices[localId.x];
+
+    // update max visible count
+    if (localId.x == 0 && s_chunkLocalCount > 0)
+#if !defined(RAW_INDIRECT_ARGS)
+        InterlockedMax(_VisibleShadowChunkCount[0], s_chunkGlobalBase + s_chunkLocalCount);
+#else
+        _VisibleShadowChunkCount.InterlockedMax(0, s_chunkGlobalBase + s_chunkLocalCount);
+#endif
+}
+
+// cull a single shadow instance
+struct ShadowCullResult
+{
+    bool valid;
+    bool isFlipped;
+    uint shadowBucketOffset;
+    uint shadowFlipBucketOffset;
+    int shadowCrossfadeCascades;
+    uint shadowLodStride;
+    int shadowLOD0, shadowLOD1;  // relative to minShadowLOD (for bucket indexing)
+    bool cast0, cast1, sameShadowLOD, fading;
+    uint localIndex;
+    uint vis_lod0, vis_lod1;
+    int minCascade, maxCascade;
+    uint cascadeVisMask;
+};
+
+// pre-compute fadeState for a given cascade
+uint GetCascadeFadeState(ShadowCullResult scr, int cascade)
+{
+    if (!scr.fading) return 0u;
+    return ((uint)cascade < (uint)scr.shadowCrossfadeCascades) ? 1u : 0u;
+}
+
+// apply or strip fade SNORM based on effective fadeState
+uint ApplyFadeToVis(uint vis, uint fadeState)
+{
+    return (fadeState != 0) ? vis : (vis & 0x00FFFFFFu);
+}
+
+void CullShadowInstance(ChunkInfo chunk, uint localIdx,
+                        uint chunkCascadeMask, int chunkMaxCascade,
+                        inout ShadowCullResult r)
+{
+    int globalIdx = GetPoolInstanceIndex(chunk, localIdx);
+    if (globalIdx < 0) return;
+
+    InstanceInput inst = _Instances[globalIdx];
+    int sigIdx = InstSignatureIndex(inst);
+    if (sigIdx < 0) return;
+
+    SignatureInfo sig = _Signatures[sigIdx];
+
+    r.isFlipped = (SigShadowFlipBucketOffset(sig) != 0u) && InstIsFlipped(inst);
+
+    // runtime density scaling - early cull (global density is a hard cutoff; distance density only scales below it)
+    float densityHash = InstDensityHash(inst);
+    float globalDensity = SigGroupDensity(sig);
+    if (densityHash > globalDensity) return;
+
+    InstanceWorldData wd = CalcInstanceWorldData(inst, sig);
+    if (wd.distSq > chunk.instanceCullDistanceSq) return;
+    if (sig.shadowDistanceSq > 0 && wd.distSq > sig.shadowDistanceSq) return;
+
+    int minCascade = FindMinCascade(wd.worldCenter, wd.worldRadius, chunkCascadeMask);
+    if (minCascade < 0) return;
+
+    // receiver frustum cull
+    if (!SphereInReceiverFrustum(wd.worldCenter, wd.worldRadius)) return;
+
+    float screenRatio = CalcScreenRatio(wd.worldSize, wd.distSq);
+    int maxCascade = _ApplyCascadeLimits != 0
+        ? min(chunkMaxCascade, min(SigMaxShadowCascade(sig) - 1, _CascadeCount - 1))
+        : _CascadeCount - 1;
+    if (maxCascade < minCascade) return;
+
+    float4 ss0 = SigLodScreenSizes0(sig);
+    float4 ss1 = SigLodScreenSizes1(sig);
+
+    bool useCrossfadeEffect = (SigCrossfadeEnabled(sig) != 0 && SigMaxShadowCrossfadeCascade(sig) > 0);
+    EmitLODs lods = ResolveShadowLODs(sig, screenRatio, globalIdx, sigIdx, ss0, ss1);
+    if (lods.lod0 < 0) return;
+
+    if (!ApplyDensityToEmission(screenRatio, wd.distSq, sig, densityHash,
+                                 globalDensity, useCrossfadeEffect, true, lods))
+        return;
+
+    int minShadowLOD = SigMinShadowLOD(sig);
+    r.shadowLOD0 = max(lods.lod0, minShadowLOD);
+    r.shadowLOD1 = (lods.lod1 >= 0) ? max(lods.lod1, minShadowLOD) : -1;
+    r.cast0 = LODCastsShadows(sig, r.shadowLOD0);
+    r.cast1 = (r.shadowLOD1 >= 0) ? LODCastsShadows(sig, r.shadowLOD1) : false;
+    if (!r.cast0 && !r.cast1) return;
+
+    r.valid = true;
+    r.shadowBucketOffset = SigShadowBucketOffset(sig);
+    r.shadowFlipBucketOffset = SigShadowFlipBucketOffset(sig);
+    r.shadowCrossfadeCascades = SigShadowCrossfadeCascades(sig);
+    r.shadowLodStride = SigShadowLodStride(sig);
+    r.sameShadowLOD = (r.shadowLOD1 >= 0 && r.shadowLOD0 == r.shadowLOD1);
+    r.fading = lods.fading0 && useCrossfadeEffect;
+    r.localIndex = (uint)globalIdx;
+
+    // convert to relative LODs for bucket indexing
+    r.shadowLOD0 -= minShadowLOD;
+    if (r.shadowLOD1 >= 0) r.shadowLOD1 -= minShadowLOD;
+    r.vis_lod0 = (r.fading && !r.sameShadowLOD)
+        ? PackVisibility(lods.snorm0, r.localIndex)
+        : (r.localIndex & 0x00FFFFFFu);
+    r.vis_lod1 = PackVisibility(lods.snorm1, r.localIndex);
+    // light-space cascade visibility, port of ReceiverSphereCuller
+    uint cascadeVisMask = 0;
+    float casterShadowLen;
+    ComputeCascadeVisibilityMask(wd.worldCenter, wd.worldRadius, minCascade, maxCascade, cascadeVisMask, casterShadowLen);
+    if (cascadeVisMask == 0) { r.valid = false; return; }
+
+#if HZB_ENABLED
+    // caster occlusion: swept shadow volume fully behind prev-frame depth
+    if (_LightFacingPlaneCount > 0)
+    {
+        if (!IsShadowCapsuleHZBVisible(wd.worldCenter, wd.worldCenter + _WorldToLightRotation[2].xyz * casterShadowLen, wd.worldRadius))
+        {
+            r.valid = false;
+            return;
+        }
+    }
+#endif
+
+    r.minCascade = (int)firstbitlow(cascadeVisMask);
+    r.maxCascade = (int)firstbithigh(cascadeVisMask);
+    r.cascadeVisMask = cascadeVisMask;
+}
+
+
+// cull instances for shadow rendering with LDS hash map atomic coalescing
+[numthreads(THREADS_CULL_HEAVY,1,1)]
+void CullInstancesShadow(uint3 groupId : SV_GroupID, uint3 localId : SV_GroupThreadID)
+{
+    uint packedChunk = _VisibleShadowChunks[groupId.x];
+    uint chunkIdx;
+    uint chunkCascadeMask;
+    UnpackShadowChunk(packedChunk, chunkIdx, chunkCascadeMask);
+
+    ChunkInfo chunk = _Chunks[chunkIdx];
+    uint instanceCount = chunk.poolCount << _PoolSizeShift;
+    int chunkMaxCascade = GetMaxCascadeFromMask(chunkCascadeMask);
+
+    // initialize LDS hash map for atomic coalescing
+    for (uint h = localId.x; h < HASH_SLOTS; h += THREADS_CULL_HEAVY)
+    {
+        s_hashKeys[h] = 0xFFFFFFFF;
+        s_hashCounts[h] = 0;
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    // per-thread emit storage (kept in registers, written in phase 3)
+    uint emitSlot[MAX_SHADOW_EMITS_PER_THREAD];
+    uint emitOff[MAX_SHADOW_EMITS_PER_THREAD];
+    uint emitVis[MAX_SHADOW_EMITS_PER_THREAD];
+    uint emitCount = 0;
+
+    // phase 1: cull instances, accumulate counts in LDS hash map
+    for (uint i = localId.x; i < instanceCount; i += THREADS_CULL_HEAVY)
+    {
+        ShadowCullResult scr = (ShadowCullResult)0;
+        CullShadowInstance(chunk, i, chunkCascadeMask, chunkMaxCascade, scr);
+        if (!scr.valid) continue;
+
+        uint flipOffset = scr.isFlipped ? scr.shadowFlipBucketOffset : 0;
+        int xfc = scr.shadowCrossfadeCascades; uint sls = scr.shadowLodStride;
+
+        for (int cascade = scr.minCascade; cascade <= scr.maxCascade; cascade++)
+        {
+            if (!(scr.cascadeVisMask & (1u << (uint)cascade))) continue;
+            uint fs = GetCascadeFadeState(scr, cascade);
+
+            if (scr.cast0)
+            {
+                uint bi0; uint vis0;
+                if (scr.sameShadowLOD)
+                {
+                    bi0 = GetShadowBucketIndex(scr.shadowBucketOffset, scr.shadowLOD0, cascade, 0u, xfc, sls) + flipOffset;
+                    vis0 = scr.vis_lod0;
+                }
+                else
+                {
+                    bi0 = GetShadowBucketIndex(scr.shadowBucketOffset, scr.shadowLOD0, cascade, fs, xfc, sls) + flipOffset;
+                    vis0 = ApplyFadeToVis(scr.vis_lod0, fs);
+                }
+
+                bool hashedS0 = false;
+                if (emitCount < MAX_SHADOW_EMITS_PER_THREAD)
+                {
+                    uint slot, off;
+                    if (HashInsert(bi0, slot, off))
+                    {
+                        emitSlot[emitCount] = slot;
+                        emitOff[emitCount] = off;
+                        emitVis[emitCount] = vis0;
+                        emitCount++;
+                        hashedS0 = true;
+                    }
+                }
+                if (!hashedS0)
+                {
+                    uint s0; InterlockedAdd(_ShadowDrawBuckets[bi0].instanceCount, 1, s0);
+                    if (s0 < _ShadowDrawBuckets[bi0].maxSlots)
+                        _ShadowVisibilityBuffer.Store((_ShadowDrawBuckets[bi0].bufferOffset + s0) * 4, vis0);
+                }
+
+                if (scr.sameShadowLOD) continue;
+            }
+
+            if (!scr.sameShadowLOD && scr.cast1 && scr.fading)
+            {
+                uint bi1 = GetShadowBucketIndex(scr.shadowBucketOffset, scr.shadowLOD1, cascade, fs, xfc, sls) + flipOffset;
+                uint vis1 = ApplyFadeToVis(scr.vis_lod1, fs);
+
+                bool hashedS1 = false;
+                if (emitCount < MAX_SHADOW_EMITS_PER_THREAD)
+                {
+                    uint slot, off;
+                    if (HashInsert(bi1, slot, off))
+                    {
+                        emitSlot[emitCount] = slot;
+                        emitOff[emitCount] = off;
+                        emitVis[emitCount] = vis1;
+                        emitCount++;
+                        hashedS1 = true;
+                    }
+                }
+                if (!hashedS1)
+                {
+                    uint s1; InterlockedAdd(_ShadowDrawBuckets[bi1].instanceCount, 1, s1);
+                    if (s1 < _ShadowDrawBuckets[bi1].maxSlots)
+                        _ShadowVisibilityBuffer.Store((_ShadowDrawBuckets[bi1].bufferOffset + s1) * 4, vis1);
+                }
+            }
+        }
+    }
+
+    // phase 2: flush hash map - one global InterlockedAdd per unique shadow bucket
+    GroupMemoryBarrierWithGroupSync();
+
+    for (uint h2 = localId.x; h2 < HASH_SLOTS; h2 += THREADS_CULL_HEAVY)
+    {
+        if (s_hashKeys[h2] != 0xFFFFFFFF)
+            InterlockedAdd(_ShadowDrawBuckets[s_hashKeys[h2]].instanceCount, s_hashCounts[h2], s_hashGlobalBase[h2]);
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    // phase 3: scatter shadow visibility data using reserved global offsets (no atomics)
+    for (uint e = 0; e < emitCount; e++)
+    {
+        uint slot = emitSlot[e];
+        uint bucketId = s_hashKeys[slot];
+        uint globalOff = s_hashGlobalBase[slot] + emitOff[e];
+        if (globalOff < _ShadowDrawBuckets[bucketId].maxSlots)
+            _ShadowVisibilityBuffer.Store((_ShadowDrawBuckets[bucketId].bufferOffset + globalOff) * 4, emitVis[e]);
+    }
+}
+
+[numthreads(THREADS_FINALIZE,1,1)]
+void FinalizeShadowDrawArgs(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    uint id = GetLinearThreadId(gid, gi, THREADS_FINALIZE);
+    if (id >= (uint)_ShadowDrawCommandCount)
+        return;
+
+    uint bucketIndex = _ShadowArgsToBucket[id];
+    uint instanceCount = _ShadowDrawBuckets[bucketIndex].instanceCount;
+
+    // clamp to maxSlots
+    uint maxSlots = _ShadowDrawBuckets[bucketIndex].maxSlots;
+    if (maxSlots > 0)
+        instanceCount = min(instanceCount, maxSlots);
+
+    // write instance count to indirect args slot 1
+#if !defined(RAW_INDIRECT_ARGS)
+    _ShadowIndirectArgs[id * 5 + 1] = instanceCount;
+#else
+    _ShadowIndirectArgs.Store((id * 5 + 1) * 4, instanceCount);
+#endif
+}

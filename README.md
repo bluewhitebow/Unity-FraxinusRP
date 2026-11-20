@@ -60,11 +60,11 @@ Rendering resolution can be chosen independently of output resolution. **SGSR1**
 | [Fraxinus-RPCore](Packages/Fraxinus-RPCore/README.md) | `com.unity.render-pipelines.core` | `14.0.99` | RenderGraph, shared rendering tools, probe baking and data management. |
 | [Fraxinus-ShaderGraph](Packages/Fraxinus-ShaderGraph/FraxinusChanges.md) | `com.unity.shadergraph` | `14.0.12` | Shader Graph fork exposing the internal APIs needed by UltraRP targets. |
 | [Fraxinus-Light-Transport](Packages/Fraxinus-Light-Transport/README.md) | `com.fraxinus.rendering.light-transport` | `1.0.1` | Compute ray queries, acceleration structures and sampling. |
-| [Fraxinus-GPU-Batcher](Packages/Fraxinus-GPU-Batcher/README.md) | `com.bluewhitebow.fraxinus-gpu-batcher` | `0.1.0` | Optional GPU instancing, terrain / detail batching and Hi-Z occlusion through UltraRP. |
+| [Fraxinus-GPU-Batcher](Packages/Fraxinus-GPU-Batcher/README.md) | `com.bluewhitebow.fraxinus-gpu-batcher` | `0.1.0` | Optional BRG instance storage, registration, culling and LOD; native indirect drawing is still under development. |
 
 Each UPM package retains its own version. Use the four companion packages and, when installed, GPU Batcher from one checkout or Git revision. Matching version numbers do not make official packages interchangeable with these forks. The dependency examples include all five packages; omit the GPU Batcher entry when it is not needed.
 
-GPU Batcher uses UltraRP's `HiZDepthPass` and per-camera `HiZDepthHistory`. Occlusion requires valid previous-frame depth from a base Game camera with a 2D, non-stereo, non-dynamically-scaled target. Disabling the pass or invalidating history skips occlusion while frustum and distance culling remain available. See [GPU Batcher setup](docs/Usage.md#optional-gpu-batcher).
+**GPU Batcher is currently a BRG development port with no native indirect drawing.** Registration takes over the source Renderer / Terrain, so registered objects have no indirect rendering while `BRGIndirectSubmission.TrySubmit` remains empty. Bake removes source child GameObjects. This replaces the previous GPUInstancer implementation, Profiles, APIs and samples without automatic migration. See [GPU Batcher status and setup](docs/Usage.md#optional-gpu-batcher) before adopting it.
 
 ## Getting started
 
@@ -73,7 +73,7 @@ GPU Batcher uses UltraRP's `HiZDepthPass` and per-camera `HiZDepthHistory`. Occl
 3. Create a pipeline asset and its associated Renderer Graph through **Assets > Create > FraxinusEngine > UltraRP > UltraRP Asset**. Connect drawing, shadow and post-processing nodes using the [graph configuration guide](Packages/FraxinusRP/Documentation~/Installation.md).
 4. Assign the UltraRP asset in **Project Settings > Graphics** and check the active **Quality** override. Use the included UltraRP shaders or create Lit / Unlit graphs through **Assets > Create > Shader Graph > UltraRP**.
 
-This repository contains packages and documentation. Open a consuming Unity project in the Editor. FraxinusRP currently does not ship a sample scene or sample generator; the optional GPU Batcher package provides its own importable demos.
+This repository contains packages and documentation. Open a consuming Unity project in the Editor. FraxinusRP currently does not ship a sample scene or sample generator. The current BRG GPU Batcher port also omits the previous package demos.
 
 ## Support and validation
 

@@ -1,3 +1,18 @@
+# 2026-11-20 BRG GPU Batcher port
+
+Replaces the optional GPU Batcher's previous GPUInstancer implementation,
+Profiles, APIs and samples with a BRG instance-storage, registration, culling
+and LOD port. There is no automatic migration. Native indirect submission is
+still empty: registered objects lose their source Renderer / Terrain drawing
+without replacement indirect draws, and Bake removes source child objects.
+See the [current package status](../../Fraxinus-GPU-Batcher/README.md).
+
+The paired Core update adds native object-change tracking. UltraRP adds
+`InjectPass.ShouldExecute` before consuming a once-per-context injection so the
+BRG history HZB pass can select the final supported opaque producer. The package
+owns separate history and current-frame retest HZB paths. Install the GPU
+Batcher, Core and RP from the same revision; the package version is unchanged.
+
 # 2026-11-19 Injected-pass requirements and camera output
 
 Replaces `bool InjectPass.PrepareFrame(...)` with

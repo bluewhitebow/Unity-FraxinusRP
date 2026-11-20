@@ -1,0 +1,68 @@
+// Copyright (c) 2026 Milk_Drinker01. All rights reserved.
+
+// debug-only sphere-overlay compaction; separate file so it strips from release builds
+#pragma kernel ClearDebugSphereArgs
+#pragma kernel BuildDebugSphereList
+
+#pragma only_renderers d3d11 vulkan metal webgpu playstation xboxseries switch
+
+struct DrawBucket
+{
+    uint bufferOffset;
+    uint instanceCount;
+    uint maxSlots;
+};
+
+// matches GraphicsBuffer.IndirectDrawIndexedArgs
+struct IndexedIndirectArgs
+{
+    uint indexCountPerInstance;
+    uint instanceCount;
+    uint startIndex;
+    uint baseVertexIndex;
+    uint startInstance;
+};
+
+StructuredBuffer<DrawBucket> _DrawBuckets;
+ByteAddressBuffer _VisibilityBuffer;
+StructuredBuffer<uint> _DebugBucketLod;
+
+RWStructuredBuffer<uint> _DebugSphereList;
+RWStructuredBuffer<IndexedIndirectArgs> _DebugSphereArgs;
+
+uint _DebugSphereIndexCount;
+uint _DebugSphereMaxCount;
+uint _DebugBucketCount;
+
+[numthreads(1, 1, 1)]
+void ClearDebugSphereArgs(uint3 id : SV_DispatchThreadID)
+{
+    IndexedIndirectArgs a;
+    a.indexCountPerInstance = _DebugSphereIndexCount;
+    a.instanceCount = 0;
+    a.startIndex = 0;
+    a.baseVertexIndex = 0;
+    a.startInstance = 0;
+    _DebugSphereArgs[0] = a;
+}
+
+// one group per camera bucket, threads append the bucket's visible slots
+[numthreads(64, 1, 1)]
+void BuildDebugSphereList(uint3 gid : SV_GroupID, uint3 tid : SV_GroupThreadID)
+{
+    uint bucketIdx = gid.x;
+    if (bucketIdx >= _DebugBucketCount) return;
+
+    DrawBucket b = _DrawBuckets[bucketIdx];
+    uint count = min(b.instanceCount, b.maxSlots);
+    uint lod = _DebugBucketLod[bucketIdx] & 0xFF;
+
+    for (uint i = tid.x; i < count; i += 64)
+    {
+        uint globalIdx = _VisibilityBuffer.Load((b.bufferOffset + i) * 4) & 0x00FFFFFF;
+        uint dst;
+        InterlockedAdd(_DebugSphereArgs[0].instanceCount, 1, dst);
+        if (dst < _DebugSphereMaxCount)
+            _DebugSphereList[dst] = (lod << 24) | globalIdx;
+    }
+}

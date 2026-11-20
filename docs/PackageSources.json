@@ -34,8 +34,8 @@
       "sourceProject": "Duckov-Recovered",
       "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
       "sourcePath": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher",
-      "sourceCommit": "03bf252c381f5812e758616acd1ccb55a4fe6cb5",
-      "sourceState": "Working-tree snapshot based on sourceCommit; synchronized with FraxinusRP adaptations present at capture."
+      "sourceCommit": "148ad81fd976e6a5f76624ce081c779c2bd61dd9",
+      "sourceState": "Committed BRG port snapshot; synchronized with the matching Core native-tracking wrapper and FraxinusRP injection hook."
     }
   ]
 }

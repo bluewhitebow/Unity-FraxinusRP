@@ -1,0 +1,62 @@
+[
+  {
+    "unity": "2022.3.62f3-x86_64",
+    "objectDispatcherPresent": true,
+    "objectDispatcherMethods": [
+      "UnityEngine.TypeDispatchData UnityEngine.ObjectDispatcher::GetTypeChangesAndClear(System.Type,Unity.Collections.Allocator,System.Boolean,System.Boolean)",
+      "System.Void UnityEngine.ObjectDispatcher::GetTypeChangesAndClear(System.Type,System.Collections.Generic.List`1<UnityEngine.Object>,Unity.Collections.NativeArray`1<System.Int32>&,Unity.Collections.NativeArray`1<System.Int32>&,Unity.Collections.Allocator,System.Boolean)",
+      "UnityEngine.Component[] UnityEngine.ObjectDispatcher::GetTransformChangesAndClear(System.Type,UnityEngine.ObjectDispatcher/TransformTrackingType,System.Boolean)",
+      "UnityEngine.TransformDispatchData UnityEngine.ObjectDispatcher::GetTransformChangesAndClear(System.Type,UnityEngine.ObjectDispatcher/TransformTrackingType,Unity.Collections.Allocator)",
+      "System.Void UnityEngine.ObjectDispatcher::EnableTypeTracking(UnityEngine.ObjectDispatcher/TypeTrackingFlags,System.Type[])",
+      "System.Void UnityEngine.ObjectDispatcher::EnableTypeTracking(System.Type[])",
+      "System.Void UnityEngine.ObjectDispatcher::EnableTransformTracking(UnityEngine.ObjectDispatcher/TransformTrackingType,System.Type[])",
+      "UnityEngine.TypeDispatchData UnityEngine.ObjectDispatcher::GetTypeChangesAndClear(Unity.Collections.Allocator,System.Boolean,System.Boolean)",
+      "System.Void UnityEngine.ObjectDispatcher::GetTypeChangesAndClear(System.Collections.Generic.List`1<UnityEngine.Object>,Unity.Collections.NativeArray`1<System.Int32>&,Unity.Collections.NativeArray`1<System.Int32>&,Unity.Collections.Allocator,System.Boolean)",
+      "UnityEngine.Component[] UnityEngine.ObjectDispatcher::GetTransformChangesAndClear(UnityEngine.ObjectDispatcher/TransformTrackingType,System.Boolean)",
+      "UnityEngine.TransformDispatchData UnityEngine.ObjectDispatcher::GetTransformChangesAndClear(UnityEngine.ObjectDispatcher/TransformTrackingType,Unity.Collections.Allocator)",
+      "System.Void UnityEngine.ObjectDispatcher::EnableTypeTracking(UnityEngine.ObjectDispatcher/TypeTrackingFlags)",
+      "System.Void UnityEngine.ObjectDispatcher::EnableTransformTracking(UnityEngine.ObjectDispatcher/TransformTrackingType)",
+      "System.Void UnityEngine.ObjectDispatcher::EnableTypeTracking(System.IntPtr,System.Type,UnityEngine.ObjectDispatcher/TypeTrackingFlags)",
+      "System.Void UnityEngine.ObjectDispatcher::EnableTransformTracking(System.IntPtr,System.Type,UnityEngine.ObjectDispatcher/TransformTrackingType)"
+    ],
+    "occlusionBufferFields": [],
+    "occlusionTestMethods": [],
+    "speedTreeWindManagerPresent": false,
+    "speedTreeWindMethods": [],
+    "speedTreeWindIteratorPresent": false
+  },
+  {
+    "unity": "6000.0.31f1",
+    "objectDispatcherPresent": true,
+    "objectDispatcherMethods": [
+      "UnityEngine.TypeDispatchData UnityEngine.ObjectDispatcher::GetTypeChangesAndClear(System.Type,Unity.Collections.Allocator,System.Boolean,System.Boolean)",
+      "System.Void UnityEngine.ObjectDispatcher::GetTypeChangesAndClear(System.Type,System.Collections.Generic.List`1<UnityEngine.Object>,Unity.Collections.NativeArray`1<System.Int32>&,Unity.Collections.NativeArray`1<System.Int32>&,Unity.Collections.Allocator,System.Boolean)",
+      "UnityEngine.Component[] UnityEngine.ObjectDispatcher::GetTransformChangesAndClear(System.Type,UnityEngine.ObjectDispatcher/TransformTrackingType,System.Boolean)",
+      "UnityEngine.TransformDispatchData UnityEngine.ObjectDispatcher::GetTransformChangesAndClear(System.Type,UnityEngine.ObjectDispatcher/TransformTrackingType,Unity.Collections.Allocator)",
+      "System.Void UnityEngine.ObjectDispatcher::EnableTypeTracking(UnityEngine.ObjectDispatcher/TypeTrackingFlags,System.Type[])",
+      "System.Void UnityEngine.ObjectDispatcher::EnableTypeTracking(System.Type[])",
+      "System.Void UnityEngine.ObjectDispatcher::EnableTransformTracking(UnityEngine.ObjectDispatcher/TransformTrackingType,System.Type[])",
+      "UnityEngine.TypeDispatchData UnityEngine.ObjectDispatcher::GetTypeChangesAndClear(Unity.Collections.Allocator,System.Boolean,System.Boolean)",
+      "System.Void UnityEngine.ObjectDispatcher::GetTypeChangesAndClear(System.Collections.Generic.List`1<UnityEngine.Object>,Unity.Collections.NativeArray`1<System.Int32>&,Unity.Collections.NativeArray`1<System.Int32>&,Unity.Collections.Allocator,System.Boolean)",
+      "UnityEngine.Component[] UnityEngine.ObjectDispatcher::GetTransformChangesAndClear(UnityEngine.ObjectDispatcher/TransformTrackingType,System.Boolean)",
+      "UnityEngine.TransformDispatchData UnityEngine.ObjectDispatcher::GetTransformChangesAndClear(UnityEngine.ObjectDispatcher/TransformTrackingType,Unity.Collections.Allocator)",
+      "System.Void UnityEngine.ObjectDispatcher::EnableTypeTracking(UnityEngine.ObjectDispatcher/TypeTrackingFlags)",
+      "System.Void UnityEngine.ObjectDispatcher::EnableTransformTracking(UnityEngine.ObjectDispatcher/TransformTrackingType)",
+      "System.Void UnityEngine.ObjectDispatcher::EnableTypeTracking(System.IntPtr,System.Type,UnityEngine.ObjectDispatcher/TypeTrackingFlags)",
+      "System.Void UnityEngine.ObjectDispatcher::EnableTransformTracking(System.IntPtr,System.Type,UnityEngine.ObjectDispatcher/TransformTrackingType)"
+    ],
+    "occlusionBufferFields": [
+      "System.IntPtr UnityEngine.Rendering.BatchCullingContext::occlusionBuffer"
+    ],
+    "occlusionTestMethods": [
+      "System.Boolean UnityEngine.Rendering.BatchRendererGroup::OcclusionTestAABB(System.IntPtr,UnityEngine.Bounds)",
+      "System.Boolean UnityEngine.Rendering.BatchRendererGroup::OcclusionTestAABB_Injected(System.IntPtr,UnityEngine.Bounds&)"
+    ],
+    "speedTreeWindManagerPresent": true,
+    "speedTreeWindMethods": [
+      "System.Void UnityEngine.Rendering.SpeedTreeWindManager::UpdateWindAndWriteBufferWindParams(System.ReadOnlySpan`1<System.Int32>,UnityEngine.Rendering.SpeedTreeWindParamsBufferIterator,System.Boolean)",
+      "System.Void UnityEngine.Rendering.SpeedTreeWindManager::UpdateWindAndWriteBufferWindParams_Injected(UnityEngine.Bindings.ManagedSpanWrapper&,UnityEngine.Rendering.SpeedTreeWindParamsBufferIterator&,System.Boolean)"
+    ],
+    "speedTreeWindIteratorPresent": true
+  }
+]

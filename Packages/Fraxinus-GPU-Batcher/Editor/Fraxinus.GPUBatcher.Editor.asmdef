@@ -3,11 +3,10 @@
     "rootNamespace": "Fraxinus.GPUBatcher.Editor",
     "references": [
         "Fraxinus.GPUBatcher.Runtime",
-        "Unity.Burst",
+        "Unity.Collections",
         "Unity.Mathematics",
         "Unity.RenderPipelines.Core.Runtime",
-        "Fraxinus.Runtime",
-        "UnityEngine.UI"
+        "Fraxinus.Runtime"
     ],
     "includePlatforms": [
         "Editor"
@@ -22,12 +21,7 @@
         {
             "name": "com.bluewhitebow.fraxinus-rp",
             "expression": "0.1.0",
-            "define": "GPUI_FRAXINUS"
-        },
-        {
-            "name": "com.unity.burst",
-            "expression": "1.0.0",
-            "define": "GPUI_BURST"
+            "define": "FRAXINUS_RP"
         }
     ],
     "noEngineReferences": false
