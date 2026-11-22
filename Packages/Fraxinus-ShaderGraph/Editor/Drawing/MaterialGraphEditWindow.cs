@@ -209,10 +209,10 @@ namespace UnityEditor.ShaderGraph.Drawing
                 m_ColorSpace = PlayerSettings.colorSpace;
             }
 
-            if (GraphicsSettings.renderPipelineAsset != m_RenderPipelineAsset)
+            if (GraphicsSettings.defaultRenderPipeline != m_RenderPipelineAsset)
             {
                 graphEditorView = null;
-                m_RenderPipelineAsset = GraphicsSettings.renderPipelineAsset;
+                m_RenderPipelineAsset = GraphicsSettings.defaultRenderPipeline;
             }
 
             if (EditorGUIUtility.isProSkin != m_ProTheme)
@@ -300,7 +300,7 @@ namespace UnityEditor.ShaderGraph.Drawing
                         viewDataKey = selectedGuid,
                     };
                     m_ColorSpace = PlayerSettings.colorSpace;
-                    m_RenderPipelineAsset = GraphicsSettings.renderPipelineAsset;
+                    m_RenderPipelineAsset = GraphicsSettings.defaultRenderPipeline;
                     graphObject.Validate();
 
                     // update blackboard title for the new graphEditorView
@@ -1201,7 +1201,7 @@ namespace UnityEditor.ShaderGraph.Drawing
             try
             {
                 m_ColorSpace = PlayerSettings.colorSpace;
-                m_RenderPipelineAsset = GraphicsSettings.renderPipelineAsset;
+                m_RenderPipelineAsset = GraphicsSettings.defaultRenderPipeline;
 
                 var asset = AssetDatabase.LoadAssetAtPath<Object>(AssetDatabase.GUIDToAssetPath(assetGuid));
                 if (asset == null)

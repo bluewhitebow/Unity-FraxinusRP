@@ -67,19 +67,19 @@ namespace Fraxinus.GPUBatcher
 
         internal void EnsureArraySizes()
         {
-            const int k_MaxLevels = 8;
-            if (meshLodIndices == null || meshLodIndices.Length < k_MaxLevels)
+            const int k_maxLevels = 8;
+            if (meshLodIndices == null || meshLodIndices.Length < k_maxLevels)
             {
                 var old = meshLodIndices;
-                meshLodIndices = new int[k_MaxLevels];
-                for (int i = 0; i < k_MaxLevels; i++)
+                meshLodIndices = new int[k_maxLevels];
+                for (int i = 0; i < k_maxLevels; i++)
                     meshLodIndices[i] = (old != null && i < old.Length) ? old[i] : i;
             }
-            if (meshLodScreenSizes == null || meshLodScreenSizes.Length < k_MaxLevels)
+            if (meshLodScreenSizes == null || meshLodScreenSizes.Length < k_maxLevels)
             {
                 var old = meshLodScreenSizes;
-                meshLodScreenSizes = new float[k_MaxLevels];
-                for (int i = 0; i < k_MaxLevels; i++)
+                meshLodScreenSizes = new float[k_maxLevels];
+                for (int i = 0; i < k_maxLevels; i++)
                 {
                     if (old != null && i < old.Length)
                         meshLodScreenSizes[i] = old[i];
@@ -87,11 +87,11 @@ namespace Fraxinus.GPUBatcher
                         meshLodScreenSizes[i] = (i > 0) ? meshLodScreenSizes[i - 1] * 0.5f : 1f;
                 }
             }
-            if (meshLodFadeWidths == null || meshLodFadeWidths.Length < k_MaxLevels)
+            if (meshLodFadeWidths == null || meshLodFadeWidths.Length < k_maxLevels)
             {
                 var old = meshLodFadeWidths;
-                meshLodFadeWidths = new float[k_MaxLevels];
-                for (int i = 0; i < k_MaxLevels; i++)
+                meshLodFadeWidths = new float[k_maxLevels];
+                for (int i = 0; i < k_maxLevels; i++)
                     meshLodFadeWidths[i] = (old != null && i < old.Length) ? old[i] : 0.2f;
             }
         }

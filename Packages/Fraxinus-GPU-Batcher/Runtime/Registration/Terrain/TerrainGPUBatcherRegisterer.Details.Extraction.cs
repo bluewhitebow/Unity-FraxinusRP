@@ -11,12 +11,10 @@ using UnityEngine;
 
 namespace Fraxinus.GPUBatcher
 {
-    // detail extraction, upload, and unloading
     public partial class TerrainGPUBatcherRegisterer
     {
         #region cached terrain data
 
-        // cached terrain data
         private NativeArray<ushort> _cachedHeightmap;     // full heightmap, row-major [z * hmRes + x], ushort [0,65535] -> [0,1]
         private NativeArray<byte> _cachedDetailLayers;    // all layers packed: layer0[detailRes^2], layer1[...], ...
         private NativeBitArray _cachedHoles;               // bit-packed holes, row-major [z * holesRes + x], bit=1 solid, bit=0 hole
@@ -30,7 +28,7 @@ namespace Fraxinus.GPUBatcher
 
         // reusable buffers to avoid GC allocations
         private NativeList<InstanceData> _detailExtractBuffer;
-        private const int kExtractBufferInitialCapacity = 4096;
+        private const int k_extractBufferInitialCapacity = 4096;
 
         private void CacheTerrainData()
         {
@@ -45,7 +43,6 @@ namespace Fraxinus.GPUBatcher
             int detRes = _detailResolution;
             int layerCount = _cachedDetailPrototypes.Length;
 
-            // heightmap
             // needed by both paths: job path for height sampling, Unity path for normal computation
             _cachedHeightmapRes = hmRes;
             float[,] heights = _terrainData.GetHeights(0, 0, hmRes, hmRes);
@@ -62,7 +59,7 @@ namespace Fraxinus.GPUBatcher
             _useCoverageMode = _terrainData.detailScatterMode == DetailScatterMode.CoverageMode;
 
             // detail layers needed by job path for extraction, and by editor for painting change detection
-            bool needDetailLayers = !useUnityTransforms;
+            bool needDetailLayers = !_useUnityTransforms;
 #if UNITY_EDITOR
             needDetailLayers = true; // editor always needs detail layers for HasPatchChanged()
 #endif
@@ -82,7 +79,7 @@ namespace Fraxinus.GPUBatcher
             }
 
             // holes and layer configs only needed by job path
-            if (!useUnityTransforms)
+            if (!_useUnityTransforms)
             {
                 int holesRes = _terrainData.holesResolution;
                 _cachedHolesRes = holesRes;
@@ -108,7 +105,7 @@ namespace Fraxinus.GPUBatcher
 
             // layer configs only needed by job path
             _cachedLayerConfigs.DisposeIfCreated();
-            if (!useUnityTransforms)
+            if (!_useUnityTransforms)
             {
                 float densityScale = _terrain.detailObjectDensity;
                 // allocate at max possible size, will trim after populating
@@ -125,7 +122,7 @@ namespace Fraxinus.GPUBatcher
                     if (globalIdx < 0)
                     {
 #if DEBUG
-                        if (enableDebugLogging)
+                        if (_enableDebugLogging)
                             Debug.LogWarning($"[Detail Config] Layer {layer} has no registered proto - SKIPPING");
 #endif
                         continue;
@@ -157,7 +154,7 @@ namespace Fraxinus.GPUBatcher
                     }
 
 #if DEBUG
-                    if (enableDebugLogging)
+                    if (_enableDebugLogging)
                     {
                         float avgScale = (prototype.minWidth + prototype.maxWidth) * 0.5f;
                         Debug.Log($"[Detail Config BUILD] Layer {layer} -> globalIdx={globalIdx}: " +
@@ -191,8 +188,7 @@ namespace Fraxinus.GPUBatcher
                 tempConfigs.Dispose();
 
 #if DEBUG
-                // log layer configuration summary
-                if (enableDebugLogging)
+                if (_enableDebugLogging)
                 {
                     Debug.Log($"[Detail Config] Terrain: {_terrain.name}, ScatterMode: {_terrainData.detailScatterMode}, " +
                               $"detailObjectDensity: {densityScale:F3}, Relevant layers: {cfgIdx}");
@@ -211,7 +207,7 @@ namespace Fraxinus.GPUBatcher
             }
 
 #if DEBUG
-            if (enableDebugLogging)
+            if (_enableDebugLogging)
             {
                 long hmBytes = _cachedHeightmap.Length * 2L;
                 long detailBytes = _cachedDetailLayers.IsCreated ? _cachedDetailLayers.Length : 0;
@@ -221,7 +217,7 @@ namespace Fraxinus.GPUBatcher
                           (_cachedDetailLayers.IsCreated ? $", details {detRes}^2 * {layerCount} layers ({detailBytes / 1024}KB)" : "") +
                           (_cachedHoles.IsCreated ? $", holes ({holesBytes / 1024}KB bit-packed)" : "") +
                           $", total {total / 1024}KB" +
-                          (useUnityTransforms ? " (Unity path: holes/layerConfigs skipped)" : ""));
+                          (_useUnityTransforms ? " (Unity path: holes/layerConfigs skipped)" : ""));
             }
 #endif
         }
@@ -295,12 +291,11 @@ namespace Fraxinus.GPUBatcher
         // dispatches patch extraction to the Unity transforms or job-based path
         private NativeArray<InstanceData> ExtractPatchInstances(Vector2Int coord, out Bounds bounds)
         {
-            // clear and reuse buffer
             _detailExtractBuffer.Clear();
             bounds = new Bounds();
             bool boundsInitialized = false;
 
-            if (useUnityTransforms)
+            if (_useUnityTransforms)
             {
                 // legacy path: use Unity's ComputeDetailInstanceTransforms, allocates GC each call
                 ExtractPatchInstancesUnity(coord, ref bounds, ref boundsInitialized);
@@ -320,33 +315,33 @@ namespace Fraxinus.GPUBatcher
         private bool UploadDetailChunk(Vector2Int detailChunkCoord, NativeArray<InstanceData> instArray, Bounds bounds)
         {
 #if DEBUG
-            s_MarkerUploadChunk.Begin();
+            s_markerUploadChunk.Begin();
 #endif
             var link = AllocChunk();
-            if (!link.IsValid)
+            if (!link.isValid)
             {
                 Debug.LogWarning($"TerrainGPUBatcherRegisterer[Details]: Failed to allocate BRG chunk for detail chunk ({detailChunkCoord.x},{detailChunkCoord.y})");
 #if DEBUG
-                s_MarkerUploadChunk.End();
+                s_markerUploadChunk.End();
 #endif
                 return false;
             }
 
             float detailRenderDist = Mathf.Min(_detailDistance, s_detailRenderDistance);
-            float instanceCullDist = GPUBatcherConfig.Instance.cullDetailsAtDetailDistance ? detailRenderDist : float.MaxValue;
+            float instanceCullDist = GPUBatcherConfig.instance.cullDetailsAtDetailDistance ? detailRenderDist : float.MaxValue;
             WriteChunk(link, instArray, bounds, detailRenderDist, instanceCullDistance: instanceCullDist);
 
 #if DEBUG
-            if (enableDebugLogging && _detailChunkBRGChunkIds.Count < 5)
-                Debug.Log($"TerrainGPUBatcherRegisterer[Details]: Wrote BRG chunk {link.Id} for detail chunk ({detailChunkCoord.x},{detailChunkCoord.y}) with {instArray.Length} instances, bounds={bounds}");
+            if (_enableDebugLogging && _detailChunkBRGChunkIds.Count < 5)
+                Debug.Log($"TerrainGPUBatcherRegisterer[Details]: Wrote BRG chunk {link.id} for detail chunk ({detailChunkCoord.x},{detailChunkCoord.y}) with {instArray.Length} instances, bounds={bounds}");
 #endif
 
-            _detailChunkBRGChunkIds[detailChunkCoord] = link.Id;
+            _detailChunkBRGChunkIds[detailChunkCoord] = link.id;
             _allocatedDetailChunkCount++;
             _totalLoadedDetailInstances += instArray.Length;
             _loadedDetailChunks.Add(detailChunkCoord);
 #if DEBUG
-            s_MarkerUploadChunk.End();
+            s_markerUploadChunk.End();
 #endif
             return true;
         }
@@ -356,7 +351,7 @@ namespace Fraxinus.GPUBatcher
         {
             if (_terrain == null) return;
             float detailRenderDist = Mathf.Min(_detailDistance, s_detailRenderDistance);
-            float instanceCullDist = GPUBatcherConfig.Instance.cullDetailsAtDetailDistance ? detailRenderDist : float.MaxValue;
+            float instanceCullDist = GPUBatcherConfig.instance.cullDetailsAtDetailDistance ? detailRenderDist : float.MaxValue;
             foreach (var coord in _loadedDetailChunks)
                 if (_detailChunkBRGChunkIds.TryGetValue(coord, out int brgChunkId))
                     SetChunkCullDistances(new ChunkLink(brgChunkId), detailRenderDist, instanceCullDist);
@@ -367,7 +362,7 @@ namespace Fraxinus.GPUBatcher
         {
             if (_detailChunkBRGChunkIds.TryGetValue(detailChunkCoord, out int chunkId))
             {
-                if (!debugSkipBRGUpload)
+                if (!_debugSkipBRGUpload)
                 {
                     var link = new ChunkLink(chunkId);
                     _totalLoadedDetailInstances -= GetTotalChunkInstanceCount(link);
@@ -406,7 +401,7 @@ namespace Fraxinus.GPUBatcher
                 }
             }
 
-            if (allInstances.Length > 0 && !debugSkipBRGUpload)
+            if (allInstances.Length > 0 && !_debugSkipBRGUpload)
                 UploadDetailChunk(chunkCoord, allInstances.AsArray(), bounds);
 
             allInstances.Dispose();
@@ -442,9 +437,8 @@ namespace Fraxinus.GPUBatcher
                     coord.x, coord.y, layer, _terrain.detailObjectDensity, out patchBounds);
 
 #if DEBUG
-                // check raw detail layer data
                 int totalRaw = 0;
-                if (enableDebugLogging && transforms.Length > 0)
+                if (_enableDebugLogging && transforms.Length > 0)
                 {
                     int[,] rawLayer = _terrainData.GetDetailLayer(
                         coord.x * _detailResolutionPerPatch, coord.y * _detailResolutionPerPatch,
@@ -453,7 +447,7 @@ namespace Fraxinus.GPUBatcher
                         for (int x = 0; x < _detailResolutionPerPatch; x++)
                             totalRaw += rawLayer[z, x];
                 }
-                if (enableDebugLogging && transforms.Length > 0)
+                if (_enableDebugLogging && transforms.Length > 0)
                 {
                     int cellsPerPatch = _detailResolutionPerPatch * _detailResolutionPerPatch;
                     float avgRawPerCell = totalRaw / (float)cellsPerPatch;
@@ -491,7 +485,6 @@ namespace Fraxinus.GPUBatcher
                         signatureIndex = globalProtoIdx,
                     });
 
-                    // expand bounds
                     if (!boundsInitialized)
                     {
                         bounds = new Bounds(worldPos, Vector3.zero);
@@ -522,7 +515,7 @@ namespace Fraxinus.GPUBatcher
         private HashSet<Vector2Int> _pendingCoords = new();  // fast lookup for coords with in-flight jobs
 
         // static output buffer pool shared across all terrains, avoids NativeList alloc/dealloc per patch
-        private const int kMaxJobBufferPoolSize = 32;
+        private const int k_maxJobBufferPoolSize = 32;
         private static Stack<PendingPatchJob> s_jobBufferPool = new();
 
         // static scratch for synchronous single-patch extraction
@@ -545,7 +538,7 @@ namespace Fraxinus.GPUBatcher
 
         private static void ReleaseJobBuffers(PendingPatchJob job)
         {
-            if (s_jobBufferPool.Count >= kMaxJobBufferPoolSize)
+            if (s_jobBufferPool.Count >= k_maxJobBufferPoolSize)
             {
                 if (job.instances.IsCreated) job.instances.Dispose();
                 if (job.boundsMinMax.IsCreated) job.boundsMinMax.Dispose();
@@ -672,7 +665,7 @@ namespace Fraxinus.GPUBatcher
             var instances = pending.instances;
 
 #if DEBUG
-            if (enableDebugLogging)
+            if (_enableDebugLogging)
             {
                 var (patchStartX, patchStartZ, _, _) = GetDetailChunkPatchRange(detailChunkCoord);
                 int cellsPerDetailChunk = _detailResolutionPerPatch * _patchesPerDetailChunk;
@@ -717,7 +710,7 @@ namespace Fraxinus.GPUBatcher
             }
 #endif
 
-            if (instances.Length == 0 || debugSkipBRGUpload)
+            if (instances.Length == 0 || _debugSkipBRGUpload)
             {
                 ReleaseJobBuffers(pending);
                 _pendingCoords.Remove(detailChunkCoord);

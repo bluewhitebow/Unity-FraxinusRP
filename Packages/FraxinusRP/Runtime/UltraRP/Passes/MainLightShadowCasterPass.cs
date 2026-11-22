@@ -288,7 +288,11 @@ namespace FraxinusEngine.Rendering.Ultra
 
                 for (int cascadeIndex = 0; cascadeIndex < _shadowCasterCascadesCount; ++cascadeIndex)
                 {
+#if UNITY_6000_0_OR_NEWER
+                    settings.splitIndex = cascadeIndex;
+#else
                     settings.splitData = _cascadeSlices[cascadeIndex].splitData;
+#endif
                     if (useRenderGraph)
                         passData.shadowRendererListsHandle[cascadeIndex] = renderGraph.CreateShadowRendererList(ref settings);
                     else

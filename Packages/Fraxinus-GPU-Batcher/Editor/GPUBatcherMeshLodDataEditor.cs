@@ -9,11 +9,11 @@ namespace Fraxinus.GPUBatcher.Editor
     [CanEditMultipleObjects]
     internal class GPUBatcherMeshLodDataEditor : UnityEditor.Editor
     {
-        static readonly GUIContent s_FadeMode = new GUIContent("Fade Mode");
-        static readonly GUIContent s_MeshLodNumLevels = new GUIContent("Num LODs", "Number of GPU Batcher LOD levels. Each maps to a mesh LOD index.");
-        static readonly GUIContent s_MeshLodIndex = new GUIContent("Mesh LOD Index", "Which mesh LOD index to draw for this GPU Batcher LOD level.");
-        static readonly GUIContent s_ScreenSize = new GUIContent("Screen Size", "Screen size threshold for transitioning to this LOD level.");
-        static readonly GUIContent s_LodFadeWidth = new GUIContent("Fade Width", "Crossfade transition width for this LOD level.");
+        static readonly GUIContent s_fadeMode = new GUIContent("Fade Mode");
+        static readonly GUIContent s_meshLodNumLevels = new GUIContent("Num LODs", "Number of GPU Batcher LOD levels. Each maps to a mesh LOD index.");
+        static readonly GUIContent s_meshLodIndex = new GUIContent("Mesh LOD Index", "Which mesh LOD index to draw for this GPU Batcher LOD level.");
+        static readonly GUIContent s_screenSize = new GUIContent("Screen Size", "Screen size threshold for transitioning to this LOD level.");
+        static readonly GUIContent s_lodFadeWidth = new GUIContent("Fade Width", "Crossfade transition width for this LOD level.");
 
         private SerializedProperty _propMeshLodNumLevels;
         private SerializedProperty _propMeshLodIndices;
@@ -48,9 +48,9 @@ namespace Fraxinus.GPUBatcher.Editor
 
             EditorGUILayout.LabelField($"Mesh has {meshLodCount} LODs", EditorStyles.miniLabel);
 
-            EditorGUILayout.PropertyField(_propMeshLodNumLevels, s_MeshLodNumLevels);
+            EditorGUILayout.PropertyField(_propMeshLodNumLevels, s_meshLodNumLevels);
 
-            EditorGUILayout.PropertyField(_propMeshLodFadeMode, s_FadeMode);
+            EditorGUILayout.PropertyField(_propMeshLodFadeMode, s_fadeMode);
 
             if (meshLodData.meshLodFadeMode == MinScreenSizeFadeMode.AnimatedCrossfade)
                 EditorGUILayout.LabelField("Change animated crossfade duration using Prototype Extra Data.", EditorStyles.miniLabel);
@@ -58,13 +58,13 @@ namespace Fraxinus.GPUBatcher.Editor
             bool showFadeWidth = meshLodData.meshLodFadeMode == MinScreenSizeFadeMode.Crossfade;
             int numLevels = meshLodData.meshLodNumLevels;
 
-            const int k_MaxLevels = 8;
-            if (_propMeshLodIndices.arraySize < k_MaxLevels)
-                _propMeshLodIndices.arraySize = k_MaxLevels;
-            if (_propMeshLodScreenSizes.arraySize < k_MaxLevels)
-                _propMeshLodScreenSizes.arraySize = k_MaxLevels;
-            if (_propMeshLodFadeWidths.arraySize < k_MaxLevels)
-                _propMeshLodFadeWidths.arraySize = k_MaxLevels;
+            const int k_maxLevels = 8;
+            if (_propMeshLodIndices.arraySize < k_maxLevels)
+                _propMeshLodIndices.arraySize = k_maxLevels;
+            if (_propMeshLodScreenSizes.arraySize < k_maxLevels)
+                _propMeshLodScreenSizes.arraySize = k_maxLevels;
+            if (_propMeshLodFadeWidths.arraySize < k_maxLevels)
+                _propMeshLodFadeWidths.arraySize = k_maxLevels;
 
             int maxIndex = Mathf.Max(0, meshLodCount - 1);
 
@@ -77,11 +77,11 @@ namespace Fraxinus.GPUBatcher.Editor
                 EditorGUI.indentLevel++;
 
                 var indexProp = _propMeshLodIndices.GetArrayElementAtIndex(i);
-                indexProp.intValue = EditorGUILayout.IntSlider(s_MeshLodIndex, indexProp.intValue, 0, maxIndex);
+                indexProp.intValue = EditorGUILayout.IntSlider(s_meshLodIndex, indexProp.intValue, 0, maxIndex);
 
                 var screenSizeProp = _propMeshLodScreenSizes.GetArrayElementAtIndex(i);
                 EditorGUI.BeginDisabledGroup(i == 0);
-                screenSizeProp.floatValue = EditorGUILayout.Slider(s_ScreenSize, screenSizeProp.floatValue, 0f, 1f);
+                screenSizeProp.floatValue = EditorGUILayout.Slider(s_screenSize, screenSizeProp.floatValue, 0f, 1f);
                 EditorGUI.EndDisabledGroup();
                 if (i == 0)
                     screenSizeProp.floatValue = 1f;
@@ -89,7 +89,7 @@ namespace Fraxinus.GPUBatcher.Editor
                 if (showFadeWidth)
                 {
                     var fadeWidthProp = _propMeshLodFadeWidths.GetArrayElementAtIndex(i);
-                    fadeWidthProp.floatValue = EditorGUILayout.Slider(s_LodFadeWidth, fadeWidthProp.floatValue, 0f, 1f);
+                    fadeWidthProp.floatValue = EditorGUILayout.Slider(s_lodFadeWidth, fadeWidthProp.floatValue, 0f, 1f);
                 }
 
                 EditorGUI.indentLevel--;

@@ -8,7 +8,7 @@
 // camera-relative world space for all projections, VP matrix has translation removed
 // depth pyramid is a single flat 2D texture, l-shaped atlas layout
 // occlusion test uses GatherRed to sample 2x2 depth footprint at the chosen mip
-// all targets use reversed-Z and UV-starts-at-top
+// The atlas uses canonical reversed depth (near=1, far=0) on every graphics API.
 
 // resources
 
@@ -34,6 +34,30 @@ float    _HZBTranslationScale;        // |cameraDelta| * focalLengthPixels, 0 wh
 // camera position for HZB projection, pass 0 uses previous frame's position
 float4   _HZBCameraPosition;
 
+// x: device depth is reversed, y: texture UV origin is at the top,
+// zw: clip Z/W -> device depth scale/bias (OpenGL uses [-1,1] clip Z).
+float4 _HZBDepthConvention;
+
+float HZBCanonicalDepth(float deviceDepth)
+{
+    return _HZBDepthConvention.x > 0.5 ? deviceDepth : 1.0 - deviceDepth;
+}
+
+float4 HZBCanonicalDepth(float4 deviceDepth)
+{
+    return _HZBDepthConvention.x > 0.5 ? deviceDepth : 1.0 - deviceDepth;
+}
+
+float HZBProjectedDepth(float clipDepth)
+{
+    return HZBCanonicalDepth(clipDepth * _HZBDepthConvention.z + _HZBDepthConvention.w);
+}
+
+float HZBTextureY(float clipY)
+{
+    return _HZBDepthConvention.y > 0.5 ? -clipY : clipY;
+}
+
 
 // depth comparison helpers (reversed-Z: near=1, far=0)
 
@@ -54,11 +78,11 @@ float3 HZBComputeNDCWithZ(float3 positionRWS)
 {
     float4 cs = mul(_ViewProjMatrix, float4(positionRWS, 1.0));
 
-    // undo Y flip
-    cs.y = -cs.y;
+    cs.y = HZBTextureY(cs.y);
 
     cs.xyz *= rcp(cs.w);
     cs.xy = cs.xy * 0.5 + 0.5;
+    cs.z = HZBProjectedDepth(cs.z);
     return cs.xyz;
 }
 
@@ -156,13 +180,13 @@ bool IsChunkHZBVisible(float3 aabbMin, float3 aabbMax)
             continue;
         }
 
-        cs.y = -cs.y;
+        cs.y = HZBTextureY(cs.y);
         float3 ndc = cs.xyz * rcp(cs.w);
         float2 uv = ndc.xy * 0.5 + 0.5;
 
         screenMin = min(screenMin, uv);
         screenMax = max(screenMax, uv);
-        closestDepth = max(closestDepth, ndc.z); // reversed-Z: max = closest
+        closestDepth = max(closestDepth, HZBProjectedDepth(ndc.z));
     }
 
     // if any corner is behind camera, AABB straddles near plane - skip test
@@ -224,16 +248,16 @@ bool IsShadowCapsuleHZBVisible(float3 p0, float3 p1, float radius)
     float4 cs1 = mul(_ViewProjMatrix, float4(rws1, 1.0));
     if (cs0.w <= 0.0) return true;
     if (cs1.w <= 0.0) return true;
-    cs0.y = -cs0.y;
-    cs1.y = -cs1.y;
+    cs0.y = HZBTextureY(cs0.y);
+    cs1.y = HZBTextureY(cs1.y);
 
     float4 csF0 = mul(_ViewProjMatrix, float4(front0, 1.0));
     float4 csF1 = mul(_ViewProjMatrix, float4(front1, 1.0));
     float3 radial = radius * _RadialDirWorldSpace.xyz;
     float4 csR0 = mul(_ViewProjMatrix, float4(rws0 + radial, 1.0));
     float4 csR1 = mul(_ViewProjMatrix, float4(rws1 + radial, 1.0));
-    csR0.y = -csR0.y;
-    csR1.y = -csR1.y;
+    csR0.y = HZBTextureY(csR0.y);
+    csR1.y = HZBTextureY(csR1.y);
 
     float2 uv0 = cs0.xy * rcp(cs0.w) * 0.5 + 0.5;
     float2 uv1 = cs1.xy * rcp(cs1.w) * 0.5 + 0.5;
@@ -261,8 +285,8 @@ bool IsShadowCapsuleHZBVisible(float3 p0, float3 p1, float radius)
     float2 cA = c0;
     float rPixA = rPix0;
     float dA = d0;
-    float qA = csF0.z * rcp(csF0.w);
-    float qEnd = csF1.z * rcp(csF1.w);
+    float qA = HZBProjectedDepth(csF0.z * rcp(csF0.w));
+    float qEnd = HZBProjectedDepth(csF1.z * rcp(csF1.w));
 
     [loop]
     for (int s = 0; s < segCount; s++)
@@ -276,7 +300,7 @@ bool IsShadowCapsuleHZBVisible(float3 p0, float3 p1, float radius)
         float2 cB = uvB * _DepthSizeInOccluderPixels;
         float rPixB = length((csRB.xy * rcp(csRB.w) * 0.5 + 0.5 - uvB) * _DepthSizeInOccluderPixels);
         float dB = lerp(d0, d1, t);
-        float qB = (s == segCount - 1) ? qEnd : csFB.z * rcp(csFB.w);
+        float qB = (s == segCount - 1) ? qEnd : HZBProjectedDepth(csFB.z * rcp(csFB.w));
 
         // segment rect = union of its two endpoint circles
         float expand = _HZBPixelExpansion + _HZBTranslationScale / max(min(dA, dB), 0.01);

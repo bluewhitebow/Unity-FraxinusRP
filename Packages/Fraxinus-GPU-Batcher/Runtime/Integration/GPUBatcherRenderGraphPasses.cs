@@ -1,5 +1,7 @@
 // Copyright (c) 2026 Milk_Drinker01. All rights reserved.
 
+using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 
@@ -24,19 +26,62 @@ namespace Fraxinus.GPUBatcher
             public TextureHandle hzbOutput;
             public int depthWidth;
             public int depthHeight;
-            public int sourceTexWidth;
-            public int sourceTexHeight;
             public bool sourceTextureArray;
+        }
+
+        private class HZBResolvePassData
+        {
+            public GPUBatcherRenderer batcher;
+            public TextureHandle source, destination;
+            public int width, height, kernel, slice;
+            public bool textureArray;
+        }
+
+        private static readonly int s_sourceMSAA = Shader.PropertyToID("_HZBSourceMSAA");
+        private static readonly int s_sourceMSAAArray = Shader.PropertyToID("_HZBSourceMSAAArray");
+        private static readonly int s_resolvedDepth = Shader.PropertyToID("_HZBResolvedDepth");
+        private static readonly int s_sourceSlice = Shader.PropertyToID("_HZBSourceSlice");
+
+        // Explicit array loads do not depend on the pipeline's stereo keywords.
+        internal static TextureHandle RecordHZBMSAAResolve(RenderGraph graph, GPUBatcherRenderer batcher,
+            TextureHandle source, int width, int height, bool textureArray, int slice = 0)
+        {
+            int kernel = batcher.HZBResolveMSAAKernel(textureArray);
+            if (kernel < 0) throw new System.InvalidOperationException("GPU Batcher HZB MSAA resolve kernel is missing.");
+            var destination = graph.CreateTexture(new TextureDesc(width, height)
+            {
+                name = "FraxinusGPUBatcher.ResolvedOpaqueDepth", format = GraphicsFormat.R32_SFloat,
+                filterMode = FilterMode.Point, enableRandomWrite = true
+            });
+            using (var builder = graph.AddUnsafePass<HZBResolvePassData>("FraxinusGPUBatcher.ResolveOpaqueDepth", out var data))
+            {
+                data.batcher = batcher; data.source = source; data.destination = destination;
+                data.width = width; data.height = height; data.kernel = kernel;
+                data.textureArray = textureArray; data.slice = slice;
+                builder.UseTexture(source, AccessFlags.Read);
+                builder.UseTexture(destination, AccessFlags.WriteAll);
+                builder.AllowPassCulling(false);
+                builder.SetRenderFunc(static (HZBResolvePassData pass, UnsafeGraphContext context) =>
+                {
+                    var shader = pass.batcher.occlusionShader;
+                    context.cmd.SetComputeVectorParam(shader, GPUBatcherRenderer.idHzbDepthConvention, GPUBatcherRenderer.hzbDepthConvention);
+                    context.cmd.SetComputeIntParam(shader, s_sourceSlice, pass.slice);
+                    context.cmd.SetComputeTextureParam(shader, pass.kernel, pass.textureArray ? s_sourceMSAAArray : s_sourceMSAA, pass.source);
+                    context.cmd.SetComputeTextureParam(shader, pass.kernel, s_resolvedDepth, pass.destination);
+                    context.cmd.DispatchCompute(shader, pass.kernel, (pass.width + 7) / 8, (pass.height + 7) / 8, 1);
+                });
+            }
+            return destination;
         }
 
         private static void UseCullingBuffers(IUnsafeRenderGraphBuilder builder, RenderGraph renderGraph,
             GPUBatcherRenderer.CullingBufferSet viewSet)
         {
-            builder.UseBuffer(renderGraph.ImportBuffer(viewSet.DrawBucketBuffer), AccessFlags.ReadWrite);
-            builder.UseBuffer(renderGraph.ImportBuffer(viewSet.VisibilityBuffer), AccessFlags.ReadWrite);
-            builder.UseBuffer(renderGraph.ImportBuffer(viewSet.IndirectArgsBuffer), AccessFlags.ReadWrite);
-            builder.UseBuffer(renderGraph.ImportBuffer(viewSet.VisibleChunksBuffer), AccessFlags.ReadWrite);
-            builder.UseBuffer(renderGraph.ImportBuffer(viewSet.VisibleChunkCountBuffer), AccessFlags.ReadWrite);
+            builder.UseBuffer(renderGraph.ImportBuffer(viewSet.drawBucketBuffer), AccessFlags.ReadWrite);
+            builder.UseBuffer(renderGraph.ImportBuffer(viewSet.visibilityBuffer), AccessFlags.ReadWrite);
+            builder.UseBuffer(renderGraph.ImportBuffer(viewSet.indirectArgsBuffer), AccessFlags.ReadWrite);
+            builder.UseBuffer(renderGraph.ImportBuffer(viewSet.visibleChunksBuffer), AccessFlags.ReadWrite);
+            builder.UseBuffer(renderGraph.ImportBuffer(viewSet.visibleChunkCountBuffer), AccessFlags.ReadWrite);
         }
 
         private static TextureHandle ImportHZBAtlas(IUnsafeRenderGraphBuilder builder, RenderGraph renderGraph,
@@ -51,10 +96,10 @@ namespace Fraxinus.GPUBatcher
 
         private static void BindHZBAtlasOnCullKernels(UnsafeGraphContext ctx, GPUBatcherRenderer brg, TextureHandle atlas)
         {
-            ctx.cmd.SetComputeTextureParam(brg.CullingShaderRef, brg.CullChunksKernelRef,
-                GPUBatcherRenderer.ID_HZBTextureRef, atlas);
-            ctx.cmd.SetComputeTextureParam(brg.CullingShaderRef, brg.CullInstancesKernelRef,
-                GPUBatcherRenderer.ID_HZBTextureRef, atlas);
+            ctx.cmd.SetComputeTextureParam(brg.cullingShaderRef, brg.cullChunksKernelRef,
+                GPUBatcherRenderer.idHzbTextureRef, atlas);
+            ctx.cmd.SetComputeTextureParam(brg.cullingShaderRef, brg.cullInstancesKernelRef,
+                GPUBatcherRenderer.idHzbTextureRef, atlas);
         }
 
         /// <summary>Deferred culling pass. bindHZBAtlas imports last frame's HZB atlas and binds it via the graph (pass 0).</summary>
@@ -111,10 +156,10 @@ namespace Fraxinus.GPUBatcher
             }
         }
 
-        /// <summary>HZB build from the given depth source. sourceTexWidth/Height 0 means the depth texture matches the viewport.</summary>
+        /// <summary>HZB build for the active viewport; the kernel queries the bound source texture's actual size.</summary>
         public static void RecordHZBBuildPass(RenderGraph renderGraph, GPUBatcherRenderer brg, string passName, int cameraId,
             TextureHandle depth, int depthWidth, int depthHeight,
-            int sourceTexWidth = 0, int sourceTexHeight = 0, bool sourceTextureArray = false)
+            bool sourceTextureArray = false)
         {
             using (var builder = renderGraph.AddUnsafePass<HZBBuildPassData>(passName, out var data))
             {
@@ -130,30 +175,27 @@ namespace Fraxinus.GPUBatcher
                 data.hzbOutput = ImportHZBAtlas(builder, renderGraph, brg, cameraId, AccessFlags.ReadWrite);
                 data.depthWidth = depthWidth;
                 data.depthHeight = depthHeight;
-                data.sourceTexWidth = sourceTexWidth;
-                data.sourceTexHeight = sourceTexHeight;
                 data.sourceTextureArray = sourceTextureArray;
 
                 builder.SetRenderFunc(static (HZBBuildPassData passData, UnsafeGraphContext ctx) =>
                 {
                     if (!passData.depth.IsValid()) return;
 
-                    ctx.cmd.SetComputeTextureParam(passData.brg.OcclusionShader, passData.brg.HZBDownscaleKernel,
-                        passData.brg.ID_HZBSource, passData.depth);
+                    ctx.cmd.SetComputeTextureParam(passData.brg.occlusionShader, passData.brg.hzbDownscaleKernel,
+                        passData.brg.idHzbSource, passData.depth);
 
                     if (passData.hzbOutput.IsValid())
                     {
-                        ctx.cmd.SetComputeTextureParam(passData.brg.OcclusionShader, passData.brg.HZBDownscaleKernel,
-                            GPUBatcherRenderer.ID_HZBMipOutRef, passData.hzbOutput);
-                        ctx.cmd.SetComputeTextureParam(passData.brg.OcclusionShader, passData.brg.HZBDownscaleTailKernel,
-                            GPUBatcherRenderer.ID_HZBMipOutRef, passData.hzbOutput);
+                        ctx.cmd.SetComputeTextureParam(passData.brg.occlusionShader, passData.brg.hzbDownscaleKernel,
+                            GPUBatcherRenderer.idHzbMipOutRef, passData.hzbOutput);
+                        ctx.cmd.SetComputeTextureParam(passData.brg.occlusionShader, passData.brg.hzbDownscaleTailKernel,
+                            GPUBatcherRenderer.idHzbMipOutRef, passData.hzbOutput);
                     }
 
                     passData.brg.SetHZBSourceTexArray(passData.sourceTextureArray);
                     passData.brg.ExecuteHZBBuild(CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd),
                         passData.camera, passData.depthWidth, passData.depthHeight,
-                        skipHZBOutputBinding: true,
-                        sourceTextureWidth: passData.sourceTexWidth, sourceTextureHeight: passData.sourceTexHeight);
+                        skipHZBOutputBinding: true);
                 });
             }
         }

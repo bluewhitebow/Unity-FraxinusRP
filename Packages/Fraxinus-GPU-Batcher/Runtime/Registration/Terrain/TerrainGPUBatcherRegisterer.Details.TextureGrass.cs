@@ -13,22 +13,22 @@ namespace Fraxinus.GPUBatcher
         #region texture grass
 
         // maps TerrainData waving grass to _WaveAndDistance, measured from unity's grass draw
-        private const float grassWaveSizeScale = 0.4f;
-        private const float grassWindStrengthScale = 6.0f;
-        private const float grassWindSpeedScale = 0.05f;
+        private const float k_grassWaveSizeScale = 0.4f;
+        private const float k_grassWindStrengthScale = 6.0f;
+        private const float k_grassWindSpeedScale = 0.05f;
 
-        private static readonly int _ID_MainTex = Shader.PropertyToID("_MainTex");
-        private static readonly int _ID_BaseColor = Shader.PropertyToID("_BaseColor");
-        private static readonly int _ID_Cutoff = Shader.PropertyToID("_Cutoff");
-        private static readonly int _ID_GrassInvHeight = Shader.PropertyToID("_GrassInvHeight");
-        private static readonly int _ID_WindSpeed = Shader.PropertyToID("_WindSpeed");
-        private static readonly int _ID_WaveSize = Shader.PropertyToID("_WaveSize");
-        private static readonly int _ID_WindStrength = Shader.PropertyToID("_WindStrength");
-        private static readonly int _ID_WavingTint = Shader.PropertyToID("_WavingTint");
-        private static readonly int _ID_HealthyColor = Shader.PropertyToID("_HealthyColor");
-        private static readonly int _ID_DryColor = Shader.PropertyToID("_DryColor");
-        private static readonly int _ID_NoiseSpread = Shader.PropertyToID("_NoiseSpread");
-        private static readonly int _ID_BaseDarken = Shader.PropertyToID("_BaseDarken");
+        private static readonly int s_idMainTex = Shader.PropertyToID("_MainTex");
+        private static readonly int s_idBaseColor = Shader.PropertyToID("_BaseColor");
+        private static readonly int s_idCutoff = Shader.PropertyToID("_Cutoff");
+        private static readonly int s_idGrassInvHeight = Shader.PropertyToID("_GrassInvHeight");
+        private static readonly int s_idWindSpeed = Shader.PropertyToID("_WindSpeed");
+        private static readonly int s_idWaveSize = Shader.PropertyToID("_WaveSize");
+        private static readonly int s_idWindStrength = Shader.PropertyToID("_WindStrength");
+        private static readonly int s_idWavingTint = Shader.PropertyToID("_WavingTint");
+        private static readonly int s_idHealthyColor = Shader.PropertyToID("_HealthyColor");
+        private static readonly int s_idDryColor = Shader.PropertyToID("_DryColor");
+        private static readonly int s_idNoiseSpread = Shader.PropertyToID("_NoiseSpread");
+        private static readonly int s_idBaseDarken = Shader.PropertyToID("_BaseDarken");
 
         private static Shader s_grassShader;
         private readonly List<Object> _generatedGrassAssets = new();
@@ -45,14 +45,14 @@ namespace Fraxinus.GPUBatcher
         {
             if (proto.usePrototypeMesh || proto.prototypeTexture == null) return -1;
 
-            var config = GPUBatcherConfig.Instance;
+            var config = GPUBatcherConfig.instance;
             if (!config.allowTextureGrass)
             {
                 Debug.LogError($"TerrainGPUBatcherRegisterer: detail layer '{proto.prototypeTexture.name}' uses texture grass, but 'Allow Texture Grass' is off in the FraxinusGPUBatcher config. Enable it to render texture-mode grass through BRG.");
                 return -1;
             }
 
-            s_grassShader = config.TextureGrassShader;
+            s_grassShader = config.textureGrassShader;
             if (s_grassShader == null)
             {
                 Debug.LogError("TerrainGPUBatcherRegisterer: Hidden/FraxinusGPUBatcher/TerrainTextureGrass shader not found, cannot render texture grass.");
@@ -77,7 +77,7 @@ namespace Fraxinus.GPUBatcher
                 fadeMode = LODFadeMode.None,
             };
             var size = mesh.bounds.size;
-            data.LodReferenceSize = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
+            data.lodReferenceSize = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
 
             var sig = new RenderSignature { asset = data };
             sig.layer = _terrain.gameObject.layer;
@@ -114,14 +114,14 @@ namespace Fraxinus.GPUBatcher
         private Material BuildGrassMaterial(DetailPrototype proto)
         {
             var mat = new Material(s_grassShader) { name = "GPUBatcherGrass_" + proto.prototypeTexture.name };
-            mat.SetTexture(_ID_MainTex, proto.prototypeTexture);
+            mat.SetTexture(s_idMainTex, proto.prototypeTexture);
             // unity bakes the gamma color bytes into grass vertex colors and reads them as linear (no
             // conversion). DetailPrototype colors are linear, so .gamma gives those bytes, sent raw via SetVector
-            mat.SetVector(_ID_HealthyColor, (Vector4)proto.healthyColor.gamma);
-            mat.SetVector(_ID_DryColor, (Vector4)proto.dryColor.gamma);
-            mat.SetFloat(_ID_NoiseSpread, proto.noiseSpread);
-            mat.SetFloat(_ID_Cutoff, 0.5f);
-            mat.SetFloat(_ID_GrassInvHeight, 1f);
+            mat.SetVector(s_idHealthyColor, (Vector4)proto.healthyColor.gamma);
+            mat.SetVector(s_idDryColor, (Vector4)proto.dryColor.gamma);
+            mat.SetFloat(s_idNoiseSpread, proto.noiseSpread);
+            mat.SetFloat(s_idCutoff, 0.5f);
+            mat.SetFloat(s_idGrassInvHeight, 1f);
             ApplyWindToMaterial(mat);
             if (proto.renderMode == DetailRenderMode.GrassBillboard)
                 mat.EnableKeyword("_BILLBOARD");
@@ -133,10 +133,10 @@ namespace Fraxinus.GPUBatcher
         {
             // TerrainData property names are rotated vs the inspector labels:
             // wavingGrassStrength = "Speed", wavingGrassSpeed = "Size", wavingGrassAmount = "Bending"
-            mat.SetFloat(_ID_WindSpeed, _terrainData.wavingGrassStrength * grassWindSpeedScale);
-            mat.SetFloat(_ID_WaveSize, _terrainData.wavingGrassSpeed * grassWaveSizeScale);
-            mat.SetFloat(_ID_WindStrength, _terrainData.wavingGrassAmount * grassWindStrengthScale);
-            mat.SetColor(_ID_WavingTint, _terrainData.wavingGrassTint);
+            mat.SetFloat(s_idWindSpeed, _terrainData.wavingGrassStrength * k_grassWindSpeedScale);
+            mat.SetFloat(s_idWaveSize, _terrainData.wavingGrassSpeed * k_grassWaveSizeScale);
+            mat.SetFloat(s_idWindStrength, _terrainData.wavingGrassAmount * k_grassWindStrengthScale);
+            mat.SetColor(s_idWavingTint, _terrainData.wavingGrassTint);
         }
 
         private void UpdateGrassWindIfChanged()

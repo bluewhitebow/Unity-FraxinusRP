@@ -60,11 +60,11 @@ Rendering resolution can be chosen independently of output resolution. **SGSR1**
 | [Fraxinus-RPCore](Packages/Fraxinus-RPCore/README.md) | `com.unity.render-pipelines.core` | `14.0.99` | RenderGraph, shared rendering tools, probe baking and data management. |
 | [Fraxinus-ShaderGraph](Packages/Fraxinus-ShaderGraph/FraxinusChanges.md) | `com.unity.shadergraph` | `14.0.12` | Shader Graph fork exposing the internal APIs needed by UltraRP targets. |
 | [Fraxinus-Light-Transport](Packages/Fraxinus-Light-Transport/README.md) | `com.fraxinus.rendering.light-transport` | `1.0.1` | Compute ray queries, acceleration structures and sampling. |
-| [Fraxinus-GPU-Batcher](Packages/Fraxinus-GPU-Batcher/README.md) | `com.bluewhitebow.fraxinus-gpu-batcher` | `0.1.0` | Optional BRG instance storage, registration, culling and LOD; native indirect drawing is still under development. |
+| [Fraxinus-GPU-Batcher](Packages/Fraxinus-GPU-Batcher/README.md) | `com.bluewhitebow.fraxinus-gpu-batcher` | `0.1.0` | Optional BRG instance storage, registration, culling and LOD; native indirect submission on stock Unity 6 or through a custom handler. |
 
 Each UPM package retains its own version. Use the four companion packages and, when installed, GPU Batcher from one checkout or Git revision. Matching version numbers do not make official packages interchangeable with these forks. The dependency examples include all five packages; omit the GPU Batcher entry when it is not needed.
 
-**GPU Batcher is currently a BRG development port with no native indirect drawing.** Registration takes over the source Renderer / Terrain, so registered objects have no indirect rendering while `BRGIndirectSubmission.TrySubmit` remains empty. Bake removes source child GameObjects. This replaces the previous GPUInstancer implementation, Profiles, APIs and samples without automatic migration. See [GPU Batcher status and setup](docs/Usage.md#optional-gpu-batcher) before adopting it.
+**GPU Batcher shares one implementation across Unity 2022.3 and Unity 6.** Stock Unity 6 installs the built-in native indirect writer; stock Unity 2022 has no submission handler by default. Engine integrations can register `BRGIndirectSubmission.submitHandler`. Registration takes over the source Renderer / Terrain, so registered objects have no indirect output without a handler. Bake removes source child GameObjects. The package includes conservative `CullingGroup` occlusion and native SpeedTree wind capture, requiring the matching Core, FraxinusRP and Shader Graph adaptations. It replaces the previous GPUInstancer implementation, Profiles, APIs and samples without automatic migration. See [GPU Batcher status and setup](docs/Usage.md#optional-gpu-batcher) before adopting it.
 
 ## Getting started
 

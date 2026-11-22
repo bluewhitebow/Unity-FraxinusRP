@@ -9,13 +9,14 @@ namespace Fraxinus.GPUBatcher.Editor
 {
     internal class GPUBatcherRendererWindow : EditorWindow
     {
-        private const string ConfigExpandedKey = "GPUBatcherRenderer_ConfigExpanded";
+        private const string k_configExpandedKey = "GPUBatcherRenderer_ConfigExpanded";
 
         private Vector2 _scrollPos;
         private double _lastRepaintTime;
-        private const double RepaintInterval = 0.25; // 4x per second
+        private const double k_repaintInterval = 0.25; // 4x per second
 
         private SerializedObject _configSO;
+        private string _versionLabel;
         private GPUBatcherConfig _cachedConfig;
         private bool _prototypesFoldout;
 
@@ -32,7 +33,7 @@ namespace Fraxinus.GPUBatcher.Editor
         private Dictionary<int, bool> _perProtoFoldouts = new();
         private Dictionary<int, bool> _perProtoSigFoldouts = new();
         private Dictionary<string, bool> _rangeFoldouts = new();
-        private static GUIStyle _titleStyle;
+        private static GUIStyle s_titleStyle;
 
         [MenuItem("Tools/Fraxinus GPU Batcher/System Window")]
         public static void ShowWindow()
@@ -44,6 +45,8 @@ namespace Fraxinus.GPUBatcher.Editor
 
         private void OnEnable()
         {
+            var package = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(GPUBatcherRendererWindow).Assembly);
+            _versionLabel = package == null ? null : $"Version {package.version}";
             RefreshConfigSO();
             EditorApplication.update -= OnEditorUpdate;
             EditorApplication.update += OnEditorUpdate;
@@ -56,8 +59,8 @@ namespace Fraxinus.GPUBatcher.Editor
 
         private void OnEditorUpdate()
         {
-            if (GPUBatcherRenderer.HasInstance &&
-                EditorApplication.timeSinceStartup - _lastRepaintTime > RepaintInterval)
+            if (GPUBatcherRenderer.hasInstance &&
+                EditorApplication.timeSinceStartup - _lastRepaintTime > k_repaintInterval)
             {
                 _lastRepaintTime = EditorApplication.timeSinceStartup;
                 Repaint();
@@ -66,7 +69,7 @@ namespace Fraxinus.GPUBatcher.Editor
 
         private void RefreshConfigSO()
         {
-            var config = GPUBatcherConfig.Instance;
+            var config = GPUBatcherConfig.instance;
             if (config != null && (config != _cachedConfig || _configSO == null))
             {
                 _cachedConfig = config;
@@ -87,9 +90,10 @@ namespace Fraxinus.GPUBatcher.Editor
 
             // system status
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            _titleStyle ??= new GUIStyle(EditorStyles.boldLabel) { fontSize = 18, alignment = TextAnchor.MiddleCenter };
-            GUILayout.Label("Fraxinus GPU Batcher", _titleStyle);
-            EditorGUILayout.LabelField($"Version {GPUBatcherVersion.Version}", EditorStyles.miniLabel);
+            s_titleStyle ??= new GUIStyle(EditorStyles.boldLabel) { fontSize = 18, alignment = TextAnchor.MiddleCenter };
+            GUILayout.Label("Fraxinus GPU Batcher", s_titleStyle);
+            if (_versionLabel != null)
+                EditorGUILayout.LabelField(_versionLabel, EditorStyles.miniLabel);
             DrawSystemStatus();
             EditorGUILayout.EndVertical();
 
@@ -129,7 +133,7 @@ namespace Fraxinus.GPUBatcher.Editor
         {
             EditorGUILayout.LabelField("System Status", EditorStyles.boldLabel);
 
-            bool hasInstance = GPUBatcherRenderer.HasInstance;
+            bool hasInstance = GPUBatcherRenderer.hasInstance;
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Instance:", GUILayout.Width(80));
@@ -146,7 +150,7 @@ namespace Fraxinus.GPUBatcher.Editor
                 if (GUILayout.Button("Create Instance"))
                 {
                     // accessing Instance auto-creates it
-                    var _ = GPUBatcherRenderer.Instance;
+                    var _ = GPUBatcherRenderer.instance;
                     Repaint();
                     GUIUtility.ExitGUI();
                 }
@@ -155,19 +159,19 @@ namespace Fraxinus.GPUBatcher.Editor
             {
                 if (GUILayout.Button("Full Refresh"))
                 {
-                    GPUBatcherRenderer.Instance.Reinitialize();
+                    GPUBatcherRenderer.instance.Reinitialize();
                     Repaint();
                     GUIUtility.ExitGUI();
                 }
                 if (GUILayout.Button("Runtime Refresh"))
                 {
-                    GPUBatcherRenderer.Instance.RuntimeRefresh();
+                    GPUBatcherRenderer.instance.RuntimeRefresh();
                     Repaint();
                     GUIUtility.ExitGUI();
                 }
                 if (GUILayout.Button("Rebuild Batches"))
                 {
-                    GPUBatcherRenderer.Instance.MarkBatchesDirtyForFullRebuild();
+                    GPUBatcherRenderer.instance.MarkBatchesDirtyForFullRebuild();
                 }
             }
             EditorGUILayout.EndHorizontal();
@@ -180,9 +184,9 @@ namespace Fraxinus.GPUBatcher.Editor
             using (new EditorGUI.DisabledScope(true))
                 EditorGUILayout.ObjectField("Config Asset", _cachedConfig, typeof(GPUBatcherConfig), false);
 
-            bool expanded = SessionState.GetBool(ConfigExpandedKey, true);
+            bool expanded = SessionState.GetBool(k_configExpandedKey, true);
             expanded = EditorGUILayout.Foldout(expanded, "Settings", true);
-            SessionState.SetBool(ConfigExpandedKey, expanded);
+            SessionState.SetBool(k_configExpandedKey, expanded);
             if (!expanded)
                 return;
 
@@ -194,25 +198,24 @@ namespace Fraxinus.GPUBatcher.Editor
         private void DrawRuntimeStats()
         {
             GPUBatcherInspectorGUI.DrawSectionHeader("Runtime Statistics");
-            const int sectionSpacing = 8;
+            const int k_sectionSpacing = 8;
 
             float savedLabelWidth = EditorGUIUtility.labelWidth;
             EditorGUIUtility.labelWidth = 240f;
 
-            if (!GPUBatcherRenderer.HasInstance)
+            var system = GPUBatcherRenderer.hasInstance ? GPUBatcherRenderer.instance : null;
+            if (system == null || !system.isInitialized)
             {
                 EditorGUILayout.HelpBox("System not initialized.", MessageType.Info);
                 EditorGUIUtility.labelWidth = savedLabelWidth;
                 return;
             }
 
-            var system = GPUBatcherRenderer.Instance;
-
             EditorGUI.indentLevel++;
 
             // registered meshes & materials
-            int meshCount = system.StatRegisteredMeshes;
-            int matCount = system.StatRegisteredMaterials;
+            int meshCount = system.statRegisteredMeshes;
+            int matCount = system.statRegisteredMaterials;
             _meshMaterialFoldout = EditorGUILayout.Foldout(_meshMaterialFoldout,
                 $"Registered Assets: {meshCount} meshes, {matCount} materials", true, EditorStyles.foldoutHeader);
 
@@ -221,11 +224,11 @@ namespace Fraxinus.GPUBatcher.Editor
                 EditorGUI.BeginDisabledGroup(true);
                 EditorGUI.indentLevel++;
 
-                var meshRefs = system.MeshRefCounts;
-                if (system.RegisteredMeshes != null)
+                var meshRefs = system.meshRefCounts;
+                if (system.registeredMeshes != null)
                 {
                     EditorGUILayout.LabelField("Meshes", EditorStyles.miniBoldLabel);
-                    foreach (var kvp in system.RegisteredMeshes)
+                    foreach (var kvp in system.registeredMeshes)
                     {
                         string meshName = kvp.Key != null ? kvp.Key.name : "(null)";
                         int rc = meshRefs != null && meshRefs.TryGetValue(kvp.Value, out var c) ? c : 0;
@@ -233,11 +236,11 @@ namespace Fraxinus.GPUBatcher.Editor
                     }
                 }
 
-                var matRefs = system.MaterialRefCounts;
-                if (system.RegisteredMaterials != null)
+                var matRefs = system.materialRefCounts;
+                if (system.registeredMaterials != null)
                 {
                     EditorGUILayout.LabelField("Materials", EditorStyles.miniBoldLabel);
-                    foreach (var kvp in system.RegisteredMaterials)
+                    foreach (var kvp in system.registeredMaterials)
                     {
                         string matName = kvp.Key != null ? kvp.Key.name : "(null)";
                         int rc = matRefs != null && matRefs.TryGetValue(kvp.Value, out var c) ? c : 0;
@@ -250,8 +253,8 @@ namespace Fraxinus.GPUBatcher.Editor
             }
 
             // combined meshes
-            var combineCache = system.MeshCombineCache;
-            int combinedCount = combineCache?.Count ?? 0;
+            var combineCache = system.meshCombineCache;
+            int combinedCount = combineCache?.count ?? 0;
             if (combinedCount > 0)
             {
                 _combinedMeshesFoldout = EditorGUILayout.Foldout(_combinedMeshesFoldout,
@@ -262,7 +265,7 @@ namespace Fraxinus.GPUBatcher.Editor
                     // instances rendered per combined mesh, summed over the protos that use it
                     var meshInstances = new Dictionary<Mesh, long>();
                     var seen = new HashSet<Mesh>();
-                    for (int p = 0; p < system.PrototypeCount; p++)
+                    for (int p = 0; p < system.prototypeCount; p++)
                     {
                         var psig = system.GetPrototype(p);
                         if (psig?.asset?.lodMeshes == null) continue;
@@ -295,8 +298,8 @@ namespace Fraxinus.GPUBatcher.Editor
                 }
             }
 
-            int totalSlots = system.PrototypeCount;
-            int activeCount = system.ActivePrototypeCount;
+            int totalSlots = system.prototypeCount;
+            int activeCount = system.activePrototypeCount;
             int vacantCount = totalSlots - activeCount;
             int idleCount = 0;
             for (int i = 0; i < totalSlots; i++)
@@ -334,7 +337,7 @@ namespace Fraxinus.GPUBatcher.Editor
                     int refCount = system.GetPrototypeRefCount(i);
                     int instances = system.GetPrototypeInstanceCount(i);
                     string status = refCount > 0 ? $"ref={refCount}" : "idle";
-                    int lodCount = sig.LODCount;
+                    int lodCount = sig.lodCount;
                     bool hasCrossfade = sig.fadeMode != UnityEngine.LODFadeMode.None;
                     string foldLabel = $"[{i}] {meshName} | {matName}  ({status}, {instances:N0} inst, {lodCount} LODs{(hasCrossfade ? ", crossfade" : "")})";
 
@@ -460,45 +463,44 @@ namespace Fraxinus.GPUBatcher.Editor
             }
 
             // draw commands
-            EditorGUILayout.Space(sectionSpacing);
+            EditorGUILayout.Space(k_sectionSpacing);
             EditorGUILayout.LabelField("Draw Commands", EditorStyles.boldLabel);
             EditorGUI.BeginDisabledGroup(true);
-            EditorGUILayout.LabelField("Batches", system.StatBatchCount.ToString());
-            EditorGUILayout.LabelField("Camera", system.StatCameraDrawCommands.ToString());
-            EditorGUILayout.LabelField("Shadow", system.StatShadowDrawCommands.ToString());
-            EditorGUILayout.LabelField("Camera Buckets", system.StatCameraBuckets.ToString());
-            EditorGUILayout.LabelField("Shadow Buckets", system.StatShadowBuckets.ToString());
+            EditorGUILayout.LabelField("Batches", system.statBatchCount.ToString());
+            EditorGUILayout.LabelField("Camera", system.statCameraDrawCommands.ToString());
+            EditorGUILayout.LabelField("Shadow", system.statShadowDrawCommands.ToString());
+            EditorGUILayout.LabelField("Camera Buckets", system.statCameraBuckets.ToString());
+            EditorGUILayout.LabelField("Shadow Buckets", system.statShadowBuckets.ToString());
 
             EditorGUI.EndDisabledGroup();
 
             // draw ranges debug
-            //EditorGUILayout.Space(3);
             _drawRangesFoldout = EditorGUILayout.Foldout(_drawRangesFoldout, "Draw Ranges (Debug)", true);
             if (_drawRangesFoldout)
             {
                 EditorGUI.indentLevel++;
-                int camRanges = system.DebugCameraDrawRangeCount;
+                int camRanges = system.debugCameraDrawRangeCount;
                 EditorGUILayout.LabelField("Camera Ranges", camRanges.ToString());
                 for (int r = 0; r < camRanges; r++)
                     DrawRangeWithCommands(system, false, r, $"cam_{r}");
-                int shadowRanges = system.DebugShadowDrawRangeCount;
+                int shadowRanges = system.debugShadowDrawRangeCount;
                 EditorGUILayout.LabelField("Shadow Ranges", shadowRanges.ToString());
                 for (int r = 0; r < shadowRanges; r++)
                     DrawRangeWithCommands(system, true, r, $"shd_{r}");
                 EditorGUI.indentLevel--;
             }
 
-            EditorGUILayout.Space(sectionSpacing);
+            EditorGUILayout.Space(k_sectionSpacing);
             EditorGUILayout.LabelField("Instance and Culling Stats", EditorStyles.boldLabel);
-            system.ComputeRenderedTriangles = EditorGUILayout.Toggle("Compute Per-View Stats", system.ComputeRenderedTriangles);
+            system.computeRenderedTriangles = EditorGUILayout.Toggle("Compute Per-View Stats", system.computeRenderedTriangles);
             EditorGUI.BeginDisabledGroup(true);
-            if (system.ComputeRenderedTriangles)
+            if (system.computeRenderedTriangles)
             {
-                long registered = system.StatInstances;
-                long usedChunks = system.StatChunksUsed;
+                long registered = system.statInstances;
+                long usedChunks = system.statChunksUsed;
                 long totalCamTris = 0, totalCamVerts = 0, totalCamInst = 0;
                 long totalShdTris = 0, totalShdVerts = 0, totalShdInst = 0;
-                foreach (var kvp in system.PerCameraMeshStatsMap)
+                foreach (var kvp in system.perCameraMeshStatsMap)
                 {
                     var s = kvp.Value;
                     totalCamTris += s.cameraTris; totalCamVerts += s.cameraVerts; totalCamInst += s.cameraInstances;
@@ -512,7 +514,7 @@ namespace Fraxinus.GPUBatcher.Editor
                     EditorGUILayout.LabelField($"{camName} (cam)",
                         $"{s.cameraInstances:N0} inst ({System.Math.Max(0, registered - s.cameraInstances):N0} culled), {s.cameraGpuChunks:N0} chunks ({System.Math.Max(0, usedChunks - s.cameraGpuChunks):N0} culled), {s.cameraTris:N0} tris, {s.cameraVerts:N0} verts");
                 }
-                foreach (var kvp in system.PerLightShadowStatsMap)
+                foreach (var kvp in system.perLightShadowStatsMap)
                 {
                     var s = kvp.Value;
                     totalShdTris += s.tris; totalShdVerts += s.verts; totalShdInst += s.instances;
@@ -544,26 +546,26 @@ namespace Fraxinus.GPUBatcher.Editor
                 EditorGUILayout.LabelField("Total Vertices", $"{totalCamVerts:N0} cam, {totalShdVerts:N0} shadow");
             }
 
-            if (system.ChunkSystemInitialized)
+            if (system.chunkSystemInitialized)
             {
-                EditorGUILayout.Space(sectionSpacing);
+                EditorGUILayout.Space(k_sectionSpacing);
                 EditorGUI.EndDisabledGroup();
                 EditorGUILayout.LabelField("Chunk System", EditorStyles.boldLabel);
                 EditorGUI.BeginDisabledGroup(true);
 
-                EditorGUILayout.LabelField("Instances", system.StatInstances.ToString("N0"));
+                EditorGUILayout.LabelField("Instances", system.statInstances.ToString("N0"));
 
-                int chunkCapacity = system.StatChunksUsed + system.StatChunksFree;
-                string chunkInfo = $"{system.StatChunksUsed} / {chunkCapacity} total ({system.StatChunksFree} free) (HWM: {system.StatChunkHighWaterMark})";
+                int chunkCapacity = system.statChunksUsed + system.statChunksFree;
+                string chunkInfo = $"{system.statChunksUsed} / {chunkCapacity} total ({system.statChunksFree} free) (HWM: {system.statChunkHighWaterMark})";
                 EditorGUILayout.LabelField("Chunks", chunkInfo);
 
                 EditorGUILayout.LabelField("Pools",
-                    $"{system.StatPoolsUsed} / {system.PoolCapacity} total ({system.StatPoolsFree} free, {system.StatPoolSize}/pool)");
+                    $"{system.statPoolsUsed} / {system.poolCapacity} total ({system.statPoolsFree} free, {system.statPoolSize}/pool)");
 
                 // color code utilization
-                float util = system.StatUtilization;
-                int used = system.StatInstances;
-                int wasted = system.StatWastedSlots;
+                float util = system.statUtilization;
+                int used = system.statInstances;
+                int wasted = system.statWastedSlots;
                 var prevColor = GUI.color;
                 if (util < 50f) GUI.color = Color.red;
                 else if (util < 70f) GUI.color = Color.yellow;
@@ -573,39 +575,38 @@ namespace Fraxinus.GPUBatcher.Editor
                 GUI.color = prevColor;
 
                 // occlusion
-                int occTotal = system.StatOcclusionPass + system.StatOcclusionFail;
+                int occTotal = system.statOcclusionPass + system.statOcclusionFail;
                 if (occTotal > 0)
                 {
-                    //EditorGUILayout.Space(3);
                     EditorGUILayout.LabelField("Chunk Culling", EditorStyles.miniBoldLabel);
-                    EditorGUILayout.LabelField("Visible", system.StatOcclusionPass.ToString());
+                    EditorGUILayout.LabelField("Visible", system.statOcclusionPass.ToString());
 
                     prevColor = GUI.color;
-                    GUI.color = system.StatOcclusionFail > 0 ? Color.green : Color.white;
-                    EditorGUILayout.LabelField("Occluded", system.StatOcclusionFail.ToString());
+                    GUI.color = system.statOcclusionFail > 0 ? Color.green : Color.white;
+                    EditorGUILayout.LabelField("Occluded", system.statOcclusionFail.ToString());
                     GUI.color = prevColor;
                 }
 
                 // per-view pools
-                EditorGUILayout.Space(sectionSpacing);
+                EditorGUILayout.Space(k_sectionSpacing);
                 EditorGUI.EndDisabledGroup();
                 EditorGUILayout.LabelField("Per-View Buffers", EditorStyles.boldLabel);
                 EditorGUI.BeginDisabledGroup(true);
                 EditorGUILayout.LabelField("Camera Sets",
-                    $"{system.StatCameraPoolActive} / {system.StatCameraPoolTotal}");
+                    $"{system.statCameraPoolActive} / {system.statCameraPoolTotal}");
                 EditorGUILayout.LabelField("Shadow Sets",
-                    $"{system.StatShadowPoolActive} / {system.StatShadowPoolTotal}");
-                EditorGUILayout.LabelField("Fade Views", system.StatFadeStateViews.ToString());
+                    $"{system.statShadowPoolActive} / {system.statShadowPoolTotal}");
+                EditorGUILayout.LabelField("Fade Views", system.statFadeStateViews.ToString());
 
                 // active game cameras
-                var activeCams = system.ActiveGameCameras;
+                var activeCams = system.activeGameCameras;
                 if (activeCams != null && activeCams.Count > 0)
                 {
                     EditorGUILayout.Space(3);
                     EditorGUILayout.LabelField("Active Game Cameras", EditorStyles.miniBoldLabel);
                     EditorGUI.EndDisabledGroup();
 
-                    var refCam = system.FreezeCullingReferenceCamera;
+                    var refCam = system.freezeCullingReferenceCamera;
                     for (int ci = 0; ci < activeCams.Count; ci++)
                     {
                         var cam = activeCams[ci];
@@ -619,11 +620,11 @@ namespace Fraxinus.GPUBatcher.Editor
                         EditorGUILayout.LabelField(label);
                         if (!isRef && GUILayout.Button("Set as Ref", GUILayout.Width(80)))
                         {
-                            system.FreezeCullingReferenceCamera = cam;
+                            system.freezeCullingReferenceCamera = cam;
                         }
                         if (isRef && refCam != null && GUILayout.Button("Clear Ref", GUILayout.Width(80)))
                         {
-                            system.FreezeCullingReferenceCamera = null;
+                            system.freezeCullingReferenceCamera = null;
                         }
                         EditorGUILayout.EndHorizontal();
                     }
@@ -637,9 +638,9 @@ namespace Fraxinus.GPUBatcher.Editor
             }
 
             // occlusion debug
-            if (_cachedConfig != null && _cachedConfig.UseGPUOcclusionCulling)
+            if (_cachedConfig != null && _cachedConfig.useGPUOcclusionCulling)
             {
-                EditorGUILayout.Space(sectionSpacing);
+                EditorGUILayout.Space(k_sectionSpacing);
                 EditorGUI.EndDisabledGroup();
                 EditorGUILayout.LabelField("Occlusion Debug", EditorStyles.boldLabel);
                 _occlusionDebugFoldout = EditorGUILayout.Foldout(_occlusionDebugFoldout,
@@ -651,7 +652,7 @@ namespace Fraxinus.GPUBatcher.Editor
                     EditorGUI.EndDisabledGroup();
                     _hzbPreviewSize = EditorGUILayout.Slider("Preview Size", _hzbPreviewSize, 128f, 512f);
 
-                    var cams = system.ActiveGameCameras;
+                    var cams = system.activeGameCameras;
                     if (cams != null && cams.Count > 0)
                     {
                         for (int ci = 0; ci < cams.Count; ci++)
@@ -683,15 +684,15 @@ namespace Fraxinus.GPUBatcher.Editor
             }
 
             // crossfade info
-            EditorGUILayout.Space(sectionSpacing);
+            EditorGUILayout.Space(k_sectionSpacing);
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.LabelField("Crossfade", EditorStyles.boldLabel);
             EditorGUI.BeginDisabledGroup(true);
 
-            if (system.StatAnyAnimatedCrossfade)
+            if (system.statAnyAnimatedCrossfade)
             {
-                string animInfo = $"ON ({system.StatAnimatedProtoCount} protos, {system.StatFadeStateViews} views, {system.StatTotalFadeStates} states, {system.StatLodFadeDuration}s)";
-                if (system.StatSkipIntermediateLODs)
+                string animInfo = $"ON ({system.statAnimatedProtoCount} protos, {system.statFadeStateViews} views, {system.statTotalFadeStates} states, {system.statLodFadeDuration}s)";
+                if (system.statSkipIntermediateLODs)
                     animInfo += " [Skip LODs]";
                 EditorGUILayout.LabelField("Animated Crossfade", animInfo);
             }
@@ -701,39 +702,28 @@ namespace Fraxinus.GPUBatcher.Editor
             }
 
             // debug flags
-            if (system.StatDebugDisableCPUChunkCulling || system.StatDebugDisableCulling || system.StatDebugDisableRendering)
+            if (system.statDebugDisableCPUChunkCulling || system.statDebugDisableCulling || system.statDebugDisableRendering)
             {
                 EditorGUI.EndDisabledGroup();
-                if (system.StatDebugDisableCPUChunkCulling)
+                if (system.statDebugDisableCPUChunkCulling)
                     EditorGUILayout.HelpBox("DEBUG: CPU chunk culling DISABLED", MessageType.Warning);
-                if (system.StatDebugDisableCulling)
+                if (system.statDebugDisableCulling)
                     EditorGUILayout.HelpBox("DEBUG: Culling DISABLED (reusing stale results)", MessageType.Warning);
-                if (system.StatDebugDisableRendering)
+                if (system.statDebugDisableRendering)
                     EditorGUILayout.HelpBox("DEBUG: Rendering DISABLED (culling still runs)", MessageType.Warning);
                 EditorGUI.BeginDisabledGroup(true);
             }
 
-            EditorGUILayout.Space(sectionSpacing);
+            EditorGUILayout.Space(k_sectionSpacing);
 
             // memory
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.LabelField("GPU Memory", EditorStyles.boldLabel);
             EditorGUI.BeginDisabledGroup(true);
 
-            // guard against accessing memory during reinitialize
-            long memoryBytes = 0;
-            string memoryStr;
-            GPUBatcherRenderer.MemoryBreakdown breakdown = default;
-            try
-            {
-                breakdown = system.GetMemoryBreakdown();
-                memoryBytes = breakdown.Total;
-                memoryStr = GPUBatcherConfig.FormatBytes(memoryBytes);
-            }
-            catch (System.Exception)
-            {
-                memoryStr = "Calculating...";
-            }
+            var breakdown = system.GetMemoryBreakdown();
+            long memoryBytes = breakdown.total;
+            string memoryStr = GPUBatcherConfig.FormatBytes(memoryBytes);
 
             var memColor = GUI.color;
             if (memoryBytes > 256 * 1024 * 1024) GUI.color = Color.red;
@@ -747,16 +737,16 @@ namespace Fraxinus.GPUBatcher.Editor
             if (_memoryBreakdownFoldout && memoryBytes > 0)
             {
                 EditorGUI.indentLevel++;
-                EditorGUILayout.LabelField("Prototype Data", GPUBatcherConfig.FormatBytes(breakdown.PrototypeData));
-                EditorGUILayout.LabelField("Instance Data", GPUBatcherConfig.FormatBytes(breakdown.InstanceData));
-                EditorGUILayout.LabelField("Matrix Data", GPUBatcherConfig.FormatBytes(breakdown.MatrixData));
-                EditorGUILayout.LabelField("Chunk Data", GPUBatcherConfig.FormatBytes(breakdown.ChunkData));
-                EditorGUILayout.LabelField("Pool Ref Data", GPUBatcherConfig.FormatBytes(breakdown.PoolRefData));
-                DrawViewBufferFoldout(system, ref _cameraBuffersFoldout, "Camera View Buffers", breakdown.CameraViewBuffers, ViewBufferKind.Camera);
-                DrawViewBufferFoldout(system, ref _shadowBuffersFoldout, "Shadow View Buffers", breakdown.ShadowViewBuffers, ViewBufferKind.Shadow);
-                DrawViewBufferFoldout(system, ref _fadeStatesFoldout, "FadeState Buffers", breakdown.FadeStateBuffers, ViewBufferKind.FadeState);
-                EditorGUILayout.LabelField("Bucket Mapping", GPUBatcherConfig.FormatBytes(breakdown.BucketMapping));
-                EditorGUILayout.LabelField("Staging Buffers", GPUBatcherConfig.FormatBytes(breakdown.StagingBuffers));
+                EditorGUILayout.LabelField("Prototype Data", GPUBatcherConfig.FormatBytes(breakdown.prototypeData));
+                EditorGUILayout.LabelField("Instance Data", GPUBatcherConfig.FormatBytes(breakdown.instanceData));
+                EditorGUILayout.LabelField("Matrix Data", GPUBatcherConfig.FormatBytes(breakdown.matrixData));
+                EditorGUILayout.LabelField("Chunk Data", GPUBatcherConfig.FormatBytes(breakdown.chunkData));
+                EditorGUILayout.LabelField("Pool Ref Data", GPUBatcherConfig.FormatBytes(breakdown.poolRefData));
+                DrawViewBufferFoldout(system, ref _cameraBuffersFoldout, "Camera View Buffers", breakdown.cameraViewBuffers, ViewBufferKind.Camera);
+                DrawViewBufferFoldout(system, ref _shadowBuffersFoldout, "Shadow View Buffers", breakdown.shadowViewBuffers, ViewBufferKind.Shadow);
+                DrawViewBufferFoldout(system, ref _fadeStatesFoldout, "FadeState Buffers", breakdown.fadeStateBuffers, ViewBufferKind.FadeState);
+                EditorGUILayout.LabelField("Bucket Mapping", GPUBatcherConfig.FormatBytes(breakdown.bucketMapping));
+                EditorGUILayout.LabelField("Staging Buffers", GPUBatcherConfig.FormatBytes(breakdown.stagingBuffers));
                 EditorGUI.indentLevel--;
             }
 

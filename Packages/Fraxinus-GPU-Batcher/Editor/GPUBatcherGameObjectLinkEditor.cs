@@ -1,6 +1,5 @@
 // Copyright (c) 2026 Milk_Drinker01. All rights reserved.
 
-using UnityEngine;
 using UnityEditor;
 
 namespace Fraxinus.GPUBatcher.Editor
@@ -11,11 +10,11 @@ namespace Fraxinus.GPUBatcher.Editor
         public override void OnInspectorGUI()
         {
             var link = (GPUBatcherGameObjectLink)target;
-            var instance = link.InstanceLink;
+            var instance = link.instanceLink;
 
             EditorGUI.BeginDisabledGroup(true);
-            if (instance.IsValid)
-                EditorGUILayout.IntField("Global Instance ID", instance.GlobalBRGSlotIndex);
+            if (instance.isValid)
+                EditorGUILayout.IntField("Global Instance ID", instance.globalBRGSlotIndex);
             else
                 EditorGUILayout.LabelField("Global Instance ID", "Not assigned");
             EditorGUI.EndDisabledGroup();

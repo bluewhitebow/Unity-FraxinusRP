@@ -8,9 +8,5 @@ namespace Fraxinus.GPUBatcher.Editor
     [CanEditMultipleObjects]
     internal class GPUBatcherTerrainDetailOverrideEditor : UnityEditor.Editor
     {
-        public override void OnInspectorGUI()
-        {
-            DrawDefaultInspector();
-        }
     }
 }

@@ -2,6 +2,12 @@ using System;
 using UnityEngine;
 using UnityEngine.Rendering;
 
+#if UNITY_6000_0_OR_NEWER
+using RenderingCategories = UnityEngine.Categorization;
+#else
+using RenderingCategories = UnityEngine.Rendering.Categorization;
+#endif
+
 namespace FraxinusEngine.Rendering.Ultra
 {
     /// <summary>
@@ -9,8 +15,8 @@ namespace FraxinusEngine.Rendering.Ultra
     /// </summary>
     [Serializable]
     [SupportedOnRenderPipeline(typeof(UltraRenderPipelineAsset))]
-    [UnityEngine.Rendering.Categorization.CategoryInfo(Name = "Additional Shader Stripping Settings", Order = 40)]
-    [UnityEngine.Rendering.Categorization.ElementInfo(Order = 10)]
+    [RenderingCategories.CategoryInfo(Name = "Additional Shader Stripping Settings", Order = 40)]
+    [RenderingCategories.ElementInfo(Order = 10)]
     public class UltraRenderPipelineShaderStrippingSetting : IRenderPipelineGraphicsSettings
     {
         #region Version

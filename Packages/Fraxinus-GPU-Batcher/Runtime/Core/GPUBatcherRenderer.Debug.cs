@@ -26,7 +26,7 @@ namespace Fraxinus.GPUBatcher
         private static void LogMessageDevelopment(string message)
         {
 #if DEBUG
-            if (GPUBatcherConfig.Instance != null && GPUBatcherConfig.Instance.enableDebugLogging)
+            if (GPUBatcherConfig.instance != null && GPUBatcherConfig.instance.enableDebugLogging)
                 Debug.Log(message);
 #endif
         }
@@ -39,7 +39,7 @@ namespace Fraxinus.GPUBatcher
         public static Action<GameObject> editorOnPrototypeDirty;
 
         /// <summary>fires after FlushStagedUploads completes.</summary>
-        public event Action OnPostFlushStagedUploads;
+        public event Action onPostFlushStagedUploads;
 
         // called from GPUBatcherPrefabPostprocessor when prefab assets change
         public static void MarkPrototypeDirty(GameObject prefab)
@@ -47,7 +47,7 @@ namespace Fraxinus.GPUBatcher
 
         // per-camera rendered tri/vert counts via GPU readback
         private bool _computeRenderedTriangles;
-        public bool ComputeRenderedTriangles
+        public bool computeRenderedTriangles
         {
             get => _computeRenderedTriangles;
             set => _computeRenderedTriangles = value;
@@ -67,9 +67,9 @@ namespace Fraxinus.GPUBatcher
         }
 
         private readonly Dictionary<ViewID, PerCameraMeshStats> _perCameraMeshStats = new();
-        internal IReadOnlyDictionary<ViewID, PerCameraMeshStats> PerCameraMeshStatsMap => _perCameraMeshStats;
+        internal IReadOnlyDictionary<ViewID, PerCameraMeshStats> perCameraMeshStatsMap => _perCameraMeshStats;
         private readonly Dictionary<ViewID, PerLightShadowStats> _perLightShadowStats = new();
-        internal IReadOnlyDictionary<ViewID, PerLightShadowStats> PerLightShadowStatsMap => _perLightShadowStats;
+        internal IReadOnlyDictionary<ViewID, PerLightShadowStats> perLightShadowStatsMap => _perLightShadowStats;
 
         private int GetVertexCountForCommand(Unity.Collections.NativeArray<BatchDrawCommandIndirect> templates, int cmdIdx)
         {
@@ -116,7 +116,7 @@ namespace Fraxinus.GPUBatcher
             if (_perCameraMeshStats.TryGetValue(cameraId, out var stats) && stats.cameraPending) return;
             stats.cameraPending = true;
             _perCameraMeshStats[cameraId] = stats;
-            cmd.RequestAsyncReadback(viewSet.IndirectArgsBuffer, (req) =>
+            cmd.RequestAsyncReadback(viewSet.indirectArgsBuffer, (req) =>
             {
                 ComputeReadbackTotals(req, false, out long tris, out long verts, out long inst);
                 if (_perCameraMeshStats.TryGetValue(cameraId, out var s))
@@ -126,7 +126,7 @@ namespace Fraxinus.GPUBatcher
                     _perCameraMeshStats[cameraId] = s;
                 }
             });
-            cmd.RequestAsyncReadback(viewSet.VisibleChunkCountBuffer, (req) =>
+            cmd.RequestAsyncReadback(viewSet.visibleChunkCountBuffer, (req) =>
             {
                 if (req.hasError) return;
                 var d = req.GetData<uint>();
@@ -144,8 +144,8 @@ namespace Fraxinus.GPUBatcher
             if (_perLightShadowStats.TryGetValue(lightId, out var stats) && stats.pending) return;
             stats.pending = true;
             _perLightShadowStats[lightId] = stats;
-            var cascades = new long[kMaxCascades];
-            cmd.RequestAsyncReadback(shadowSet.IndirectArgsBuffer, (req) =>
+            var cascades = new long[k_maxCascades];
+            cmd.RequestAsyncReadback(shadowSet.indirectArgsBuffer, (req) =>
             {
                 ComputeReadbackTotals(req, true, out long tris, out long verts, out long inst, cascades);
                 if (_perLightShadowStats.TryGetValue(lightId, out var s))
@@ -156,7 +156,7 @@ namespace Fraxinus.GPUBatcher
                     _perLightShadowStats[lightId] = s;
                 }
             });
-            cmd.RequestAsyncReadback(shadowSet.VisibleChunkCountBuffer, (req) =>
+            cmd.RequestAsyncReadback(shadowSet.visibleChunkCountBuffer, (req) =>
             {
                 if (req.hasError) return;
                 var d = req.GetData<uint>();
@@ -171,31 +171,31 @@ namespace Fraxinus.GPUBatcher
 
         #region Profiler Markers
 
-        static readonly ProfilerMarker s_MarkerShadowCulling = new ProfilerMarker("FraxinusGPUBatcher.ShadowCulling");
-        static readonly ProfilerMarker s_MarkerWriteChunk = new ProfilerMarker("FraxinusGPUBatcher.WriteChunk");
-        static readonly ProfilerMarker s_MarkerFreeChunk = new ProfilerMarker("FraxinusGPUBatcher.FreeChunk");
-        static readonly ProfilerMarker s_MarkerResizePoolBuffer = new ProfilerMarker("FraxinusGPUBatcher.ResizePoolBuffer");
-        static readonly ProfilerMarker s_MarkerGPUFenceStall = new ProfilerMarker("FraxinusGPUBatcher.GPUFenceStall");
-        static readonly ProfilerMarker s_MarkerOcclusionCulling = new ProfilerMarker("FraxinusGPUBatcher.OcclusionCulling");
-        static readonly ProfilerMarker s_MarkerPreRender = new ProfilerMarker("FraxinusGPUBatcher.PreRender");
-        static readonly ProfilerMarker s_MarkerSystemUpdate = new ProfilerMarker("FraxinusGPUBatcher.SystemUpdate");
-        static readonly ProfilerMarker s_MarkerFlushStagedUploads = new ProfilerMarker("FraxinusGPUBatcher.FlushStagedUploads");
-        static readonly ProfilerMarker s_MarkerCreateBatches = new ProfilerMarker("FraxinusGPUBatcher.CreateBatches");
-        static readonly ProfilerMarker s_MarkerAllocateChunk = new ProfilerMarker("FraxinusGPUBatcher.AllocateChunk");
-        static readonly ProfilerMarker s_MarkerAllocatePools = new ProfilerMarker("FraxinusGPUBatcher.AllocatePools");
-        static readonly ProfilerMarker s_MarkerResizeChunkCapacity = new ProfilerMarker("FraxinusGPUBatcher.ResizeChunkCapacity");
-        static readonly ProfilerMarker s_MarkerAddInstance = new ProfilerMarker("FraxinusGPUBatcher.AddInstance");
-        static readonly ProfilerMarker s_MarkerAddInstances = new ProfilerMarker("FraxinusGPUBatcher.AddInstances");
-        static readonly ProfilerMarker s_MarkerRemoveInstance = new ProfilerMarker("FraxinusGPUBatcher.RemoveInstance");
+        static readonly ProfilerMarker s_markerShadowCulling = new ProfilerMarker("FraxinusGPUBatcher.ShadowCulling");
+        static readonly ProfilerMarker s_markerWriteChunk = new ProfilerMarker("FraxinusGPUBatcher.WriteChunk");
+        static readonly ProfilerMarker s_markerFreeChunk = new ProfilerMarker("FraxinusGPUBatcher.FreeChunk");
+        static readonly ProfilerMarker s_markerResizePoolBuffer = new ProfilerMarker("FraxinusGPUBatcher.ResizePoolBuffer");
+        static readonly ProfilerMarker s_markerGPUFenceStall = new ProfilerMarker("FraxinusGPUBatcher.GPUFenceStall");
+        static readonly ProfilerMarker s_markerOcclusionCulling = new ProfilerMarker("FraxinusGPUBatcher.OcclusionCulling");
+        static readonly ProfilerMarker s_markerPreRender = new ProfilerMarker("FraxinusGPUBatcher.PreRender");
+        static readonly ProfilerMarker s_markerSystemUpdate = new ProfilerMarker("FraxinusGPUBatcher.SystemUpdate");
+        static readonly ProfilerMarker s_markerFlushStagedUploads = new ProfilerMarker("FraxinusGPUBatcher.FlushStagedUploads");
+        static readonly ProfilerMarker s_markerCreateBatches = new ProfilerMarker("FraxinusGPUBatcher.CreateBatches");
+        static readonly ProfilerMarker s_markerAllocateChunk = new ProfilerMarker("FraxinusGPUBatcher.AllocateChunk");
+        static readonly ProfilerMarker s_markerAllocatePools = new ProfilerMarker("FraxinusGPUBatcher.AllocatePools");
+        static readonly ProfilerMarker s_markerResizeChunkCapacity = new ProfilerMarker("FraxinusGPUBatcher.ResizeChunkCapacity");
+        static readonly ProfilerMarker s_markerAddInstance = new ProfilerMarker("FraxinusGPUBatcher.AddInstance");
+        static readonly ProfilerMarker s_markerAddInstances = new ProfilerMarker("FraxinusGPUBatcher.AddInstances");
+        static readonly ProfilerMarker s_markerRemoveInstance = new ProfilerMarker("FraxinusGPUBatcher.RemoveInstance");
 
         // upload pipeline
-        static readonly ProfilerMarker s_MarkerCommitDeferredWrites = new ProfilerMarker("FraxinusGPUBatcher.CommitDeferredWrites");
-        static readonly ProfilerMarker s_MarkerFlushInstanceUploads = new ProfilerMarker("FraxinusGPUBatcher.FlushInstanceUploads");
-        static readonly ProfilerMarker s_MarkerFlushPatches = new ProfilerMarker("FraxinusGPUBatcher.FlushPatches");
-        static readonly ProfilerMarker s_MarkerFlushPoolRefs = new ProfilerMarker("FraxinusGPUBatcher.FlushPoolRefs");
-        static readonly ProfilerMarker s_MarkerFlushChunkMetadata = new ProfilerMarker("FraxinusGPUBatcher.FlushChunkMetadata");
-        static readonly ProfilerMarker s_MarkerGPUComputeMatrices = new ProfilerMarker("FraxinusGPUBatcher.GPUComputeMatrices");
-        static readonly ProfilerMarker s_MarkerStagePatch = new ProfilerMarker("FraxinusGPUBatcher.StagePatch");
+        static readonly ProfilerMarker s_markerCommitDeferredWrites = new ProfilerMarker("FraxinusGPUBatcher.CommitDeferredWrites");
+        static readonly ProfilerMarker s_markerFlushInstanceUploads = new ProfilerMarker("FraxinusGPUBatcher.FlushInstanceUploads");
+        static readonly ProfilerMarker s_markerFlushPatches = new ProfilerMarker("FraxinusGPUBatcher.FlushPatches");
+        static readonly ProfilerMarker s_markerFlushPoolRefs = new ProfilerMarker("FraxinusGPUBatcher.FlushPoolRefs");
+        static readonly ProfilerMarker s_markerFlushChunkMetadata = new ProfilerMarker("FraxinusGPUBatcher.FlushChunkMetadata");
+        static readonly ProfilerMarker s_markerGPUComputeMatrices = new ProfilerMarker("FraxinusGPUBatcher.GPUComputeMatrices");
+        static readonly ProfilerMarker s_markerStagePatch = new ProfilerMarker("FraxinusGPUBatcher.StagePatch");
 
         #endregion
 
@@ -209,47 +209,47 @@ namespace Fraxinus.GPUBatcher
 
         #region Stat Properties
 
-        public int StatInstances { get; private set; }
-        public int StatChunksUsed { get; private set; }
-        public int StatChunksFree { get; private set; }
-        public int StatPoolsUsed { get; private set; }
-        public int StatPoolsFree { get; private set; }
-        public int StatPoolSize { get; private set; }
-        public float StatUtilization { get; private set; }
-        public int StatOcclusionPass { get; private set; }
-        public int StatOcclusionFail { get; private set; }
-        public int StatCameraPoolActive { get; private set; }
-        public int StatCameraPoolTotal { get; private set; }
-        public int StatShadowPoolActive { get; private set; }
-        public int StatShadowPoolTotal { get; private set; }
-        public int StatFadeStateViews { get; private set; }
-        public int StatCameraDrawCommands => ActiveCameraCommandCount;
-        public int StatShadowDrawCommands => ActiveShadowCommandCount;
-        public int StatChunkHighWaterMark => _chunkHighWaterMark;
-        public int StatWastedSlots => _chunkSystemInitialized ? (_allocatedPoolCount * kPoolSize - _totalInstanceCount) : 0;
-        public int StatBatchCount => _batchSlotHWM - (_freeBatchSlots?.Count ?? 0);
-        public int StatCameraBuckets => _bucketCount;
-        public int StatShadowBuckets => _shadowBucketCount;
-        public bool StatAnyAnimatedCrossfade => _anyPrototypeUsesAnimatedCrossfade;
+        public int statInstances { get; private set; }
+        public int statChunksUsed { get; private set; }
+        public int statChunksFree { get; private set; }
+        public int statPoolsUsed { get; private set; }
+        public int statPoolsFree { get; private set; }
+        public int statPoolSize { get; private set; }
+        public float statUtilization { get; private set; }
+        public int statOcclusionPass { get; private set; }
+        public int statOcclusionFail { get; private set; }
+        public int statCameraPoolActive { get; private set; }
+        public int statCameraPoolTotal { get; private set; }
+        public int statShadowPoolActive { get; private set; }
+        public int statShadowPoolTotal { get; private set; }
+        public int statFadeStateViews { get; private set; }
+        public int statCameraDrawCommands => ActiveCameraCommandCount;
+        public int statShadowDrawCommands => ActiveShadowCommandCount;
+        public int statChunkHighWaterMark => _chunkHighWaterMark;
+        public int statWastedSlots => _chunkSystemInitialized ? (_allocatedPoolCount * k_poolSize - _totalInstanceCount) : 0;
+        public int statBatchCount => _batchSlotHWM - (_freeBatchSlots?.Count ?? 0);
+        public int statCameraBuckets => _bucketCount;
+        public int statShadowBuckets => _shadowBucketCount;
+        public bool statAnyAnimatedCrossfade => _anyPrototypeUsesAnimatedCrossfade;
         private int _statAnimatedProtoCount;
-        public int StatAnimatedProtoCount => _statAnimatedProtoCount;
-        public int StatTotalFadeStates => _statTotalFadeStates;
-        public float StatLodFadeDuration => Config.defaultAnimatedCrossfadeDuration;
-        public bool StatSkipIntermediateLODs => Config.skipIntermediateLODs;
-        public bool StatDebugDisableCPUChunkCulling => Config.debugDisableCPUChunkCulling;
-        public bool StatDebugDisableCulling => Config.debugDisableCulling;
-        public bool StatDebugDisableRendering => Config.debugDisableRendering;
-        public int StatRegisteredMeshes => _meshIdCache?.Count ?? 0;
-        public int StatRegisteredMaterials => _materialIdCache?.Count ?? 0;
+        public int statAnimatedProtoCount => _statAnimatedProtoCount;
+        public int statTotalFadeStates => _statTotalFadeStates;
+        public float statLodFadeDuration => Config.defaultAnimatedCrossfadeDuration;
+        public bool statSkipIntermediateLODs => Config.skipIntermediateLODs;
+        public bool statDebugDisableCPUChunkCulling => Config.debugDisableCPUChunkCulling;
+        public bool statDebugDisableCulling => Config.debugDisableCulling;
+        public bool statDebugDisableRendering => Config.debugDisableRendering;
+        public int statRegisteredMeshes => _meshIdCache?.Count ?? 0;
+        public int statRegisteredMaterials => _materialIdCache?.Count ?? 0;
 
-        public IReadOnlyDictionary<Mesh, BatchMeshID> RegisteredMeshes => _meshIdCache;
-        public IReadOnlyDictionary<Material, BatchMaterialID> RegisteredMaterials => _materialIdCache;
-        public IReadOnlyDictionary<BatchMeshID, int> MeshRefCounts => _meshRefCount;
-        public IReadOnlyDictionary<BatchMaterialID, int> MaterialRefCounts => _materialRefCount;
+        public IReadOnlyDictionary<Mesh, BatchMeshID> registeredMeshes => _meshIdCache;
+        public IReadOnlyDictionary<Material, BatchMaterialID> registeredMaterials => _materialIdCache;
+        public IReadOnlyDictionary<BatchMeshID, int> meshRefCounts => _meshRefCount;
+        public IReadOnlyDictionary<BatchMaterialID, int> materialRefCounts => _materialRefCount;
 
 #if UNITY_EDITOR
-        public int DebugCameraDrawRangeCount => _cameraDrawRangeCount;
-        public int DebugShadowDrawRangeCount => _shadowDrawRangeCount;
+        public int debugCameraDrawRangeCount => _cameraDrawRangeCount;
+        public int debugShadowDrawRangeCount => _shadowDrawRangeCount;
 
         public string DebugDescribeDrawRange(bool isShadow, int index)
         {
@@ -292,45 +292,45 @@ namespace Fraxinus.GPUBatcher
         {
             if (!_chunkSystemInitialized)
             {
-                StatInstances = 0;
-                StatChunksUsed = 0;
-                StatChunksFree = 0;
-                StatPoolsUsed = 0;
-                StatPoolsFree = 0;
-                StatPoolSize = 0;
-                StatUtilization = 0f;
-                StatOcclusionPass = 0;
-                StatOcclusionFail = 0;
-                StatCameraPoolActive = 0;
-                StatCameraPoolTotal = 0;
-                StatShadowPoolActive = 0;
-                StatShadowPoolTotal = 0;
-                StatFadeStateViews = 0;
+                statInstances = 0;
+                statChunksUsed = 0;
+                statChunksFree = 0;
+                statPoolsUsed = 0;
+                statPoolsFree = 0;
+                statPoolSize = 0;
+                statUtilization = 0f;
+                statOcclusionPass = 0;
+                statOcclusionFail = 0;
+                statCameraPoolActive = 0;
+                statCameraPoolTotal = 0;
+                statShadowPoolActive = 0;
+                statShadowPoolTotal = 0;
+                statFadeStateViews = 0;
                 _statTotalFadeStates = 0;
                 return;
             }
 
-            StatInstances = _totalInstanceCount;
-            StatChunksUsed = _allocatedCount;
-            StatChunksFree = _freeChunkSlots.IsCreated ? _freeChunkSlots.Count : 0;
-            StatPoolsUsed = _allocatedPoolCount;
+            statInstances = _totalInstanceCount;
+            statChunksUsed = _allocatedCount;
+            statChunksFree = _freeChunkSlots.IsCreated ? _freeChunkSlots.Count : 0;
+            statPoolsUsed = _allocatedPoolCount;
 
             // free pools
-            StatPoolsFree = _freePools.IsCreated ? _freePools.Length : 0;
-            StatPoolSize = kPoolSize;
+            statPoolsFree = _freePools.IsCreated ? _freePools.Length : 0;
+            statPoolSize = k_poolSize;
 
             // utilization
-            int allocatedSlots = _allocatedPoolCount * kPoolSize;
-            StatUtilization = allocatedSlots > 0
+            int allocatedSlots = _allocatedPoolCount * k_poolSize;
+            statUtilization = allocatedSlots > 0
                 ? (float)_totalInstanceCount / allocatedSlots * 100f
                 : 0f;
 
             // view stats
-            StatCameraPoolActive = _lastCameraPoolActive;
-            StatCameraPoolTotal = _cameraBufferPool.Count;
-            StatShadowPoolActive = _lastShadowPoolActive;
-            StatShadowPoolTotal = _shadowBufferPool.Count;
-            StatFadeStateViews = _viewFadeStates.Count;
+            statCameraPoolActive = _lastCameraPoolActive;
+            statCameraPoolTotal = _cameraBufferPool.Count;
+            statShadowPoolActive = _lastShadowPoolActive;
+            statShadowPoolTotal = _shadowBufferPool.Count;
+            statFadeStateViews = _viewFadeStates.Count;
             _statTotalFadeStates = _trackedTotalFadeStates;
 
 #if UNITY_EDITOR
@@ -345,17 +345,17 @@ namespace Fraxinus.GPUBatcher
 
         public struct MemoryBreakdown
         {
-            public long PrototypeData;
-            public long InstanceData;
-            public long MatrixData;
-            public long ChunkData;
-            public long PoolRefData;
-            public long CameraViewBuffers;
-            public long ShadowViewBuffers;
-            public long FadeStateBuffers;
-            public long BucketMapping;
-            public long StagingBuffers;
-            public long Total;
+            public long prototypeData;
+            public long instanceData;
+            public long matrixData;
+            public long chunkData;
+            public long poolRefData;
+            public long cameraViewBuffers;
+            public long shadowViewBuffers;
+            public long fadeStateBuffers;
+            public long bucketMapping;
+            public long stagingBuffers;
+            public long total;
         }
 
         public int GetPrototypeInstanceCount(int prototypeIndex)
@@ -377,11 +377,11 @@ namespace Fraxinus.GPUBatcher
             long total = 0;
             foreach (var set in pool)
             {
-                total += GetBufferSizeStatic(set.DrawBucketBuffer);
-                total += GetBufferSizeStatic(set.VisibilityBuffer);
-                total += GetBufferSizeStatic(set.IndirectArgsBuffer);
-                total += GetBufferSizeStatic(set.VisibleChunksBuffer);
-                total += GetBufferSizeStatic(set.VisibleChunkCountBuffer);
+                total += GetBufferSizeStatic(set.drawBucketBuffer);
+                total += GetBufferSizeStatic(set.visibilityBuffer);
+                total += GetBufferSizeStatic(set.indirectArgsBuffer);
+                total += GetBufferSizeStatic(set.visibleChunksBuffer);
+                total += GetBufferSizeStatic(set.visibleChunkCountBuffer);
             }
             return total;
         }
@@ -390,9 +390,9 @@ namespace Fraxinus.GPUBatcher
             buffer != null ? (long)buffer.count * buffer.stride : 0;
 
         private static long SumBufferSetSize(CullingBufferSet set) =>
-            GetBufferSizeStatic(set.DrawBucketBuffer) + GetBufferSizeStatic(set.VisibilityBuffer) +
-            GetBufferSizeStatic(set.IndirectArgsBuffer) + GetBufferSizeStatic(set.VisibleChunksBuffer) +
-            GetBufferSizeStatic(set.VisibleChunkCountBuffer);
+            GetBufferSizeStatic(set.drawBucketBuffer) + GetBufferSizeStatic(set.visibilityBuffer) +
+            GetBufferSizeStatic(set.indirectArgsBuffer) + GetBufferSizeStatic(set.visibleChunksBuffer) +
+            GetBufferSizeStatic(set.visibleChunkCountBuffer);
 
         public MemoryBreakdown GetMemoryBreakdown()
         {
@@ -401,38 +401,38 @@ namespace Fraxinus.GPUBatcher
 
             long GetBufferSize(GraphicsBuffer buffer) => buffer != null ? (long)buffer.count * buffer.stride : 0;
 
-            breakdown.PrototypeData = GetBufferSize(_gpuSignatureBuffer);
+            breakdown.prototypeData = GetBufferSize(_gpuSignatureBuffer);
 
-            breakdown.InstanceData = GetBufferSize(_instanceBuffer) + GetBufferSize(_instanceRotScaleBuffer);
-            breakdown.MatrixData = GetBufferSize(_matrixBuffer);
-            breakdown.ChunkData = GetBufferSize(_chunkBuffer);
-            breakdown.PoolRefData = GetBufferSize(_poolRefBuffer);
+            breakdown.instanceData = GetBufferSize(_instanceBuffer) + GetBufferSize(_instanceRotScaleBuffer);
+            breakdown.matrixData = GetBufferSize(_matrixBuffer);
+            breakdown.chunkData = GetBufferSize(_chunkBuffer);
+            breakdown.poolRefData = GetBufferSize(_poolRefBuffer);
 
-            breakdown.CameraViewBuffers = SumPoolBufferSizes(_cameraBufferPool);
-            breakdown.ShadowViewBuffers = SumPoolBufferSizes(_shadowBufferPool);
+            breakdown.cameraViewBuffers = SumPoolBufferSizes(_cameraBufferPool);
+            breakdown.shadowViewBuffers = SumPoolBufferSizes(_shadowBufferPool);
 #if UNITY_EDITOR
             if (_sceneViewCameraBufferSet != null)
-                breakdown.CameraViewBuffers += SumBufferSetSize(_sceneViewCameraBufferSet);
+                breakdown.cameraViewBuffers += SumBufferSetSize(_sceneViewCameraBufferSet);
             foreach (var set in _sceneViewShadowBufferSets)
-                breakdown.ShadowViewBuffers += SumBufferSetSize(set);
+                breakdown.shadowViewBuffers += SumBufferSetSize(set);
 #endif
 
             if (_viewFadeStates != null)
             {
                 foreach (var kvp in _viewFadeStates)
-                    breakdown.FadeStateBuffers += GetBufferSize(kvp.Value.FadeStateBuffer);
+                    breakdown.fadeStateBuffers += GetBufferSize(kvp.Value.fadeStateBuffer);
             }
 
-            breakdown.BucketMapping = GetBufferSize(_argsToBucketBuffer) + GetBufferSize(_shadowArgsToBucketBuffer);
+            breakdown.bucketMapping = GetBufferSize(_argsToBucketBuffer) + GetBufferSize(_shadowArgsToBucketBuffer);
 
-            breakdown.PrototypeData += GetBufferSize(_protoCrossfadeBuffer);
+            breakdown.prototypeData += GetBufferSize(_protoCrossfadeBuffer);
 
-            breakdown.StagingBuffers = GetBufferSize(_stagingInstanceBuffer) + GetBufferSize(_trsPatchStagingBuffer);
+            breakdown.stagingBuffers = GetBufferSize(_stagingInstanceBuffer) + GetBufferSize(_trsPatchStagingBuffer);
 
-            breakdown.Total = breakdown.PrototypeData + breakdown.InstanceData + breakdown.MatrixData +
-                             breakdown.ChunkData + breakdown.PoolRefData + breakdown.CameraViewBuffers +
-                             breakdown.ShadowViewBuffers +
-                             breakdown.FadeStateBuffers + breakdown.BucketMapping + breakdown.StagingBuffers;
+            breakdown.total = breakdown.prototypeData + breakdown.instanceData + breakdown.matrixData +
+                             breakdown.chunkData + breakdown.poolRefData + breakdown.cameraViewBuffers +
+                             breakdown.shadowViewBuffers +
+                             breakdown.fadeStateBuffers + breakdown.bucketMapping + breakdown.stagingBuffers;
 
             return breakdown;
         }
@@ -450,7 +450,7 @@ namespace Fraxinus.GPUBatcher
             if (_viewFadeStates == null) return;
             foreach (var kvp in _viewFadeStates)
             {
-                long bytes = GetBufferSizeStatic(kvp.Value.FadeStateBuffer);
+                long bytes = GetBufferSizeStatic(kvp.Value.fadeStateBuffer);
                 string label = $"View {kvp.Key}";
 #if UNITY_EDITOR
                 if (kvp.Value.isPersistent) label += " (scene view)";
@@ -501,13 +501,13 @@ namespace Fraxinus.GPUBatcher
 #if UNITY_EDITOR
         #region Bounding Sphere Overlay
 
-        private static readonly int _ID_DebugSphereList = Shader.PropertyToID("_DebugSphereList");
-        private static readonly int _ID_DebugSphereArgs = Shader.PropertyToID("_DebugSphereArgs");
-        private static readonly int _ID_DebugBucketLod = Shader.PropertyToID("_DebugBucketLod");
-        private static readonly int _ID_DebugSphereIndexCount = Shader.PropertyToID("_DebugSphereIndexCount");
-        private static readonly int _ID_DebugSphereMaxCount = Shader.PropertyToID("_DebugSphereMaxCount");
-        private static readonly int _ID_DebugBucketCount = Shader.PropertyToID("_DebugBucketCount");
-        private static readonly int _ID_DebugMatrices = Shader.PropertyToID("_DebugMatrices");
+        private static readonly int s_idDebugSphereList = Shader.PropertyToID("_DebugSphereList");
+        private static readonly int s_idDebugSphereArgs = Shader.PropertyToID("_DebugSphereArgs");
+        private static readonly int s_idDebugBucketLod = Shader.PropertyToID("_DebugBucketLod");
+        private static readonly int s_idDebugSphereIndexCount = Shader.PropertyToID("_DebugSphereIndexCount");
+        private static readonly int s_idDebugSphereMaxCount = Shader.PropertyToID("_DebugSphereMaxCount");
+        private static readonly int s_idDebugBucketCount = Shader.PropertyToID("_DebugBucketCount");
+        private static readonly int s_idDebugMatrices = Shader.PropertyToID("_DebugMatrices");
 
         private ComputeShader _debugSphereCompute;
         private int _clearDebugArgsKernel = -1;
@@ -537,10 +537,10 @@ namespace Fraxinus.GPUBatcher
             if (_camBucketLod != null && _bucketCount > 0)
                 _debugBucketLodBuffer.SetData(_camBucketLod, 0, 0, math.min(_bucketCount, _camBucketLod.Length));
 
-            _debugSphereMPB.SetBuffer(_ID_DebugSphereList, _debugSphereList);
-            _debugSphereMPB.SetBuffer(_ID_Instances, _instanceBuffer);
-            _debugSphereMPB.SetBuffer(_ID_Signatures, _gpuSignatureBuffer);
-            if (_matrixBuffer != null) _debugSphereMPB.SetBuffer(_ID_DebugMatrices, _matrixBuffer);
+            _debugSphereMPB.SetBuffer(s_idDebugSphereList, _debugSphereList);
+            _debugSphereMPB.SetBuffer(s_idInstances, _instanceBuffer);
+            _debugSphereMPB.SetBuffer(s_idSignatures, _gpuSignatureBuffer);
+            if (_matrixBuffer != null) _debugSphereMPB.SetBuffer(s_idDebugMatrices, _matrixBuffer);
 
             var rp = new RenderParams(_debugSphereMaterial)
             {
@@ -549,7 +549,6 @@ namespace Fraxinus.GPUBatcher
                 shadowCastingMode = ShadowCastingMode.Off,
                 receiveShadows = false,
             };
-            //this is just for debugging instance bounding spheres
             Graphics.RenderMeshIndirect(rp, _debugSphereMesh, _debugSphereArgs, 1);
         }
 
@@ -561,20 +560,20 @@ namespace Fraxinus.GPUBatcher
                 || _debugBucketLodBuffer == null || _debugSphereMesh == null)
                 return;
             if (_clearDebugArgsKernel < 0 || _buildDebugListKernel < 0) return;
-            if (viewSet?.DrawBucketBuffer == null || viewSet.VisibilityBuffer == null) return;
+            if (viewSet?.drawBucketBuffer == null || viewSet.visibilityBuffer == null) return;
 
             var cs = _debugSphereCompute;
-            cmd.SetComputeIntParam(cs, _ID_DebugSphereIndexCount, (int)_debugSphereMesh.GetIndexCount(0));
-            cmd.SetComputeBufferParam(cs, _clearDebugArgsKernel, _ID_DebugSphereArgs, _debugSphereArgs);
+            cmd.SetComputeIntParam(cs, s_idDebugSphereIndexCount, (int)_debugSphereMesh.GetIndexCount(0));
+            cmd.SetComputeBufferParam(cs, _clearDebugArgsKernel, s_idDebugSphereArgs, _debugSphereArgs);
             cmd.DispatchCompute(cs, _clearDebugArgsKernel, 1, 1, 1);
 
-            cmd.SetComputeIntParam(cs, _ID_DebugSphereMaxCount, _debugSphereListCapacity);
-            cmd.SetComputeIntParam(cs, _ID_DebugBucketCount, _bucketCount);
-            cmd.SetComputeBufferParam(cs, _buildDebugListKernel, _ID_DrawBuckets, viewSet.DrawBucketBuffer);
-            cmd.SetComputeBufferParam(cs, _buildDebugListKernel, _ID_VisibilityBuffer, viewSet.VisibilityBuffer);
-            cmd.SetComputeBufferParam(cs, _buildDebugListKernel, _ID_DebugBucketLod, _debugBucketLodBuffer);
-            cmd.SetComputeBufferParam(cs, _buildDebugListKernel, _ID_DebugSphereList, _debugSphereList);
-            cmd.SetComputeBufferParam(cs, _buildDebugListKernel, _ID_DebugSphereArgs, _debugSphereArgs);
+            cmd.SetComputeIntParam(cs, s_idDebugSphereMaxCount, _debugSphereListCapacity);
+            cmd.SetComputeIntParam(cs, s_idDebugBucketCount, _bucketCount);
+            cmd.SetComputeBufferParam(cs, _buildDebugListKernel, s_idDrawBuckets, viewSet.drawBucketBuffer);
+            cmd.SetComputeBufferParam(cs, _buildDebugListKernel, s_idVisibilityBuffer, viewSet.visibilityBuffer);
+            cmd.SetComputeBufferParam(cs, _buildDebugListKernel, s_idDebugBucketLod, _debugBucketLodBuffer);
+            cmd.SetComputeBufferParam(cs, _buildDebugListKernel, s_idDebugSphereList, _debugSphereList);
+            cmd.SetComputeBufferParam(cs, _buildDebugListKernel, s_idDebugSphereArgs, _debugSphereArgs);
             cmd.DispatchCompute(cs, _buildDebugListKernel, math.max(1, _bucketCount), 1, 1);
         }
 
@@ -656,7 +655,7 @@ namespace Fraxinus.GPUBatcher
             }
         }
 
-        private const int kDebugSphereSubdivisions = 2;
+        private const int k_debugSphereSubdivisions = 2;
 
         // unit icosphere subdivided kDebugSphereSubdivisions times; normals = positions
         private static Mesh BuildDebugIcosphere()
@@ -686,7 +685,7 @@ namespace Fraxinus.GPUBatcher
                 mid[key] = m;
                 return m;
             }
-            for (int s = 0; s < kDebugSphereSubdivisions; s++)
+            for (int s = 0; s < k_debugSphereSubdivisions; s++)
             {
                 mid.Clear();
                 var next = new List<int>(tris.Count * 4);
@@ -740,16 +739,16 @@ namespace Fraxinus.GPUBatcher
         private int _uploadValidationCounter;
 
         /// <summary>flush passes between automatic validations. 0 = manual only.</summary>
-        public int DebugUploadValidationInterval { get; set; } = 30;
-        public int StatUploadValidationMismatches { get; private set; }
-        public int StatUploadValidationPasses { get; private set; }
+        public int debugUploadValidationInterval { get; set; } = 30;
+        public int statUploadValidationMismatches { get; private set; }
+        public int statUploadValidationPasses { get; private set; }
 
         /// <summary>
         /// Editor-only GPU upload validation. While enabled, a CPU mirror tracks every
         /// upload/clear/patch/override/color command at dispatch time and is compared
         /// against a GPU readback every DebugUploadValidationInterval render cycles.
         /// </summary>
-        public bool DebugUploadValidation
+        public bool debugUploadValidation
         {
             get => _uploadValidationEnabled;
             set
@@ -775,8 +774,8 @@ namespace Fraxinus.GPUBatcher
         // allocate + seed from current gpu state so mid-session enabling starts clean
         private bool EnsureUploadValidator()
         {
-            if (!_uploadValidationEnabled || !_chunkSystemInitialized || uploadShader == null) return false;
-            int totalSlots = _poolCapacity * kPoolSize;
+            if (!_uploadValidationEnabled || !_chunkSystemInitialized || _uploadShader == null) return false;
+            int totalSlots = _poolCapacity * k_poolSize;
             if (_mirrorRotScale.IsCreated && _mirrorRotScale.Length == totalSlots) return true;
 
             DisposeUploadValidator();
@@ -966,7 +965,7 @@ namespace Fraxinus.GPUBatcher
         {
             if (!EnsureUploadValidator()) return;
 
-            int totalSlots = _poolCapacity * kPoolSize;
+            int totalSlots = _poolCapacity * k_poolSize;
             var rotReq = AsyncGPUReadback.Request(_instanceRotScaleBuffer);
             var instReq = AsyncGPUReadback.Request(_instanceBuffer);
             var refReq = AsyncGPUReadback.Request(_poolRefBuffer);
@@ -991,11 +990,11 @@ namespace Fraxinus.GPUBatcher
             NativeArray<uint> gpuColor = checkColor ? colReq.GetData<uint>() : default;
 
             int mismatches = 0;
-            const int kMaxLogs = 10;
+            const int k_maxLogs = 10;
 
             for (int slot = 0; slot < totalSlots; slot++)
             {
-                if (!_poolInUse[slot / kPoolSize]) continue;
+                if (!_poolInUse[slot / k_poolSize]) continue;
                 if (_mirrorRaced[slot] != 0) continue;
 
                 var mr = _mirrorRotScale[slot];
@@ -1004,7 +1003,7 @@ namespace Fraxinus.GPUBatcher
                     || math.any(math.asuint(mr.scale) != math.asuint(gr.scale)))
                 {
                     mismatches++;
-                    if (mismatches <= kMaxLogs)
+                    if (mismatches <= k_maxLogs)
                         LogUploadMismatch(slot, "rotScale",
                             $"expected rot={mr.rotation} scale={mr.scale}, got rot={gr.rotation} scale={gr.scale}");
                 }
@@ -1015,14 +1014,14 @@ namespace Fraxinus.GPUBatcher
                 if (mp != gp)
                 {
                     mismatches++;
-                    if (mismatches <= kMaxLogs)
+                    if (mismatches <= k_maxLogs)
                         LogUploadMismatch(slot, "sigDensityPacked", $"expected 0x{mp:X8}, got 0x{gp:X8} (mask 0x{mask:X8})");
                 }
 
                 if (checkColor && _mirrorColor[slot] != gpuColor[slot])
                 {
                     mismatches++;
-                    if (mismatches <= kMaxLogs)
+                    if (mismatches <= k_maxLogs)
                         LogUploadMismatch(slot, "color", $"expected 0x{_mirrorColor[slot]:X8}, got 0x{gpuColor[slot]:X8}");
                 }
             }
@@ -1041,25 +1040,25 @@ namespace Fraxinus.GPUBatcher
                         if (gpuRefs[baseIdx + p] != _chunkPools[baseIdx + p])
                         {
                             mismatches++;
-                            if (mismatches <= kMaxLogs)
+                            if (mismatches <= k_maxLogs)
                                 Debug.LogError($"[GPUBatcherUploadValidator] poolRef MISMATCH chunk={c} ref={p}: cpu={_chunkPools[baseIdx + p]}, gpu={gpuRefs[baseIdx + p]}");
                         }
                     }
                 }
             }
 
-            StatUploadValidationPasses++;
-            StatUploadValidationMismatches += mismatches;
+            statUploadValidationPasses++;
+            statUploadValidationMismatches += mismatches;
             if (mismatches > 0)
                 Debug.LogError($"[GPUBatcherUploadValidator] {mismatches} mismatch(es) at render cycle {_renderCycleCounter}" +
-                    (mismatches > kMaxLogs ? $" ({mismatches - kMaxLogs} not shown)" : ""));
+                    (mismatches > k_maxLogs ? $" ({mismatches - k_maxLogs} not shown)" : ""));
             else
-                LogMessageDevelopment($"[GPUBatcherUploadValidator] pass {StatUploadValidationPasses}: clean ({totalSlots} slots)");
+                LogMessageDevelopment($"[GPUBatcherUploadValidator] pass {statUploadValidationPasses}: clean ({totalSlots} slots)");
         }
 
         private void LogUploadMismatch(int slot, string field, string detail)
         {
-            int pool = slot / kPoolSize;
+            int pool = slot / k_poolSize;
             int chunk = pool < _poolToChunk.Length ? _poolToChunk[pool] : -1;
             int proto = slot < _slotProtoIndex.Length ? _slotProtoIndex[slot] : -1;
             var last = _mirrorLastWrite[slot];
@@ -1076,11 +1075,11 @@ namespace Fraxinus.GPUBatcher
             if (cfg != _prevConfigValidateUploads)
             {
                 _prevConfigValidateUploads = cfg;
-                DebugUploadValidation = cfg;
+                debugUploadValidation = cfg;
             }
 
-            if (!_uploadValidationEnabled || DebugUploadValidationInterval <= 0) return;
-            if (++_uploadValidationCounter < DebugUploadValidationInterval) return;
+            if (!_uploadValidationEnabled || debugUploadValidationInterval <= 0) return;
+            if (++_uploadValidationCounter < debugUploadValidationInterval) return;
             _uploadValidationCounter = 0;
             DebugValidateUploadsNow();
         }

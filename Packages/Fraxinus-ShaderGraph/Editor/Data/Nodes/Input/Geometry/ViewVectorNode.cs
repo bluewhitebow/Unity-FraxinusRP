@@ -1,6 +1,7 @@
 using System;
 using System.Text.RegularExpressions;
 using UnityEditor.ShaderGraph.Drawing.Controls;
+using ShaderGraphPopupList = UnityEditor.ShaderGraph.Drawing.Controls.PopupList;
 using UnityEngine;
 using UnityEditor.Graphing;
 using System.Collections.Generic;
@@ -25,12 +26,12 @@ namespace UnityEditor.ShaderGraph
         private CoordinateSpace m_Space = CoordinateSpace.World;
 
         [PopupControl("Space")]
-        public PopupList spacePopup
+        public ShaderGraphPopupList spacePopup
         {
             get
             {
                 var names = validSpaces.Select(cs => cs.ToString().PascalToLabel()).ToArray();
-                return new PopupList(names, (int)m_Space);
+                return new ShaderGraphPopupList(names, (int)m_Space);
             }
             set
             {

@@ -176,6 +176,7 @@ namespace UnityEngine.Rendering
             Span<GPUDrivenPackedMaterialData> packedMaterialDatas = stackalloc GPUDrivenPackedMaterialData[materialsCount];
 
             var supportsIndirect = true;
+            var isMetal = SystemInfo.graphicsDeviceType == GraphicsDeviceType.Metal;
             for (int matIndex = 0; matIndex < materialsCount; ++matIndex)
             {
                 if (matIndex >= submeshCount)
@@ -197,7 +198,13 @@ namespace UnityEngine.Rendering
                     bool isFound = packedMaterialDataHash.TryGetValue(materialID, out packedMaterialData);
                     Assert.IsTrue(isFound, "Packed material data not found.");
                 }
-                supportsIndirect &= packedMaterialData.isIndirectSupported;
+                // This assembly is enabled only for Unity 6. Match Core 17's actual
+                // material metadata: indirect draws cannot convert quad topology, and
+                // Metal's indirect path does not support tessellation.
+                var submeshIndex = startSubMesh + matIndex;
+                var subMesh = rendererData.subMeshDesc[subMeshDescOffset + submeshIndex];
+                supportsIndirect &= subMesh.topology != MeshTopology.Quads || packedMaterialData.hasTessellation;
+                supportsIndirect &= !isMetal || !packedMaterialData.hasTessellation;
 
                 packedMaterialDatas[matIndex] = packedMaterialData;
             }

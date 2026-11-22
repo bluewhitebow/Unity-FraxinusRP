@@ -2,52 +2,86 @@
 
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Serialization;
 
 namespace Fraxinus.GPUBatcher
 {
     /// <summary>singleton config for BRG instanced renderer.</summary>
     public class GPUBatcherConfig : ScriptableObject
     {
-        private static GPUBatcherConfig _instance;
+        private static GPUBatcherConfig s_instance;
+        private static bool s_configMissing;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        private static DebugUI.MessageBox s_missingConfigWarning;
+#endif
+        private const string k_missingConfigMessage = "GPU Batcher config is missing. Open Tools > Fraxinus GPU Batcher > Select Config to create or preload it.";
 
         // Automatic configuration assets belong to the project rather than the embedded package.
-        private const string kFallbackFolder = "Assets/FraxinusGPUBatcherData";
-        private const string kConfigFileName = "FraxinusGPUBatcherConfig.asset";
-        private const string kDefaultAssetPath = kFallbackFolder + "/" + kConfigFileName;
-        public const string PackagePath = "Packages/com.bluewhitebow.fraxinus-gpu-batcher";
-        public const string ProjectAssetPath = kDefaultAssetPath;
+        private const string k_fallbackFolder = "Assets/FraxinusGPUBatcherData";
+        private const string k_configFileName = "FraxinusGPUBatcherConfig.asset";
+        private const string k_defaultAssetPath = k_fallbackFolder + "/" + k_configFileName;
+        private const string k_packagePath = "Packages/com.bluewhitebow.fraxinus-gpu-batcher";
+        public static string packagePath => k_packagePath;
+        private const string k_projectAssetPath = k_defaultAssetPath;
+        public static string projectAssetPath => k_projectAssetPath;
 
-        public static GPUBatcherConfig Instance
+        public static GPUBatcherConfig instance
         {
             get
             {
-                if (_instance == null)
+                if (s_instance == null)
                 {
 #if UNITY_EDITOR
-                    _instance = FindOrCreateAsset();
+                    s_instance = FindOrCreateAsset();
 #else
                     var found = Resources.FindObjectsOfTypeAll<GPUBatcherConfig>();
                     if (found.Length > 0)
-                        _instance = found[0];
-                    else
-                        Debug.LogError("GPUBatcherConfig: Instance not found. Is the config in PlayerSettings Preloaded Assets?");
+                        s_instance = found[0];
 #endif
+                    SetConfigMissing(s_instance == null);
                 }
-                return _instance;
+                return s_instance;
             }
+        }
+
+        private static void SetConfigMissing(bool missing)
+        {
+            if (s_configMissing == missing)
+                return;
+
+            s_configMissing = missing;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (missing)
+            {
+                s_missingConfigWarning = new DebugUI.MessageBox
+                {
+                    displayName = k_missingConfigMessage,
+                    style = DebugUI.MessageBox.Style.Error
+                };
+                var panel = DebugManager.instance.GetPanel("Rendering", createIfNull: true, groupIndex: 1);
+                panel.children.Insert(0, s_missingConfigWarning);
+            }
+            else
+            {
+                s_missingConfigWarning.panel?.children.Remove(s_missingConfigWarning);
+                s_missingConfigWarning = null;
+            }
+#endif
+            if (missing)
+                Debug.LogError(k_missingConfigMessage);
         }
 
         private void OnEnable()
         {
+            SetConfigMissing(false);
 #if UNITY_EDITOR
-            if (_instance == null || FindInPreloadedAssets() == this)
-                _instance = this;
+            if (s_instance == null || FindInPreloadedAssets() == this)
+                s_instance = this;
             EnsureComputeShaders();
 #if FRAXINUS_RP
             EnsureTextureGrassShader();
 #endif
-#else
-            //_instance = this;
 #endif
         }
 
@@ -76,12 +110,12 @@ namespace Fraxinus.GPUBatcher
         }
 #endif
 
-        // reset on domain reload
 #if UNITY_EDITOR
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStaticInstance()
         {
-            _instance = null;
+            s_instance = null;
+            SetConfigMissing(false);
         }
 
         [UnityEditor.InitializeOnLoadMethod]
@@ -89,28 +123,25 @@ namespace Fraxinus.GPUBatcher
         {
             UnityEditor.EditorApplication.delayCall += () =>
             {
-                if (_instance == null)
-                    _ = Instance;
+                if (s_instance == null)
+                    _ = instance;
             };
         }
 #endif
 
 #if UNITY_EDITOR
         // set while the plugin itself is being deleted
-        private static bool _suppressAssetCreation;
+        private static bool s_suppressAssetCreation;
 
-        internal static void SuppressAssetCreation() => _suppressAssetCreation = true;
+        internal static void SuppressAssetCreation() => s_suppressAssetCreation = true;
 
         private static GPUBatcherConfig FindOrCreateAsset()
         {
-            // 1. check preloaded assets
             var found0 = FindInPreloadedAssets();
             if (found0 != null) return found0;
 
-            // 2. try default path
-            var found = UnityEditor.AssetDatabase.LoadAssetAtPath<GPUBatcherConfig>(kDefaultAssetPath);
+            var found = UnityEditor.AssetDatabase.LoadAssetAtPath<GPUBatcherConfig>(k_defaultAssetPath);
 
-            // 3. search project
             if (found == null)
             {
                 string[] guids = UnityEditor.AssetDatabase.FindAssets("t:GPUBatcherConfig");
@@ -120,12 +151,10 @@ namespace Fraxinus.GPUBatcher
                     found = UnityEditor.AssetDatabase.LoadAssetAtPath<GPUBatcherConfig>(path);
                 }
             }
-            
 
-            // 4. create at default path
             if (found == null)
             {
-                if (_suppressAssetCreation)
+                if (s_suppressAssetCreation)
                 {
                     // transient instance keeps callers alive until the domain reload
                     found = CreateInstance<GPUBatcherConfig>();
@@ -141,21 +170,18 @@ namespace Fraxinus.GPUBatcher
                 Debug.Log($"GPUBatcherConfig: Created config at {assetPath}");
             }
 
-            // 5. ensure preloaded
             EnsurePreloadedAsset(found);
 
-            // 6. auto-assign compute shaders
             found.EnsureComputeShaders();
 
             return found;
         }
 
-        // Embedded packages are immutable; keep the automatically created project asset in Assets.
         private static string ResolveConfigAssetPath()
         {
-            if (!UnityEditor.AssetDatabase.IsValidFolder(kFallbackFolder))
+            if (!UnityEditor.AssetDatabase.IsValidFolder(k_fallbackFolder))
                 UnityEditor.AssetDatabase.CreateFolder("Assets", "FraxinusGPUBatcherData");
-            return kDefaultAssetPath;
+            return k_defaultAssetPath;
         }
 
         private static void EnsurePreloadedAsset(GPUBatcherConfig config)
@@ -210,8 +236,8 @@ namespace Fraxinus.GPUBatcher
             {
                 UnityEditor.EditorUtility.SetDirty(this);
                 // rebind a renderer that cached a null shader at init
-                if (GPUBatcherRenderer.HasInstance && cullingShader != null)
-                    GPUBatcherRenderer.Instance.Reinitialize();
+                if (GPUBatcherRenderer.hasInstance && cullingShader != null)
+                    GPUBatcherRenderer.instance.Reinitialize();
             }
         }
 
@@ -219,7 +245,7 @@ namespace Fraxinus.GPUBatcher
         [UnityEditor.InitializeOnLoadMethod]
         private static void ResolveShadersAfterReload()
         {
-            UnityEditor.EditorApplication.delayCall += () => { if (Instance != null) Instance.EnsureComputeShaders(); };
+            UnityEditor.EditorApplication.delayCall += () => { if (instance != null) instance.EnsureComputeShaders(); };
         }
 
 #if FRAXINUS_RP
@@ -252,7 +278,7 @@ namespace Fraxinus.GPUBatcher
         [UnityEditor.MenuItem("Tools/Fraxinus GPU Batcher/Select Config")]
         public static void SelectConfig()
         {
-            var config = Instance;
+            var config = instance;
             UnityEditor.Selection.activeObject = config;
             UnityEditor.EditorGUIUtility.PingObject(config);
         }
@@ -306,17 +332,17 @@ namespace Fraxinus.GPUBatcher
                  _prevDefaultSmallMeshFadeMode != defaultSmallMeshFadeMode ||
                  _prevDefaultSmallMeshFadeWidth != defaultSmallMeshFadeWidth))
             {
-                if (GPUBatcherRenderer.HasInstance)
+                if (GPUBatcherRenderer.hasInstance)
                 {
                     _rebuildBatchesScheduled = true;
                     UnityEditor.EditorApplication.delayCall += () =>
                     {
                         _rebuildBatchesScheduled = false;
-                        if (GPUBatcherRenderer.HasInstance)
+                        if (GPUBatcherRenderer.hasInstance)
                         {
                             if (defaultCrossfadeChanged)
-                                GPUBatcherRenderer.Instance.RefreshDefaultCrossfadeDuration();
-                            GPUBatcherRenderer.Instance.RebuildBatches();
+                                GPUBatcherRenderer.instance.RefreshDefaultCrossfadeDuration();
+                            GPUBatcherRenderer.instance.RebuildBatches();
                         }
                     };
                 }
@@ -336,28 +362,28 @@ namespace Fraxinus.GPUBatcher
                  _prevMaxPoolRefsPerChunk != maxPoolRefsPerChunk ||
                  _prevNegativeScaleMode != negativeScaleMode))
             {
-                if (GPUBatcherRenderer.HasInstance)
+                if (GPUBatcherRenderer.hasInstance)
                 {
                     _reinitScheduled = true;
                     UnityEditor.EditorApplication.delayCall += () =>
                     {
                         _reinitScheduled = false;
-                        if (GPUBatcherRenderer.HasInstance)
-                            GPUBatcherRenderer.Instance.Reinitialize();
+                        if (GPUBatcherRenderer.hasInstance)
+                            GPUBatcherRenderer.instance.Reinitialize();
                     };
                 }
             }
             // GPU occlusion toggle: bump buffer pool generation + clean up HZB state
-            if (_prevValuesCached && !_occlusionToggleScheduled && _prevUseGPUOcclusionCulling != useGPUOcclusionCulling)
+            if (_prevValuesCached && !_occlusionToggleScheduled && _prevUseGPUOcclusionCulling != _useGPUOcclusionCulling)
             {
-                if (GPUBatcherRenderer.HasInstance)
+                if (GPUBatcherRenderer.hasInstance)
                 {
                     _occlusionToggleScheduled = true;
                     UnityEditor.EditorApplication.delayCall += () =>
                     {
                         _occlusionToggleScheduled = false;
-                        if (GPUBatcherRenderer.HasInstance)
-                            GPUBatcherRenderer.Instance.OnGPUOcclusionToggled();
+                        if (GPUBatcherRenderer.hasInstance)
+                            GPUBatcherRenderer.instance.OnGPUOcclusionToggled();
                     };
                 }
             }
@@ -365,12 +391,12 @@ namespace Fraxinus.GPUBatcher
             // runtime refresh when terrain detail cull toggle changes
             if (_prevValuesCached && _prevCullDetailsAtDetailDistance != cullDetailsAtDetailDistance)
             {
-                if (GPUBatcherRenderer.HasInstance)
+                if (GPUBatcherRenderer.hasInstance)
                 {
                     UnityEditor.EditorApplication.delayCall += () =>
                     {
-                        if (GPUBatcherRenderer.HasInstance)
-                            GPUBatcherRenderer.Instance.RuntimeRefresh();
+                        if (GPUBatcherRenderer.hasInstance)
+                            GPUBatcherRenderer.instance.RuntimeRefresh();
                     };
                 }
             }
@@ -379,12 +405,12 @@ namespace Fraxinus.GPUBatcher
             // runtime refresh so texture grass protos build/tear down when the toggle changes
             if (_prevValuesCached && _prevAllowTextureGrass != allowTextureGrass)
             {
-                if (GPUBatcherRenderer.HasInstance)
+                if (GPUBatcherRenderer.hasInstance)
                 {
                     UnityEditor.EditorApplication.delayCall += () =>
                     {
-                        if (GPUBatcherRenderer.HasInstance)
-                            GPUBatcherRenderer.Instance.RuntimeRefresh();
+                        if (GPUBatcherRenderer.hasInstance)
+                            GPUBatcherRenderer.instance.RuntimeRefresh();
                     };
                 }
             }
@@ -396,7 +422,7 @@ namespace Fraxinus.GPUBatcher
             _prevCombineMultiMeshLODs = combineMultiMeshLODs;
             _prevMaxPoolRefsPerChunk = maxPoolRefsPerChunk;
             _prevNegativeScaleMode = negativeScaleMode;
-            _prevUseGPUOcclusionCulling = useGPUOcclusionCulling;
+            _prevUseGPUOcclusionCulling = _useGPUOcclusionCulling;
             _prevCullDetailsAtDetailDistance = cullDetailsAtDetailDistance;
 #if FRAXINUS_RP
             _prevAllowTextureGrass = allowTextureGrass;
@@ -416,23 +442,24 @@ namespace Fraxinus.GPUBatcher
         public ComputeShader occlusionShader;
 
         [Header("Culling")]
-        [Tooltip("Test chunk AABBs against Unity's baked occlusion culling buffer each frame.")]
+        [Tooltip("Test spheres enclosing each chunk against Unity's baked occlusion after the current camera cull.")]
         public bool useBakedOcclusionCulling = true;
 
-        [Tooltip("Two-pass HZB occlusion culling. Pass 0 tests against last frame's depth, HZB is rebuilt from this frame's depth prepass, Pass 1 re-tests occluded instances. Requires deferred culling (URP/HDRP) and depth prepass.")]
-        [SerializeField] private bool useGPUOcclusionCulling = false;
+        [FormerlySerializedAs("useGPUOcclusionCulling")]
+        [Tooltip("GPU occlusion using a hierarchical depth buffer. History mode uses the previous frame's opaque depth; enable the retest pass to use this frame's complete depth prepass.")]
+        [SerializeField] private bool _useGPUOcclusionCulling = false;
 
-        public bool UseGPUOcclusionCulling => useGPUOcclusionCulling;
+        public bool useGPUOcclusionCulling => _useGPUOcclusionCulling;
 
         public void SetGPUOcclusionCulling(bool value)
         {
-            if (useGPUOcclusionCulling == value) return;
-            useGPUOcclusionCulling = value;
-            if (GPUBatcherRenderer.HasInstance)
-                GPUBatcherRenderer.Instance.OnGPUOcclusionToggled();
+            if (_useGPUOcclusionCulling == value) return;
+            _useGPUOcclusionCulling = value;
+            if (GPUBatcherRenderer.hasInstance)
+                GPUBatcherRenderer.instance.OnGPUOcclusionToggled();
         }
 
-        [Tooltip("Enable HZB retest pass. After depth prepass, re-tests instances that were occluded in Pass 0 against fresh HZB. Requires render pipeline support (URP built-in, HDRP requires depth prepass patch).")]
+        [Tooltip("Request a complete depth prepass in Fraxinus RP, then repeat GPU culling against its current-frame HZB before opaque rendering.")]
         public bool useHZBRetestPass = false;
 
         [Range(0f, 8f)]
@@ -525,7 +552,7 @@ namespace Fraxinus.GPUBatcher
 
         [SerializeField, HideInInspector] private Shader _textureGrassShader;
 
-        public Shader TextureGrassShader => _textureGrassShader;
+        public Shader textureGrassShader => _textureGrassShader;
 #endif
 
 #if UNITY_EDITOR
@@ -575,7 +602,7 @@ namespace Fraxinus.GPUBatcher
         }
 
         // set by HDRP patcher or URP injector on domain reload - indicates pass 1 retest is available
-        public static bool HZBRetestPassCompatible
+        public static bool hzbRetestPassCompatible
         {
             get => UnityEditor.SessionState.GetBool("FraxinusGPUBatcher_HZBRetestPassCompatible", false);
             set => UnityEditor.SessionState.SetBool("FraxinusGPUBatcher_HZBRetestPassCompatible", value);

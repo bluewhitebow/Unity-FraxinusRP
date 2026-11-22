@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.Rendering;
 
 #if UNITY_6000_4_OR_NEWER
@@ -85,10 +86,11 @@ namespace Fraxinus.GPUBatcher
         public float[] lodFadeTransitionWidths;
         public ShadowCastingMode[] lodShadowCastingModes;
         public MotionVectorGenerationMode[] lodMotionVectorModes;
-        public float LodReferenceSize;
+        [FormerlySerializedAs("LodReferenceSize")]
+        public float lodReferenceSize;
         public LODFadeMode fadeMode;
         public uint percentageFadeMask; // bit N = LOD N uses percentage fade
-        public WindID speedTreeRendererID; // renderer instance ID for SpeedTreeWindManager lookup
+        public WindID speedTreeRendererID; // source renderer retained by the native wind capture bridge
 
         public void AssignRendererID(Renderer renderer)
         {
@@ -172,7 +174,7 @@ namespace Fraxinus.GPUBatcher
             return best;
         }
 
-        public int LODCount => (lodMeshes != null && lodMeshes.Length > 0) ? lodMeshes.Length : 1;
+        public int lodCount => (lodMeshes != null && lodMeshes.Length > 0) ? lodMeshes.Length : 1;
     }
 
     /// <summary>full registration unit: asset data + render behavior config.</summary>
@@ -260,11 +262,11 @@ namespace Fraxinus.GPUBatcher
         public void OverrideRenderingLayerMask(uint v)
             { renderingLayerMask = v; overrideMask |= OverrideField.RenderingLayerMask; }
 
-        public int LODCount => asset?.LODCount ?? 1;
+        public int lodCount => asset?.lodCount ?? 1;
         public LODFadeMode fadeMode => asset?.fadeMode ?? LODFadeMode.None;
         public uint percentageFadeMask => asset?.percentageFadeMask ?? 0;
         public WindID speedTreeRendererID => asset?.speedTreeRendererID ?? default;
-        public float LodReferenceSize => asset?.LodReferenceSize ?? 0;
+        public float lodReferenceSize => asset?.lodReferenceSize ?? 0;
         public Mesh mesh => asset?.mesh;
         public Material[] materials => asset?.materials;
         public float[] lodScreenSizes => asset?.lodScreenSizes;
@@ -309,7 +311,7 @@ namespace Fraxinus.GPUBatcher
                     for (int i = 0; i < asset.lodFadeTransitionWidths.Length; i++)
                         h.Add(asset.lodFadeTransitionWidths[i]);
                 h.Add(asset.fadeMode);
-                h.Add(asset.LodReferenceSize);
+                h.Add(asset.lodReferenceSize);
                 h.Add(asset.percentageFadeMask);
                 h.Add(asset.speedTreeRendererID);
 #if UNITY_6000_2_OR_NEWER
@@ -378,7 +380,7 @@ namespace Fraxinus.GPUBatcher
         private readonly List<(int start, int count)> _free = new();
         private int _hwm; // high water mark - next fresh address
 
-        public int HighWaterMark => _hwm;
+        public int highWaterMark => _hwm;
 
         // allocate a contiguous range of 'count' slots.
         // returns the start offset.

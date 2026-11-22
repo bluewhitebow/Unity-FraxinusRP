@@ -16,23 +16,22 @@ namespace Fraxinus.GPUBatcher
     {
         private GPUBatcherRegistrationTracker _registration;
 
-        public GPUBatcherRegistrationTracker Registration
+        public GPUBatcherRegistrationTracker registration
         {
             get { EnsureRegistration(); return _registration; }
         }
 
-        // preserved for subclass compatibility
-        protected GPUBatcherRenderer GPUBatcherSystem => _registration?.GPUBatcherSystem;
-        protected bool _registered => _registration?.IsRegistered ?? false;
-        internal bool IsRegistered => _registered;
+        protected GPUBatcherRenderer GPUBatcherSystem => _registration?.gpuBatcherSystem;
+        protected bool _registered => _registration?.isRegistered ?? false;
+        internal bool isRegistered => _registered;
 
         private void EnsureRegistration()
         {
             if (_registration != null) return;
             _registration = new GPUBatcherRegistrationTracker(GetType().Name);
-            _registration.InitializeCallback = () => OnInitialize();
-            _registration.ShutdownCallback = () => OnShutdown();
-            _registration.ChunkWritten += OnChunkWritten;
+            _registration.initializeCallback = () => OnInitialize();
+            _registration.shutdownCallback = () => OnShutdown();
+            _registration.chunkWritten += OnChunkWritten;
         }
 
         #region Unity Lifecycle
@@ -86,7 +85,6 @@ namespace Fraxinus.GPUBatcher
 
         protected abstract void OnInitialize();
 
-        // clean up local metadata
         protected abstract void OnShutdown();
 
         // fires sync during immediate writes, deferred after CommitDeferredWrites
@@ -115,7 +113,7 @@ namespace Fraxinus.GPUBatcher
 
         #region chunk lifecycle (tracked)
 
-        protected int MaxInstancesPerChunk => _registration?.MaxInstancesPerChunk ?? 2048;
+        protected int MaxInstancesPerChunk => _registration?.maxInstancesPerChunk ?? 2048;
 
         protected ChunkLink AllocChunk() => _registration.AllocChunk();
 
@@ -190,7 +188,6 @@ namespace Fraxinus.GPUBatcher
         public void StageRemove(InstanceLink link)
             => _registration.StageRemove(link);
 
-        // slot-based overloads
         public void StagePosition(int globalSlot, float3 position)
             => _registration.StagePosition(globalSlot, position);
 
@@ -282,17 +279,17 @@ namespace Fraxinus.GPUBatcher
 
         protected virtual void OnDrawGizmosSelected()
         {
-            var config = GPUBatcherConfig.Instance;
+            var config = GPUBatcherConfig.instance;
             if (config == null || !config.showChunkBounds) return;
             if (!_registered || GPUBatcherSystem == null) return;
-            DrawChunkBoundsGizmos(_registration, _registration.PrimaryChunkIds);
+            DrawChunkBoundsGizmos(_registration, _registration.primaryChunkIds);
         }
 
         /// <summary>Draws wire cube gizmos with metadata labels for the given chunk IDs.</summary>
         public static void DrawChunkBoundsGizmos(GPUBatcherRegistrationTracker tracker, IEnumerable<int> chunkIds)
         {
-            if (tracker?.GPUBatcherSystem == null) return;
-            var brgSystem = tracker.GPUBatcherSystem;
+            if (tracker?.gpuBatcherSystem == null) return;
+            var brgSystem = tracker.gpuBatcherSystem;
 
             if (s_gizmoLabelStyle == null)
             {
@@ -305,7 +302,7 @@ namespace Fraxinus.GPUBatcher
                 };
             }
 
-            int maxPerChunk = tracker.MaxInstancesPerChunk;
+            int maxPerChunk = tracker.maxInstancesPerChunk;
 
             foreach (int primaryId in chunkIds)
             {

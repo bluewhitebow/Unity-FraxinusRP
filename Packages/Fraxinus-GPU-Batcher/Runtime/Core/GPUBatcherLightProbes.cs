@@ -44,10 +44,10 @@ namespace Fraxinus.GPUBatcher
         // packing scratch - 8 float4 per instance, AoS
         private NativeArray<float4> _packBuffer;
 
-        private const int kFloat4sPerInstance = GPUBatcherRenderer.kSHFloat4sPerInstance;
-        private const int kBytesPerInstance = GPUBatcherRenderer.kSHBytesPerInstance;      // 128
-        private const int kInitialManagedArraySize = 256;
-        private const int kInitialStagingUintCapacity = 32768;
+        private static readonly int s_float4sPerInstance = GPUBatcherRenderer.shFloat4sPerInstance;
+        private static readonly int s_bytesPerInstance = GPUBatcherRenderer.shBytesPerInstance;      // 128
+        private const int k_initialManagedArraySize = 256;
+        private const int k_initialStagingUintCapacity = 32768;
 
         // SH coefficient index reference:
         // sphericalHarmonicsL2[channel, coefficient]:
@@ -68,11 +68,11 @@ namespace Fraxinus.GPUBatcher
             _stagingSHUintCursor = 0;
             _shDirty = false;
 
-            int initialArraySize = math.max(GPUBatcherRenderer.kPoolSize, kInitialManagedArraySize);
+            int initialArraySize = math.max(GPUBatcherRenderer.instancesPerPool, k_initialManagedArraySize);
             _samplePositions = new Vector3[initialArraySize];
             _shResults = new SphericalHarmonicsL2[initialArraySize];
             _occlusionResults = new Vector4[initialArraySize];
-            _packBuffer = new NativeArray<float4>(initialArraySize * kFloat4sPerInstance, Allocator.Persistent);
+            _packBuffer = new NativeArray<float4>(initialArraySize * s_float4sPerInstance, Allocator.Persistent);
 
             LightProbes.lightProbesUpdated += OnLightProbesUpdated;
             SceneManager.sceneLoaded += OnSceneLoaded;
@@ -175,7 +175,7 @@ namespace Fraxinus.GPUBatcher
         {
             if (!_shDirty) return;
 
-            int totalSlots = _renderer.PoolCapacity * _renderer.PoolSize;
+            int totalSlots = _renderer.poolCapacity * _renderer.poolSize;
             int shBaseBytes = totalSlots * 3 * 12 * sizeof(float); // byte offset after O2W + W2O + PrevM
 
             for (int i = 0; i < _stagedSHUploads.Length; i++)
@@ -184,12 +184,12 @@ namespace Fraxinus.GPUBatcher
 
                 // each instance is 128 bytes contiguous
                 int srcOffsetBytes = upload.stagingOffsetBytes;
-                int dstOffsetBytes = shBaseBytes + upload.liveSlotOffset * kBytesPerInstance;
-                int sizeBytes = upload.count * kBytesPerInstance;
+                int dstOffsetBytes = shBaseBytes + upload.liveSlotOffset * s_bytesPerInstance;
+                int sizeBytes = upload.count * s_bytesPerInstance;
 
                 _renderer.DispatchCopyBufferRegion(
                     _stagingSHBuffer, srcOffsetBytes,
-                    _renderer.MatrixBuffer, dstOffsetBytes,
+                    _renderer.matrixBuffer, dstOffsetBytes,
                     sizeBytes);
             }
 
@@ -202,9 +202,9 @@ namespace Fraxinus.GPUBatcher
         {
             if (!_initialized || _renderer == null) return;
 
-            var poolInUse = _renderer.PoolInUse;
-            var slotMask = _renderer.PoolSlotMask;
-            int poolCapacity = _renderer.PoolCapacity;
+            var poolInUse = _renderer.poolInUse;
+            var slotMask = _renderer.poolSlotMask;
+            int poolCapacity = _renderer.poolCapacity;
 
             if (!poolInUse.IsCreated || !slotMask.IsCreated || !_cachedPositions.IsCreated)
                 return;
@@ -216,7 +216,7 @@ namespace Fraxinus.GPUBatcher
                 if (!poolInUse[poolIdx]) continue;
 
                 ulong mask = slotMask[poolIdx];
-                int slotBase = poolIdx * GPUBatcherRenderer.kPoolSize;
+                int slotBase = poolIdx * GPUBatcherRenderer.instancesPerPool;
                 while (mask != 0)
                 {
                     int bit = math.tzcnt(mask);
@@ -288,18 +288,18 @@ namespace Fraxinus.GPUBatcher
 
         private void PackAndStage(int srcIndex, int count, int liveSlotOffset)
         {
-            int needed = count * kFloat4sPerInstance;
+            int needed = count * s_float4sPerInstance;
             if (!_packBuffer.IsCreated || _packBuffer.Length < needed)
             {
                 _packBuffer.DisposeIfCreated();
-                _packBuffer = new NativeArray<float4>(math.max(needed, kInitialManagedArraySize * kFloat4sPerInstance), Allocator.Persistent);
+                _packBuffer = new NativeArray<float4>(math.max(needed, k_initialManagedArraySize * s_float4sPerInstance), Allocator.Persistent);
             }
 
             // pack SH data in AoS layout, matches SetupDOTSSHCoeffs() in UnityDOTSInstancing.hlsl
             for (int i = 0; i < count; i++)
             {
                 var sh = _shResults[srcIndex + i];
-                int baseIdx = i * kFloat4sPerInstance;
+                int baseIdx = i * s_float4sPerInstance;
 
                 // SHAr: (L11_r, L1-1_r, L10_r, L00_r)
                 _packBuffer[baseIdx + 0] = new float4(sh[0, 3], sh[0, 1], sh[0, 2], sh[0, 0]);
@@ -319,7 +319,7 @@ namespace Fraxinus.GPUBatcher
                 _packBuffer[baseIdx + 7] = new float4(occ.x, occ.y, occ.z, occ.w);
             }
 
-            int uintCount = count * kFloat4sPerInstance * 4;
+            int uintCount = count * s_float4sPerInstance * 4;
             int uintCursor = _stagingSHUintCursor;
 
             if (_stagingSHBuffer != null && uintCursor + uintCount > _stagingSHUintCapacity)
@@ -342,7 +342,7 @@ namespace Fraxinus.GPUBatcher
             if (n > 0)
             {
                 var last = _stagedSHUploads[n - 1];
-                if (last.stagingOffsetBytes + last.count * kBytesPerInstance == uintCursor * 4
+                if (last.stagingOffsetBytes + last.count * s_bytesPerInstance == uintCursor * 4
                     && last.liveSlotOffset + last.count == liveSlotOffset)
                 {
                     last.count += count;
@@ -367,7 +367,7 @@ namespace Fraxinus.GPUBatcher
             if (_stagingSHBuffer != null && requiredUintCount <= _stagingSHUintCapacity)
                 return;
 
-            int newCapacity = math.max(requiredUintCount, math.max(_stagingSHUintCapacity * 2, kInitialStagingUintCapacity));
+            int newCapacity = math.max(requiredUintCount, math.max(_stagingSHUintCapacity * 2, k_initialStagingUintCapacity));
 
             _stagingSHBuffer?.Dispose();
             _stagingSHBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Raw, newCapacity, sizeof(uint));

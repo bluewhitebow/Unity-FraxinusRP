@@ -1,93 +1,84 @@
 {
-  "source": "D:\\Unity\\BRGInstance\\Assets\\BRGInstancedRenderer",
-  "target": "D:\\Unity\\Duckov-Recovered\\ExportedProject\\Packages\\com.bluewhitebow.fraxinus-gpu-batcher",
+  "source": "D:/projects/unityProjects/BRGInstance/Assets/BRGInstancedRenderer",
+  "target": "D:/projects/unityProjects/Duckov-Recovered/ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher",
   "scope": "Explicit identifier/package renames and asset GUID remapping; comments/whitespace ignored. Changed tokens and excluded reference integrations are NOT evidence of equivalence.",
   "files": [
     {
       "source": "Editor/Scripts/BRGCameraSettingsEditor.cs",
       "target": "Editor/GPUBatcherCameraSettingsEditor.cs",
       "source_sha256": "0a63229f25c7b4952d547bb550a5583da94dddda6185f5c1f40e2fca54cfe636",
-      "target_sha256": "8c5d04018e5360c00f28a92f5f6f1d5605fc63a84d2c0dd7bdbebf133105eb9d",
-      "status": "changed",
-      "diff": "Editor/GPUBatcherCameraSettingsEditor.cs.diff"
+      "target_sha256": "dba9a32df6236aaecf3b5acffddefcf9b93219d86c5e3b7d06db37b091e69870",
+      "status": "changed"
     },
     {
       "source": "Editor/Scripts/BRGEditorIntegration.cs",
       "target": "Editor/GPUBatcherEditorIntegration.cs",
       "source_sha256": "8b70651a4d5cc7454964ba3b8429e4d6f2f0af1f1295db7af2e597a102b2629d",
-      "target_sha256": "5a04babc6affb8980b290ba10a3220e40d0ec2a90f4541821eac0531e0792adf",
-      "status": "changed",
-      "diff": "Editor/GPUBatcherEditorIntegration.cs.diff"
+      "target_sha256": "5ebc2023eebaa45073276bd5065694d5d93d74dc2e2c170636a35490d8897bd8",
+      "status": "changed"
     },
     {
       "source": "Editor/Scripts/BRGGameObjectGroupEditor.cs",
       "target": "Editor/GPUBatcherGameObjectGroupEditor.cs",
       "source_sha256": "98ec8a02b7cd50f5b02c8a1cdb2777fd653797f9cec444ce0e9fc269442cb2bc",
-      "target_sha256": "85c6b9480c969dc852357772e0a0847908aa4c199770e74c2b72c1f5bfbcf9eb",
-      "status": "changed",
-      "diff": "Editor/GPUBatcherGameObjectGroupEditor.cs.diff"
+      "target_sha256": "a25d19fa207c91e1c681772655ecf36b331bddb11edf2578a5903ce95c5533bf",
+      "status": "changed"
     },
     {
       "source": "Editor/Scripts/BRGGameObjectLinkEditor.cs",
       "target": "Editor/GPUBatcherGameObjectLinkEditor.cs",
       "source_sha256": "45de0277fd0db1aef42c6ea64f63a264a7ccad1df6c412822d1aa908a60c9f4d",
-      "target_sha256": "3a64445f232c04771f51dbea448305d6fc4aaf08a6f74004f121ea087f6840fb",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "77c9a9066b283d6d5f49b2644d0cc9d1970ea308cb454aca015349829ca4036c",
+      "status": "changed"
     },
     {
       "source": "Editor/Scripts/BRGInspectorGUI.cs",
       "target": "Editor/GPUBatcherInspectorGUI.cs",
       "source_sha256": "5ebd460fcda43e5e8bde9a392412fe36f6a0ca738e3d1ea7b0289b47c5f8b378",
-      "target_sha256": "12cbba0f2a70d221abc8d95f754d04831bcf7ed9ae5e3b955ae6c668e23b55a3",
-      "status": "changed",
-      "diff": "Editor/GPUBatcherInspectorGUI.cs.diff"
+      "target_sha256": "1fa1e93904e7feb7269051fd1b1ac028c5476e5cd76a21ff43d663cbf9892fd6",
+      "status": "changed"
     },
     {
       "source": "Editor/Scripts/BRGInstancedRendererConfigEditor.cs",
       "target": "Editor/GPUBatcherConfigEditor.cs",
       "source_sha256": "89308c313c814a109a22caf140b71bc65f53dbf7e9ad5b6cb58b150260ccc78e",
-      "target_sha256": "30aa29157cb18b0fe9b2452feef875b56c2ee89ff705e364fe3391b395b53050",
-      "status": "changed",
-      "diff": "Editor/GPUBatcherConfigEditor.cs.diff"
+      "target_sha256": "63dc00feb79758a8bf86a4d3246d3aa71e31666a28b1776bcbbeef8efdc8efbd",
+      "status": "changed"
     },
     {
       "source": "Editor/Scripts/BRGInstancedRendererWindow.cs",
       "target": "Editor/GPUBatcherRendererWindow.cs",
       "source_sha256": "9b9add27b7139a287252220632c85b0b1df91d59ea0d8e036c734d76cf687c3a",
-      "target_sha256": "6573321b173a87b4bcaf64f1d212af4e8352f8a60141d44b5dee0f225ea9af8b",
-      "status": "changed",
-      "diff": "Editor/GPUBatcherRendererWindow.cs.diff"
+      "target_sha256": "18a63ce64ce5791b27da92d4b037286148c920e605f7f0e7e1c0c5f91414d9c4",
+      "status": "changed"
     },
     {
       "source": "Editor/Scripts/BRGMeshLodDataEditor.cs",
       "target": "Editor/GPUBatcherMeshLodDataEditor.cs",
       "source_sha256": "722460767cdc2e794bde1732d8ab28596fad4349b6c7f7c483adcf28289c2d83",
-      "target_sha256": "c96cf7a9a2c689cd88a972ea09079d084566e755c9f8c35091eca75adacd9249",
-      "status": "changed",
-      "diff": "Editor/GPUBatcherMeshLodDataEditor.cs.diff"
+      "target_sha256": "0a83bc8dd8036e7112aaae60dc6fa16ed6b259b3d079637b5083b1fdd94a0966",
+      "status": "changed"
     },
     {
       "source": "Editor/Scripts/BRGPrefabPostprocessor.cs",
       "target": "Editor/GPUBatcherPrefabPostprocessor.cs",
       "source_sha256": "41d228ee57af921f4e1cd47bfc6206f40e4ad98ea0198dd2a7e2373f8d5c1549",
-      "target_sha256": "fdcfae4138e5f0d85e3cfb51f410aed997c68ccc763b6763c750dd78bc9304b5",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "3cbe1df79098728f6221809e649fdc6072bd1aae3d09eca6ae1322f41c8a1360",
+      "status": "changed"
     },
     {
       "source": "Editor/Scripts/BRGPrototypeExtraDataEditor.cs",
       "target": "Editor/GPUBatcherPrototypeExtraDataEditor.cs",
       "source_sha256": "b90f240c6bbc2c6aaa84f7036478dc8c2a352c7959a3eaae14bcdb6792742126",
-      "target_sha256": "721b71464bdd23cc75adefb93ab71b7d54bd0112a71327eeefdbaa1537da2d6a",
-      "status": "changed",
-      "diff": "Editor/GPUBatcherPrototypeExtraDataEditor.cs.diff"
+      "target_sha256": "147c6c88a2d6513cc178826803df6cb22bf3b8a644f89ea23162ab582d9cd592",
+      "status": "changed"
     },
     {
       "source": "Editor/Scripts/BRGTerrainDetailOverrideEditor.cs",
       "target": "Editor/GPUBatcherTerrainDetailOverrideEditor.cs",
       "source_sha256": "6d8d86ef5b25505b19efcb0109557d7fbaf8bb28f09aecc1dd5496d3c17045a3",
-      "target_sha256": "7aac5a11a951215ab7d7fe01c6dade8bdfdd8405c9f64903c10e8482b92a314d",
-      "status": "changed",
-      "diff": "Editor/GPUBatcherTerrainDetailOverrideEditor.cs.diff"
+      "target_sha256": "b92525a6de63a8d1cc5a47f7f76578ff02051ad55e1ac12b789ef9b21a983b92",
+      "status": "changed"
     },
     {
       "source": "Editor/Scripts/BRGTextureGrassShaderGate.cs",
@@ -111,32 +102,29 @@
       "source": "Editor/Scripts/Registerers/BRGInstanceGroupEditor.cs",
       "target": "Editor/Registerers/GPUBatcherInstanceGroupEditor.cs",
       "source_sha256": "e29832435a313bfc638b818acf1dddf7b69b8fdb30b0a30ab76a980839fa187b",
-      "target_sha256": "1711519da576c1b09cad17abf825f9b051b46054d48006845eebd6ab7ca7853a",
-      "status": "changed",
-      "diff": "Editor/Registerers/GPUBatcherInstanceGroupEditor.cs.diff"
+      "target_sha256": "04657e86102f9d12a8896b2fe2b11c04f4a18fe282a3e495281894be0786cd87",
+      "status": "changed"
     },
     {
       "source": "Editor/Scripts/Registerers/TerrainBRGRegistererEditor.cs",
       "target": "Editor/Registerers/TerrainGPUBatcherRegistererEditor.cs",
       "source_sha256": "b1a181a19443bad86e9d91897e2dd01fd2f66f82966d43ddfcb69611345b979f",
-      "target_sha256": "8f882451b9527858d118002f04fde25df909fddb2c7b89a92ef2d0eecb8f950c",
-      "status": "changed",
-      "diff": "Editor/Registerers/TerrainGPUBatcherRegistererEditor.cs.diff"
+      "target_sha256": "ffe17c8511914e7ddb6ec617546a9706cc6b771424aca98d8022cea3ac276a5f",
+      "status": "changed"
     },
     {
       "source": "Editor/Scripts/Tools/ConvertToTerrainPrefab.cs",
       "target": "Editor/Tools/ConvertToTerrainPrefab.cs",
       "source_sha256": "6b14ab837b22bcf00e12263f6f39d70dd5c03409267c2b69d36017f7bf57a17f",
-      "target_sha256": "bf82b95cb471c479070ea1bd345df11359787cb3d6c2217649cc9b6a84e13f21",
-      "status": "changed",
-      "diff": "Editor/Tools/ConvertToTerrainPrefab.cs.diff"
+      "target_sha256": "dfc8268c1905b1ddf7be0e829346b2bdc3f87cf3d1fa51f47fcaf76055587c3c",
+      "status": "changed"
     },
     {
       "source": "Editor/Scripts/Tools/TerrainTreeSelector.cs",
       "target": "Editor/Tools/TerrainTreeSelector.cs",
       "source_sha256": "d4d1f3f44d932f7f36369bbb708bcd9e4bd8c65b18a826dbfc88962e8ec1929b",
-      "target_sha256": "1a183d025c9c16f20c041736e2f928f232694edb047c8481f33fa2a56aab3182",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "6e23dff74c7e25d38cc666340b77369a687f3b88d58d6292e882aecb03a50c5c",
+      "status": "changed"
     },
     {
       "source": "Editor/Scripts/URP/URPMobileIndirectFixPatcher.cs",
@@ -148,7 +136,7 @@
       "source": "Editor/Shaders/BRGDebugBoundingSphere.compute",
       "target": "Editor/Shaders/GPUBatcherDebugBoundingSphere.compute",
       "source_sha256": "785f20d5efa1efc6ddd9895ecaefe90fa4938b3544372cd9f5c644a9d01dd543",
-      "target_sha256": "785f20d5efa1efc6ddd9895ecaefe90fa4938b3544372cd9f5c644a9d01dd543",
+      "target_sha256": "c53fb7424da78cd6a8b8074e13a44d87291dbf0327a19b442c29ca70fb7f9cf9",
       "status": "renamed_tokens_equal"
     },
     {
@@ -156,8 +144,7 @@
       "target": "Editor/Shaders/DebugBoundingSphere.shader",
       "source_sha256": "052fd87be12bd6bbec45d0419e448a8c0c50957cdf31144da375558a5cc5390a",
       "target_sha256": "8a1ce635e7b38ca58bf81291f705e38e13494d86040a7fbbdc6ef882ede9314b",
-      "status": "changed",
-      "diff": "Editor/Shaders/DebugBoundingSphere.shadergraph.diff"
+      "status": "changed"
     },
     {
       "source": "Editor/Shaders/DrawBoundsDebug.hlsl",
@@ -168,208 +155,192 @@
     },
     {
       "source": "Runtime/Scripts/AssemblyInfo.cs",
-      "target": "Runtime/GPUBatcherVersion.cs",
+      "target": "Runtime/AssemblyInfo.cs",
       "source_sha256": "f957ca7216c129dfa03f3763c30b0c593c29368b9417715fbc7f43b9260dc2d9",
-      "target_sha256": "a058069bc025eacbf9d39d2604cd6097b65336baa870cbe23f45440a31c4bbfb",
-      "status": "changed",
-      "diff": "Runtime/GPUBatcherVersion.cs.diff"
+      "target_sha256": "2cb3222db21c001d3e9f54d3aeed2703abd46a3bf43a4592590a4c32e78a5036",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Config/BRGCameraSettings.cs",
       "target": "Runtime/Config/GPUBatcherCameraSettings.cs",
       "source_sha256": "53d3a1cbb199c58a9ba66a52113dd956f464cdc8d698625b290841280bd6034d",
-      "target_sha256": "abe50ffaafe1d5aad8566c28ac22498c29cd8d63063f12be0d2f5ac23bfc1eac",
-      "status": "changed",
-      "diff": "Runtime/Config/GPUBatcherCameraSettings.cs.diff"
+      "target_sha256": "a3ef78dd927579f406ef4c44fa04bb685d21d1f3699201589ae8a261315497b7",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Config/BRGInstancedRendererConfig.cs",
       "target": "Runtime/Config/GPUBatcherConfig.cs",
       "source_sha256": "700a484e4f4a0919a8edefbb384156e5a4d3d8a561dee1586d1459c5d5fe09f6",
-      "target_sha256": "18ea03948b6f8f542263660e8f0746c7b6fbd6716fb65018704a02486939d971",
-      "status": "changed",
-      "diff": "Runtime/Config/GPUBatcherConfig.cs.diff"
+      "target_sha256": "6e996a64eefa98cef19317e9403b19b02d1f6f1ff6e99cdc0360c088404ecb41",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Config/BRGMeshLodData.cs",
       "target": "Runtime/Config/GPUBatcherMeshLodData.cs",
       "source_sha256": "d83852c788cbefd716040c062eceb11ff222b36fe63eea47e6051e31e37859a7",
-      "target_sha256": "f95e249adc0990a495ebe43ec131594c0732c3d660b4428ade5a4a8987578439",
-      "status": "changed",
-      "diff": "Runtime/Config/GPUBatcherMeshLodData.cs.diff"
+      "target_sha256": "bfdd1fb1d3f85583f052bec5ff46426c2f2e254891ff4f0b974cc2596b13d03c",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Config/BRGPrototypeExtraData.cs",
       "target": "Runtime/Config/GPUBatcherPrototypeExtraData.cs",
       "source_sha256": "dec69c5a9203a5aec411cb0d92ae0a7d03d25c594bfc1ed76cdc4577b64e4451",
-      "target_sha256": "8f326f4c28c845a6f37492fc98126ae992774f7c8f8591dac05c93358421b2e8",
-      "status": "changed",
-      "diff": "Runtime/Config/GPUBatcherPrototypeExtraData.cs.diff"
+      "target_sha256": "fa75ffa80336bddf0ac21b653b872629cfeab6d18ff6e6a32f31c10c91cd691b",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Config/BRGPrototypeGroup.cs",
       "target": "Runtime/Config/GPUBatcherPrototypeGroup.cs",
       "source_sha256": "e38d3aaa6d126c9a7946c713cefae2a08b06c2b383b551ea03079955d08371be",
-      "target_sha256": "65a0be90e5d068b46e3478703db2c70e55253ce045cb3053c5c7fc4fc0dcc633",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "ca6857f305956c76ed7625de7cb7b71bc86b5cf9f9004a69093a3bafd2162601",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/BRGInstancedRenderer.Batches.cs",
       "target": "Runtime/Core/GPUBatcherRenderer.Batches.cs",
       "source_sha256": "0cfbeed90dce54b37e38673bfa754f597e4db656a7fbfb2c8abbfbe9d12d80ff",
-      "target_sha256": "025e9988435d28f792ca086ec7a0b2acb6627840de808ee0aa0dc4fcc9a04ed4",
-      "status": "changed",
-      "diff": "Runtime/Core/GPUBatcherRenderer.Batches.cs.diff"
+      "target_sha256": "7790b3d1746fe36782f9c1fc3e2c0bb0c47d508cd2b82577f23748c24fea10d6",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/BRGInstancedRenderer.Chunks.cs",
       "target": "Runtime/Core/GPUBatcherRenderer.Chunks.cs",
       "source_sha256": "a54f748a6b1d20cac72777f1901fadb9f3f47aab0f9df4ffdb9eeb4fc0eafb32",
-      "target_sha256": "3bb8b9ef42cf1065a2bb70016844c8e44d353849e43a29ed76675a6ac3ed4f5e",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "b93c44ab62cff482bffeea2aff99d983ec876acb5d7497714ad04ff7c5834700",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/BRGInstancedRenderer.cs",
       "target": "Runtime/Core/GPUBatcherRenderer.cs",
       "source_sha256": "4e6ae638200f1679bc7b864c0ea740716f890d22714935f9f8101e17d1d5a41c",
-      "target_sha256": "786887784086a6d74d613bab08526d04cc4626ff1be5568e39545fef7eb03057",
-      "status": "changed",
-      "diff": "Runtime/Core/GPUBatcherRenderer.cs.diff"
+      "target_sha256": "9bd491911179978812f2bb5d95746fbdbdbca84a8d143bfc2197930123ed206b",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/BRGInstancedRenderer.Culling.cs",
       "target": "Runtime/Core/GPUBatcherRenderer.Culling.cs",
       "source_sha256": "ae1efe070d4b0792cafdf1b7b932421ae48dddcc5ce80552041720421198906b",
-      "target_sha256": "e3db832bf148f7e7ab736648f066e7cb37afdcd4cbd1b5a41a721814426b1b2d",
-      "status": "changed",
-      "diff": "Runtime/Core/GPUBatcherRenderer.Culling.cs.diff"
+      "target_sha256": "6e786fe0aed24ca7cd628884e9baecd36d563f9dcd31955577e19784dd2d32b1",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/BRGInstancedRenderer.Debug.cs",
       "target": "Runtime/Core/GPUBatcherRenderer.Debug.cs",
       "source_sha256": "f0bdcf93c3d0a84592500807a3b1b47e7ef77da0e45424514611e4ceaafb637c",
-      "target_sha256": "d97124f4de24e53a640040c1edd975ca53088bd80140b13e7338118a24121692",
-      "status": "changed",
-      "diff": "Runtime/Core/GPUBatcherRenderer.Debug.cs.diff"
+      "target_sha256": "2ef9a4d32e11bd1cbaa87e14bc10f5e7f9f0a3a19d7d6f8ee3c0d6cf4bb421a8",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/BRGInstancedRenderer.HZB.cs",
       "target": "Runtime/Core/GPUBatcherRenderer.HZB.cs",
       "source_sha256": "30932683814b06b93b793d9d9ef2b6a122ff3c2e3d271355fbcbb4fda8fefd3e",
-      "target_sha256": "ed4cbd46789f7f732bd7a247ccb1856aee99622538e466edeb458a07815e4887",
-      "status": "changed",
-      "diff": "Runtime/Core/GPUBatcherRenderer.HZB.cs.diff"
+      "target_sha256": "2b10cae302001c4b333ed611ef11f8cb7ca678c5a9a4a1e332f21a446aa496fa",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/BRGInstancedRenderer.Prototypes.cs",
       "target": "Runtime/Core/GPUBatcherRenderer.Prototypes.cs",
       "source_sha256": "88c63889b9447de995ae2fecf876f4a63c9b0b9e9962ef1e2791becbc3777e72",
-      "target_sha256": "97ca28090581e1e040cf7bdb7cd6b8cb3177fbdf4d5837dbfcb8cfe3245f120f",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "a31cb2a6e4b3611ad66375b5b3bad81dac950ad17a417d77bbf48920a546f0c5",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/BRGInstancedRenderer.SpeedTree.cs",
       "target": "Runtime/Core/GPUBatcherRenderer.SpeedTree.cs",
       "source_sha256": "3c8cf6fd929560190659932c28908f8621812582e3cdbe8d8e57cd306558c2b6",
-      "target_sha256": "c91a966adbdeb1624f20398652ba356d7091c7849fb3fe4ea646c5facba0a7b6",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "2e8c1f01bc15e0fe5ebfc47076e7810763d4b134ca296f72936c9e724ea3be55",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/BRGInstancedRenderer.Upload.cs",
       "target": "Runtime/Core/GPUBatcherRenderer.Upload.cs",
       "source_sha256": "10783819e0decd23702749d16748ae9064b82874ddd3f07d5f9e730654591cb9",
-      "target_sha256": "c80e7cd52ea01bac8d539eb903b7b06fe9318e48f7df8ee966f2442dc79342de",
-      "status": "changed",
-      "diff": "Runtime/Core/GPUBatcherRenderer.Upload.cs.diff"
+      "target_sha256": "4418fe75c9ec8848423e84d67cb344f91af08a9379f93bab21fa86797968ec59",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/BRGLightProbes.cs",
       "target": "Runtime/Core/GPUBatcherLightProbes.cs",
       "source_sha256": "083f8aaf8d2d4bd46b75bf833dbdff774f892f3cced954378b9814131924f1f0",
-      "target_sha256": "813c8359d7581ae89a9f443b445825365e18561fe1ec0c6a95f7b0ecbbbb2204",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "26a8117277183da17b48d9a6a181669fc65902298e152afe1dc2749ad0d59c4f",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/BRGRenderGraphPasses.cs",
       "target": "Runtime/Integration/GPUBatcherRenderGraphPasses.cs",
       "source_sha256": "6478dfbf7fa5e5e19f194df4d991286dc506e1a20f6c4151d6165b14c23aced3",
-      "target_sha256": "39ca819efba611603b20c322801eed9aa3bd9703232c358a756ce6722e6fe2c6",
-      "status": "changed",
-      "diff": "Runtime/Integration/GPUBatcherRenderGraphPasses.cs.diff"
+      "target_sha256": "f2fff640b554b72e75de37e7abbfa0f709204f6fb3c741dac569fd0f9c383d54",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/Compute/BRG_Common.hlsl",
-      "target": "Runtime/Core/Compute/GPUBatcher_Common.hlsl",
+      "target": "Shaders/Compute/GPUBatcher_Common.hlsl",
       "source_sha256": "78401c7437e648b6e1c37f0a4af1025010a3429f59816eb40037fc6bac7618c1",
       "target_sha256": "89c58b4037bc407bbc700495173f8612058cd8c68e0e54309394bba4fc16c956",
       "status": "renamed_tokens_equal"
     },
     {
       "source": "Runtime/Scripts/Core/Compute/BRG_Culling.compute",
-      "target": "Runtime/Core/Compute/GPUBatcher_Culling.compute",
+      "target": "Shaders/Compute/GPUBatcher_Culling.compute",
       "source_sha256": "3a32968352706e8046d6ca4b3a36724feabf100f2b014239846160b2227194eb",
-      "target_sha256": "7bf8eecf0a74e48413ac2d2dc834f14f2083582f1f036028619d064156054f1b",
+      "target_sha256": "919638572c2c06c11cfee09df74944b72bf07622e11f2fa043866676003da8d9",
       "status": "renamed_tokens_equal"
     },
     {
       "source": "Runtime/Scripts/Core/Compute/BRG_HZB.hlsl",
-      "target": "Runtime/Core/Compute/GPUBatcher_HZB.hlsl",
+      "target": "Shaders/Compute/GPUBatcher_HZB.hlsl",
       "source_sha256": "59f9c6732ecc64a14afdc5668c7c634d7e8610b70ca46621042129dcfd437007",
-      "target_sha256": "c8190be0dc7da076131bdfde3c02cf8f211a027af8abc60304c5657f2e150fe3",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "8379f332254dd31fcd8b1cc66e7aaf7240ce0ff48e9a91239544e5401453ffb5",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/Compute/BRG_HZBGeneration.compute",
-      "target": "Runtime/Core/Compute/GPUBatcher_HZBGeneration.compute",
+      "target": "Shaders/Compute/GPUBatcher_HZBGeneration.compute",
       "source_sha256": "030bc5595e64bcdec56ba5e7c07f80812b59af295c735f07f8eceedeb03027e7",
-      "target_sha256": "04a58dd558727a37731942c047350a17a03e69f846edc5489d7ea8f0c02719f6",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "8c66fbde58bbae69b7bafcf3b26fdd9c09cfe2c9db81fcf7b5a8efdea89b6331",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/Compute/BRG_Upload.compute",
-      "target": "Runtime/Core/Compute/GPUBatcher_Upload.compute",
+      "target": "Shaders/Compute/GPUBatcher_Upload.compute",
       "source_sha256": "5d2c43a4cb014ec38845e7ba16011e3f081080ffb19762d60bee49d74940a444",
-      "target_sha256": "484f61a8ea617a3424a775495684f6a7e474c78e01618263514197a863a63c26",
+      "target_sha256": "8e805e824fb02c645e7f48adba34a1d121a4acb29f20ff908422af6448fc4085",
       "status": "renamed_tokens_equal"
     },
     {
       "source": "Runtime/Scripts/Core/DataStructures.cs",
       "target": "Runtime/Core/DataStructures.cs",
       "source_sha256": "34b1812e7adb3442071450004096477a395c4af7be3a2b6702944fa8f79d5331",
-      "target_sha256": "b66d6e6056d8c794d1d3e6278b69ad9b0b953ac8eee14cb1e973b90d3bd22840",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "73df62f34fc50aafba214576574118159056c4411c06516aba9428dcb6560493",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/GPUDrivenBridge/BRGChangeTracker.cs",
       "target": "Runtime/Integration/GPUBatcherChangeTracker.cs",
       "source_sha256": "79e6fdf8f74e497c6af7722859328c9b1cdf050a63ce91687a8031e5b997633c",
-      "target_sha256": "8b982b47558426b8f89c3095226c45bc7b593f4629f61c02ca172263b24b57b3",
-      "status": "changed",
-      "diff": "Runtime/Integration/GPUBatcherChangeTracker.cs.diff"
+      "target_sha256": "0937ce70ba6adf3b5b040db8a82a2dc46bc2723ad3c1e2c634f50857a24ee49f",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/GPUDrivenBridge/BRGHZBBridge.cs",
       "target": "Runtime/Integration/GPUBatcherHZBBridge.cs",
       "source_sha256": "ad6fcbb03305a331a1af630180ebea87f2bc0d6361d9e39d4cc59c8b24c0f648",
-      "target_sha256": "f4c3306ab38845053b2805a715ee384422a157da59ed312c8815d65f5de0f44d",
-      "status": "changed",
-      "diff": "Runtime/Integration/GPUBatcherHZBBridge.cs.diff"
+      "target_sha256": "ff4cca056015dda5894593898a2096a388c8e852776468c3758b0639625cb5cf",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/GPUDrivenBridge/BRGOcclusionBridge.cs",
       "target": "Runtime/Integration/GPUBatcherOcclusionBridge.cs",
       "source_sha256": "54921281f71e94bbbcded6deb931b498e902a9f0868ed87887748a453a72c2d0",
-      "target_sha256": "658bf5d60d11d715ca15de6749b4f09ace5bf2952d3fe601e1c000cc780233d3",
-      "status": "changed",
-      "diff": "Runtime/Integration/GPUBatcherOcclusionBridge.cs.diff"
+      "target_sha256": "477afa73699ca68373c59e68b058a2059804b55987a381e61a5b6aff37e5ff0d",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/GPUDrivenBridge/BRGSpeedTreeWindBridge.cs",
       "target": "Runtime/Integration/GPUBatcherSpeedTreeWindBridge.cs",
       "source_sha256": "25bd504f32a4e59515d27e67e71f06afc14981027047c9169a9607b7375d0d0a",
-      "target_sha256": "d94ee8d871d96b7daea19d5a924d0602e6ee03c7497640e0e21d6a6077b76c91",
-      "status": "changed",
-      "diff": "Runtime/Integration/GPUBatcherSpeedTreeWindBridge.cs.diff"
+      "target_sha256": "a345ff5c2ee79b80cea9bd32f34b0db08e416cc0c91fb06827453f6d836637b2",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/HDRP/BRGCullingInjectorHDRP.cs",
@@ -381,229 +352,332 @@
       "source": "Runtime/Scripts/Core/MeshCombineCache.cs",
       "target": "Runtime/Core/MeshCombineCache.cs",
       "source_sha256": "5aedab80af296f3268ff8a4a33393a4d388ef64d4d048686f5641fe8da5d9546",
-      "target_sha256": "3c4ac604c1bc38fe282a682b70339ed40a986ea040c953db63fe8b4642c1b3b3",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "31990d73f919ee339246b2020b9d7785879ee0f4d4711f97067b62c1a69aa23f",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Core/URP/BRGCullingInjector.cs",
       "target": "Runtime/Integration/GPUBatcherCullingInjector.cs",
       "source_sha256": "96b557f14d79edc7c3083cab266b04078ecbb4393354efbd4546992a21a1f312",
-      "target_sha256": "bba88ccf718d71beb9c21cfa5f19dec1d2eee2854048be46954c1bde387c20c0",
-      "status": "changed",
-      "diff": "Runtime/Integration/GPUBatcherCullingInjector.cs.diff"
+      "target_sha256": "1ce2664155b011ceb4e403532861b63c2a3cb2d8a987480187fea8cb50dd838c",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/Baked/BRGChunkBuilder.cs",
       "target": "Runtime/Registration/Baked/GPUBatcherChunkBuilder.cs",
       "source_sha256": "3e2b0d7f9671a9926397e839ebf285ed39fe1cc15db01a6908805b9e9154bbdf",
-      "target_sha256": "e9bcc692e6936ba424c2959dd8e16295cabc604f32ea2891138225810fd19f20",
+      "target_sha256": "798ed344a460854e86db8c40c29a8d28b84ec23d54d51c4b5d8d3fdd0017a1a1",
       "status": "renamed_tokens_equal"
     },
     {
       "source": "Runtime/Scripts/Registerers/Baked/BRGInstanceGroup.Bake.cs",
       "target": "Runtime/Registration/Baked/GPUBatcherInstanceGroup.Bake.cs",
       "source_sha256": "462bf0100e3dfb0dc7cfed65b6a4959acd64e0bbd49c9515b01f0afc4f6e0277",
-      "target_sha256": "2339fda2265ea7d0f759773398932430f464280d829f495f1aab36d8de6a66d6",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "9659ed122f5192adeb264616943a27f1cccfb29b6383c805ac411424cc3b7fac",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/Baked/BRGInstanceGroup.cs",
       "target": "Runtime/Registration/Baked/GPUBatcherInstanceGroup.cs",
       "source_sha256": "5a5f9b94beca767e339dd9b69157e3262502ef45c6ae786601961a6318245ec8",
-      "target_sha256": "69ab38a54da0f726e1434e9ea09aa67209e42be2b97acd23bc170dfd7f3b8945",
-      "status": "changed",
-      "diff": "Runtime/Registration/Baked/GPUBatcherInstanceGroup.cs.diff"
+      "target_sha256": "a3394ad7dcf90147b1d3807a170dc1fb844f700f6d8cbf0b6d81ae438fd51af6",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/BRGRegisterer.cs",
       "target": "Runtime/Registration/GPUBatcherRegisterer.cs",
       "source_sha256": "38c7d1e87bc0378864ddca43ca8249aebca83d175ae33c1a807d022b9a9a6532",
-      "target_sha256": "eff945c0be5ded35b6e8ed7165cf0e69193c8f59adc28c1a5b24a6ca4688e9ca",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "a173129b517620719b90d7299478047070ed35dd37ee0a21c822f102f3155626",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/BRGRegistrationTracker.cs",
       "target": "Runtime/Registration/GPUBatcherRegistrationTracker.cs",
       "source_sha256": "2e15fab51248c274d718c41f2ae613d1c6578417b355961687343e7c0fb2091b",
-      "target_sha256": "4f44d294717bb93f1a1023a853b611a529a10c150bd33988b2d1ecdf75768f5a",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "eb056f80632c3d01e92d3fa78c81b2c24ca3737cd339d3eb4f1f6fa3e3908e49",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/GameObjects/BRGGameObjectGroup.cs",
       "target": "Runtime/Registration/GameObjects/GPUBatcherGameObjectGroup.cs",
       "source_sha256": "fb963cb8fc6b9aaa44c150e9669bd3a783cc5281cc60efb9183b1fb970166b49",
-      "target_sha256": "c36da420690a2582ae061cba7fd85e71c7b21d4977d6685f8de6d05670941872",
-      "status": "changed",
-      "diff": "Runtime/Registration/GameObjects/GPUBatcherGameObjectGroup.cs.diff"
+      "target_sha256": "7dacb84b578d845efb2823e2a4c5352da81eaf284429098067567314b11abb71",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/GameObjects/BRGGameObjectLink.cs",
       "target": "Runtime/Registration/GameObjects/GPUBatcherGameObjectLink.cs",
       "source_sha256": "f5b3c8ae2d14421158330e125892455e361762b1c275688921a3b3c15a14c24d",
-      "target_sha256": "9adc0f61a059bd1eb00876143a16460b2d465cc9cdd67257a8d1f7bfa16cf6bc",
-      "status": "changed",
-      "diff": "Runtime/Registration/GameObjects/GPUBatcherGameObjectLink.cs.diff"
+      "target_sha256": "1b206854b5603e6d4ea0b9c13001fdba0df7fcdd3d58c09a49562f8defd0fa6d",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/Terrain/BRGTerrainDetailOverride.cs",
       "target": "Runtime/Registration/Terrain/GPUBatcherTerrainDetailOverride.cs",
       "source_sha256": "1f589624c4fcd6865f178ffb2ec01c95ab6d408f1f7c200eb763988b780c9d63",
-      "target_sha256": "0dea13d971fb3a59acb6748ad41e8a064c7d7a287ef8cd2ac52ce71c37a8368a",
-      "status": "changed",
-      "diff": "Runtime/Registration/Terrain/GPUBatcherTerrainDetailOverride.cs.diff"
+      "target_sha256": "2d68446a86d381135f97abed7a2ede5000e78dee5d607577efff7a2912f28c7e",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/Terrain/DetailExtractionJob.cs",
       "target": "Runtime/Registration/Terrain/DetailExtractionJob.cs",
       "source_sha256": "8a453c6401f986b797b223e986fe44f7a0952e29fedbac0837c26cc98e29ab63",
-      "target_sha256": "cfdb09df5a80e448fd465a16d31db9783a1d2bdf57facf7ffb0b93afed672ff7",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "44856cc2ffb03227f664f0ca0c8801be8479fa9f2183fe953206ab8ebdd2737e",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.cs",
       "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.cs",
       "source_sha256": "3101eb4bb8d50100c2742adc37356b5cb4f5063900d61369e17bcbee270e8152",
-      "target_sha256": "1f45885654d2fbf201099a156cd5f30b3cfa38a6e6dc7b9c2216a5ff926e88cc",
-      "status": "changed",
-      "diff": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.cs.diff"
+      "target_sha256": "88ea31708cceec843f210b35ea59206cff19dc8132854c76c4dd4c497c4e3bbd",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.Details.cs",
       "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.Details.cs",
       "source_sha256": "cdf0c1fe9f9f5f21e8d07f5979718bd4d47e4812c67473e284c6b251901a245a",
-      "target_sha256": "959db6f27d383684db505aa7d2ff3caacc8584f40c283e304a6165e22b77f655",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "9f443b9fcec8ffe6d82d318f51b05e2eb803d4b0bdc2fcb3d398b51d1f67f91e",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.Details.Editor.cs",
       "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.Details.Editor.cs",
       "source_sha256": "d1a561f3359aced372cb254573762875320474cd546a32d7168bde280852c9d6",
-      "target_sha256": "043ee6ac023d2b24f42573f2ba3ca033f74e9c51bba9917e67c5da914f5f45eb",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "cc97765e771209dc18ec5fa45b48418077e6359239541e60997969fda8800946",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.Details.Extraction.cs",
       "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.Details.Extraction.cs",
       "source_sha256": "ead343ff54b922fc90eca6e6885fb8d9d59a0b070bee59327c16601498586a86",
-      "target_sha256": "223e351136b1820f16d53d1ff2fa01223ed7fdd3244bedebf32df93c1dadf90f",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "368be18b6e4e068e15023df50d5ad93716c7172aea4aae0867a8989cb420db4f",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.Details.TextureGrass.cs",
       "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.Details.TextureGrass.cs",
       "source_sha256": "748558eabe65aecb6bed54060e7fdcdd647c036177fb497027e28ab38e983095",
-      "target_sha256": "5150e81bf3429512887e7044dc1a2cc77b3a38c5177a6ffc77af76c1ef66e37a",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "634d92e3a7ef187d35d5060251661fabb8d029d6467b2cab291981d6e5f0cfbb",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.Editor.cs",
       "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.Editor.cs",
       "source_sha256": "1159f36dcb5f9f8d215baa7f586006ba7499889efbf42f11a9a36bb99e522b72",
-      "target_sha256": "129f4a9d64a6ea3ffb6e34ec23e1886c2378cb6c977d38b3c5481933c2f78a2b",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "6e39c9db0fa72405e25fefa542c09f0b3bba2ada2162e3dfee0ee87f82d45b61",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.Trees.cs",
       "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.Trees.cs",
       "source_sha256": "73e77c11e09a78f65b7b0b9d0270f43c3d271a17a80d394ad4d0aa785873175c",
-      "target_sha256": "c4d0ff86e4c5b85237aa445c91e09cd9bfee3596bc5e067a55c36e579ef19f99",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "672956ee523ebb335cf76353759b2b765b191cdd37bf83267e5ac00d78e1fbf2",
+      "status": "changed"
     },
     {
       "source": "Runtime/Scripts/Registerers/Terrain/TerrainBRGRegisterer.Trees.Editor.cs",
       "target": "Runtime/Registration/Terrain/TerrainGPUBatcherRegisterer.Trees.Editor.cs",
       "source_sha256": "85792c9023f6780cc311e646dd2b4865dfdf1d9d6805d760bf6dc0357d803f13",
-      "target_sha256": "4e7d5aeeb12385f609093d532269c6097f84b12ff4fd565e09961f8e66b5b3c6",
-      "status": "renamed_tokens_equal"
+      "target_sha256": "a3eb4c50cd69395abf36fee470864f6fe78c19d44f10fb57a354de9fa2894ce7",
+      "status": "changed"
     },
     {
       "source": "Runtime/Shaders/BRGIRTerrainTextureGrass.hlsl",
-      "target": "Runtime/Shaders/FraxinusGPUBatcherTerrainTextureGrass.hlsl",
+      "target": "Shaders/FraxinusGPUBatcherTerrainTextureGrass.hlsl",
       "source_sha256": "32ec0d7e821a8afd3bd9c3d36ca164395400308e6d992a67aaf5fccc9713994e",
       "target_sha256": "3a6f70345820fe73edc000f2208d03384a3249e1eb4be4b1855f979de8114b25",
       "status": "renamed_tokens_equal"
     },
     {
       "source": "Runtime/Shaders/BRGIRTerrainTextureGrass.shader",
-      "target": "Runtime/Shaders/FraxinusGPUBatcherTerrainTextureGrass.shader",
+      "target": "Shaders/FraxinusGPUBatcherTerrainTextureGrass.shader",
       "source_sha256": "19fbd259527da38786c77f7b3f7ea541ded11608b1ac9095b5222c55fc3133a6",
       "target_sha256": "5819de2c4a018b77906ecfa32707c4481ac3f9ffe24f0a89114820a122784efc",
-      "status": "changed",
-      "diff": "Runtime/Shaders/FraxinusGPUBatcherTerrainTextureGrass.shader.diff"
+      "status": "changed"
     },
     {
       "source": "Runtime/Shaders/Subgraphs/BRG_ShaderFeatures.hlsl",
-      "target": "Runtime/Shaders/Subgraphs/GPUBatcher_ShaderFeatures.hlsl",
+      "target": "Shaders/Subgraphs/GPUBatcher_ShaderFeatures.hlsl",
       "source_sha256": "1d02af3c44a14f7c77aa2d6e27b886517baaa8010318bfd6a3c685f9ac197971",
       "target_sha256": "1b95219343011754521cbc6dfd701251aecd82a2d3d0c0304d898e686c5bce10",
       "status": "renamed_tokens_equal"
     },
     {
       "source": "Runtime/Shaders/Subgraphs/BRGIR_Color.shadersubgraph",
-      "target": "Runtime/Shaders/Subgraphs/FraxinusGPUBatcher_Color.shadersubgraph",
+      "target": "Shaders/Subgraphs/FraxinusGPUBatcher_Color.shadersubgraph",
       "source_sha256": "a515d8bcdb1b3a06459ea7950bb027b2cb62487e032d53a9bbefa1e81ed665f8",
-      "target_sha256": "92627aad41bbb39d01c6ccaf1cefb7fa0fc4f24fb261e8884e0c1fd42569c594",
+      "target_sha256": "fbe656bd2d25237fdff604e3883515cec737469d0a400bdcc63e4a97d1749d9a",
       "status": "renamed_tokens_equal"
     },
     {
       "source": "Runtime/Shaders/Subgraphs/BRGIR_InstanceID.shadersubgraph",
-      "target": "Runtime/Shaders/Subgraphs/FraxinusGPUBatcher_InstanceID.shadersubgraph",
+      "target": "Shaders/Subgraphs/FraxinusGPUBatcher_InstanceID.shadersubgraph",
       "source_sha256": "ad3393fe1ab4d624cc01dac6d027ce795f07cf878fe5cd21b6c943ad1f9499fd",
-      "target_sha256": "9b5ae1b9a4baa9691e73d6a8e38c6c66ca97e76b7a0a1aa9b1d76e54b459b170",
+      "target_sha256": "bfeb562d24273e2c651c1dee33cf801eb32926e4961e8dd494aa963576d29a46",
       "status": "renamed_tokens_equal"
     }
   ],
   "counts": {
-    "changed": 36,
+    "changed": 59,
     "excluded_pipeline_patcher_or_integration": 5,
-    "renamed_tokens_equal": 33
+    "renamed_tokens_equal": 10
   },
+  "additional_code": [
+    {
+      "target": "Editor/AssemblyInfo.cs",
+      "target_sha256": "666a24d4360c9d385239a290b915547093e64c1d196eafcac8ed5fd6967b653c"
+    },
+    {
+      "target": "Runtime/Core/GPUBatcherRenderer.Occlusion.cs",
+      "target_sha256": "23aac7746fd36083021aa169071129f09bcda403c86307f011e2541e0ebecf48"
+    },
+    {
+      "target": "Runtime/Rendering/BatchDrawCommandIndirect.cs",
+      "target_sha256": "a8c8c655822891da2af0a68c8cdc4d1c059ce126afc4cdd2bb8b42ab2e9f827e"
+    },
+    {
+      "target": "Runtime/Rendering/BRGIndirectSubmission.cs",
+      "target_sha256": "0c5b66f5741f34bbd3e675885fbaf41acd601a4f20fb1e0cee382a8404fe9c21"
+    },
+    {
+      "target": "Resources/FraxinusGPUBatcherSpeedTreeWindCapture.shader",
+      "target_sha256": "3464290015f2f18c0cf067a799b0fac559f07d3a99e31de49884d4e9b77605af"
+    },
+    {
+      "target": "Resources/FraxinusGPUBatcherSpeedTreeWindCopy.compute",
+      "target_sha256": "4bc3b033b85cdaa4f6299d1a0a9cc9648063834f43a48f77834a0a56da34b3c5"
+    }
+  ],
+  "integration_code": [
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher/Runtime/Fraxinus.GPUBatcher.Runtime.asmdef",
+      "sha256": "16f409c7388a03501d511a600b731f12d68b8a231b0182b080fd141a822126ce"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher/Runtime/Rendering/BRGIndirectSubmission.cs",
+      "sha256": "0c5b66f5741f34bbd3e675885fbaf41acd601a4f20fb1e0cee382a8404fe9c21"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Editor/UltraRPEditor/Fraxinus.Editor.UltraRP.asmdef",
+      "sha256": "8e4b20a210628329bee4514dfb8067ba4a545eed6286e0c77735d894fa521ef6"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/Fraxinus.Runtime.asmdef",
+      "sha256": "2b256dcdf0445ebb57e16a71f3b597d6ebd43a9e24fcfba07b8b542bb4b51b2f"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Data/PostProcessData.cs",
+      "sha256": "4972f40964d4d8692240ce05d831bc1764cb1b2c1237977d4956a7fce6b7f9af"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Passes/AdditionalLightsShadowCasterPass.cs",
+      "sha256": "b9299c81933926e6a60630b525ccbda856ee0e670e33cd500c8039ef2ac1d09f"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Passes/InternalPasses/InjectPass.cs",
+      "sha256": "a4d4579341419284bd10037c83e0770b556477d9c4295cee6db2bb1ac4a3f0c0"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Passes/MainLightShadowCasterPass.cs",
+      "sha256": "9ee1c77b9d1f7ecf89ea4c16bbaa1ed7f5f258a3a487e1a90240ea0cc6f015d5"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/RenderPipelineResources/UltraRenderPipelineDebugShaders.cs",
+      "sha256": "9e073b0499fb5098b4138fb074892bcac93385acd0b2cdb4b79de3cef23334a6"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/RenderPipelineResources/UltraRenderPipelineEditorAssets.cs",
+      "sha256": "86ff51e8b021ff441f8326f26a4c63b82f23c60df9ada699bf3b32f803f0756a"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/RenderPipelineResources/UltraRenderPipelineEditorMaterials.cs",
+      "sha256": "e18b889d0e1596653fd7ba7f0c272408b0907b4087d9d20a97db9435924a27c7"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/RenderPipelineResources/UltraRenderPipelineEditorShaders.cs",
+      "sha256": "351c315707c74cd389b8f1a35b3121f2ad9988ef2e26b9b1c155a767cc8afcce"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/RenderPipelineResources/UltraRenderPipelineRuntimeShaders.cs",
+      "sha256": "109591bb4190bab098995eae9db3ca9879c0997a62cbec7e0bfa7a896835b02f"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/RenderPipelineResources/UltraRenderPipelineRuntimeTextures.cs",
+      "sha256": "fa59bf6ae363abcb3a57b5d44e3f93418e289178a56165d9602093b1f275c79a"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/RenderPipelineResources/UltraRendererResources.cs",
+      "sha256": "cc72401eee71772731088a8cd3ec7c2e7210ae7f199b7dd5b3572f36f5d0bb83"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Settings/RenderGraphSettings.cs",
+      "sha256": "231b2890afa3a8dd97cfc2361db7ab30626c75ff3fbcfb360148e4b6ef57d5b5"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Settings/UltraRenderPipelineDefaultVolumeProfileSettings.cs",
+      "sha256": "1a3c7a37c41517475cfacc4f77ca7794fe41c8fcf51d214e11c849f78106b78b"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Settings/UltraRenderPipelineShaderStrippingSetting.cs",
+      "sha256": "845911acf9da3f7cdfd9a28bbbffd7aa769461f0afb887a9774c87a890e953c9"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Shadow/ShadowCulling.cs",
+      "sha256": "40af194cff66559a1283613d16b0f512d11249cfea9859d79d0dcd233a5244c3"
+    },
+    {
+      "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/UltraRenderPipeline.cs",
+      "sha256": "183d8dd7382a3135441ddb55dad29972676c449c019c48d2f1bb9bb466e47e9c"
+    },
+    {
+      "path": "ExportedProject/Packages/com.unity.render-pipelines.core/Runtime/GPUDriven/InstanceCullingBatcherBurst.cs",
+      "sha256": "318fd08db8497b3bd3fb31f678a34790c457843701683aef7dc69fb84b5d9ba8"
+    },
+    {
+      "path": "ExportedProject/Packages/com.unity.render-pipelines.core/Runtime/SceneLightTracking/AssemblyInfo.cs",
+      "sha256": "9673ae578891144c706aa991190429e465d54118c3f1033c4df915e45646ade5"
+    },
+    {
+      "path": "ExportedProject/Packages/com.unity.render-pipelines.core/Runtime/SceneLightTracking/NativeObjectChangeTracker.cs",
+      "sha256": "7e600cf56a6081213b8f90ace55e49f023388787bd21ac9c329ddd53d9629915"
+    },
+    {
+      "path": "ExportedProject/Packages/com.unity.render-pipelines.core/Runtime/SceneLightTracking/Fraxinus.ObjectTracking.asmdef",
+      "sha256": "91701ddaaf2f8f31239c94e22c654a75e7e862449c51d510740d38b1ddc6518c"
+    },
+    {
+      "path": "ExportedProject/Packages/com.unity.shadergraph/Editor/Data/Nodes/GeometryNode.cs",
+      "sha256": "4b351662b98759c84632540b92e66fb8ad93b99e96da7ab38feb10075e9fc7fa"
+    },
+    {
+      "path": "ExportedProject/Packages/com.unity.shadergraph/Editor/Data/Nodes/Input/Geometry/ViewVectorNode.cs",
+      "sha256": "dd301297eccda7811f2123b6bf3621eb71c02d232cf834cff37747edce818cd0"
+    },
+    {
+      "path": "ExportedProject/Packages/com.unity.shadergraph/Editor/Drawing/Views/MaterialGraphView.cs",
+      "sha256": "1b4859542f7b833865f221f535f5b43e3ad3edc12f39a910216b8272c23f52fd"
+    },
+    {
+      "path": "ExportedProject/Packages/com.unity.shadergraph/Editor/Generation/Targets/BuiltIn/Editor/ShaderPreprocessor.cs",
+      "sha256": "ca1987dc33bc62f422eda97d052adb93035b7f9bb9409830d959c0915dc6ce47"
+    },
+    {
+      "path": "ExportedProject/Packages/com.unity.shadergraph/ShaderGraphLibrary/Nature/SpeedTree8Wind.hlsl",
+      "sha256": "7a2143b4805ed1ff4e983215e08e53e092a7a81b1ea23f8e556cecc45736fe0a"
+    }
+  ],
   "validation": {
-    "timestamp_utc": "2026-11-20T06:01:58.037107+00:00",
+    "timestamp_utc": "2026-11-22T03:26:36.278Z",
     "unity_version": "2022.3.62f3",
     "graphics_device": "Direct3D11",
-    "compile_report": "Library/GPUBatcherFramework/compile-20261120T055959286373Z/compile-results.json",
-    "compile_scopes": [
-      {
-        "assembly": "Unity.RenderPipelines.Universal.2D.Internal",
-        "android_conditionals": false,
-        "success": true,
-        "warnings": 0
-      },
-      {
-        "assembly": "Fraxinus.Runtime",
-        "android_conditionals": false,
-        "success": true,
-        "warnings": 27
-      },
-      {
-        "assembly": "Fraxinus.GPUBatcher.Runtime",
-        "android_conditionals": false,
-        "success": true,
-        "warnings": 3
-      },
-      {
-        "assembly": "Fraxinus.GPUBatcher.Editor",
-        "android_conditionals": false,
-        "success": true,
-        "warnings": 0
-      },
-      {
-        "assembly": "Unity.RenderPipelines.Universal.2D.Internal",
-        "android_conditionals": true,
-        "success": true,
-        "warnings": 0
-      },
-      {
-        "assembly": "Fraxinus.GPUBatcher.Runtime",
-        "android_conditionals": true,
-        "success": true,
-        "warnings": 14
-      }
-    ],
-    "compile_limit": "Android conditional compilation uses Editor dependency DLLs; no Player build.",
-    "shader_programs": 93,
-    "kernel_keyword_checks": 56,
+    "scope": "Shared canonical packages compiled and exercised in Unity 2022.3.62f3 and 6000.0.85f2. Native indirect output is enabled only by the Unity 6 branch; the single-view scope is unchanged.",
+    "report_root": "Library/GPUBatcherPortValidation",
+    "all_suites_passed": true,
+    "validated_code_matches_working_copy": true,
+    "verified_package_code_files": 78,
+    "package_runtime_and_editor_compiled": true,
+    "shader_programs": 114,
+    "kernel_keyword_checks": 61,
     "subgraphs": 2,
     "runtime_checks": 11,
     "native_checks": 5,
@@ -617,25 +691,521 @@
       "shadowCommands": 6,
       "gpuArgumentsChecked": 96
     },
-    "hzb_assertions": 69,
-    "hzb_cases": 8,
-    "all_suites_passed": true,
-    "validated_code_matches_working_copy": true,
+    "hzb_assertions": 120,
+    "baked_occlusion_checks": 6,
+    "speedtree": {
+      "success": true,
+      "diagnostic": false,
+      "coldStart": true,
+      "duplicateSlots": true,
+      "emptySlot": true,
+      "rangePreserved": true,
+      "temporalHistory": true,
+      "changingWind": true,
+      "sameFrameReinitialize": true,
+      "sourceDestroyed": true,
+      "sourceScriptsSuppressed": true,
+      "orderedCaptures": true,
+      "completeWindParameters": true,
+      "secondSourceOffsets": true,
+      "secondSourceReady": true,
+      "snapshotIsolation": true,
+      "retainedOwners": true,
+      "unreadableIndexBuffers": true,
+      "unityVersion": "2022.3.62f3",
+      "graphicsDevice": "Direct3D11",
+      "error": "",
+      "assertions": 450
+    },
+    "player_build": {
+      "success": true,
+      "result": "Succeeded",
+      "errors": 0,
+      "warnings": 4569,
+      "bytes": 121098685,
+      "includesWindFixture": true,
+      "windFixture": "Assets/Broadleaf_Desktop_Field.st",
+      "windCapturePasses": [
+        {
+          "pass": "CurrentWind",
+          "stage": "Vertex",
+          "retainedVariants": 1,
+          "runtimeWindVariants": 1
+        },
+        {
+          "pass": "CurrentWind",
+          "stage": "Fragment",
+          "retainedVariants": 1,
+          "runtimeWindVariants": 1
+        },
+        {
+          "pass": "HistoryWind",
+          "stage": "Vertex",
+          "retainedVariants": 1,
+          "runtimeWindVariants": 1
+        },
+        {
+          "pass": "HistoryWind",
+          "stage": "Fragment",
+          "retainedVariants": 1,
+          "runtimeWindVariants": 1
+        }
+      ]
+    },
+    "player_storage": {
+      "success": true,
+      "unityVersion": "2022.3.62f3",
+      "graphicsDevice": "Direct3D11",
+      "error": "",
+      "gpuTransformsChecked": 2
+    },
+    "player_wind": {
+      "success": true,
+      "storageSucceeded": true,
+      "registeredViaTracker": true,
+      "nativeWindAsset": true,
+      "firstFrameInitialized": false,
+      "changingWind": true,
+      "windDirectionResponded": true,
+      "temporalHistory": true,
+      "unityVersion": "2022.3.62f3",
+      "graphicsDevice": "Direct3D11",
+      "sourceAsset": "Broadleaf_Desktop_Field",
+      "error": "",
+      "scope": "Standalone Player: production beginContextRendering -> CaptureSpeedTreeWind -> renderer-owned matrix-buffer wind region. Every frame poisons and reads back all 32 native current/history vectors. The source prefab is never instantiated or rendered by this fixture. This validates wind capture only; the fixture does not draw GPU Batcher camera geometry. Unity 2022 retains its unavailable native submission boundary; Unity 6 native draw images are validated separately.",
+      "frames": 30,
+      "contextHooks": 30,
+      "renderRequests": 33,
+      "completeGPUWrites": 30,
+      "maxCurrentNonzero": 15,
+      "maxHistoryNonzero": 15,
+      "windSlot": 0,
+      "windByteOffset": 37888
+    },
+    "editor_suites": [
+      {
+        "suite": "GPUBatcherNativeBridgeChecks",
+        "error": "",
+        "success": true
+      },
+      {
+        "suite": "GPUBatcherRuntimePortChecks",
+        "error": "",
+        "success": true
+      },
+      {
+        "suite": "GPUBatcherCullingParityChecks",
+        "error": "",
+        "success": true
+      },
+      {
+        "suite": "GPUBatcherHZBParityChecks",
+        "error": "",
+        "success": true
+      },
+      {
+        "suite": "GPUBatcherOcclusionCompatibilityChecks",
+        "error": "",
+        "success": true
+      },
+      {
+        "suite": "GPUBatcherShaderPortChecks",
+        "error": "",
+        "success": true
+      }
+    ],
+    "functional_scope_complete_except_submission": true,
     "equivalent_except_submission": false,
-    "remaining_native_gaps": [
-      "Requested indirect draw submission placeholder",
-      "SpeedTree current/history wind binding",
-      "Umbra context buffer and AABB query binding"
+    "remaining_native_gap": "Stock Unity 2022 needs an engine binding for native indirect draws. Camera and shadow submissions use BRGIndirectSubmission.submitHandler on either engine.",
+    "compatibility_differences": [
+      "Baked occlusion queries native enclosing spheres through CullingGroup, which can conservatively retain more chunks than the reference AABB query.",
+      "Wind uses native Tree proxies with original mesh/LOD topology, two capture passes per unique source and GPU slot copies; integer data lives on proxy materials because native Tree rendering overwrites property blocks.",
+      "Native initial wind identity can contain zero branch/leaf values until the next engine update; tests require complete parameter families after initialization."
     ],
     "limitations": [
-      "No native indirect rendering or image/performance equivalence test",
-      "No full-scene multi-camera/shadow rendering or XR validation",
-      "Stereo HZB and MSAA array-depth resolving remain excluded; normal Fraxinus camera attachments force MSAA=1"
+      "Unity 2022 was tested with an injected callback for command forwarding. Native color/depth/shadow and HZB image tests used the installed Unity 6 binding.",
+      "No full-game image/performance equivalence or XR validation.",
+      "Actual GPU and Windows Mono Player checks used D3D11; no Vulkan runtime, Android Player or IL2CPP validation in this run."
     ],
-    "logs": [
-      "Library/GPUBatcherPort/Audit/unity-validation.log (shader suite passed; later behavior fixture failures corrected)",
-      "Library/GPUBatcherPort/Audit/unity-behavior-validation.log (runtime/native/culling suites passed; HZB fixture bootstrap corrected)",
-      "Library/GPUBatcherPort/Audit/unity-hzb-validation.log (HZB suite passed, exit 0)"
-    ]
+    "reports": {
+      "editor": "gpu-batcher-validation.json",
+      "wind": "gpu-batcher-speedtree-capture.json",
+      "hzb": "gpu-batcher-hzb.json",
+      "occlusion": "gpu-batcher-occlusion.json",
+      "shaders": "gpu-batcher-shaders.json",
+      "build": "gpu-batcher-player-build.json",
+      "player": "Build/gpu-batcher-player.json",
+      "playerWind": "Build/gpu-batcher-player-wind.json"
+    },
+    "cross_version_shared_source": {
+      "timestamp_utc": "2026-11-22T03:26:36.278Z",
+      "canonical_packages": "D:/projects/unityProjects/Duckov-Recovered/ExportedProject/Packages",
+      "package_ownership": "One physical package source; validation projects use local UPM file dependencies.",
+      "all_passed": true,
+      "engines": [
+        {
+          "unity": "2022.3.62f3",
+          "shared_source_check": {
+            "success": true,
+            "nativeIndirectSubmission": false,
+            "unityVersion": "2022.3.62f3",
+            "sourceProject": "D:\\projects\\unityProjects\\Duckov-Recovered\\ExportedProject",
+            "error": "",
+            "packages": [
+              {
+                "name": "com.bluewhitebow.fraxinus-gpu-batcher",
+                "resolvedPath": "D:\\projects\\unityProjects\\Duckov-Recovered\\ExportedProject\\Packages\\com.bluewhitebow.fraxinus-gpu-batcher",
+                "sharedSource": true
+              },
+              {
+                "name": "com.bluewhitebow.fraxinus-rp",
+                "resolvedPath": "D:\\projects\\unityProjects\\Duckov-Recovered\\ExportedProject\\Packages\\com.bluewhitebow.fraxinus-rp",
+                "sharedSource": true
+              },
+              {
+                "name": "com.unity.render-pipelines.core",
+                "resolvedPath": "D:\\projects\\unityProjects\\Duckov-Recovered\\ExportedProject\\Packages\\com.unity.render-pipelines.core",
+                "sharedSource": true
+              },
+              {
+                "name": "com.unity.shadergraph",
+                "resolvedPath": "D:\\projects\\unityProjects\\Duckov-Recovered\\ExportedProject\\Packages\\com.unity.shadergraph",
+                "sharedSource": true
+              }
+            ]
+          },
+          "native_submission": false,
+          "editor_suites": [
+            {
+              "suite": "GPUBatcherNativeBridgeChecks",
+              "error": "",
+              "success": true
+            },
+            {
+              "suite": "GPUBatcherRuntimePortChecks",
+              "error": "",
+              "success": true
+            },
+            {
+              "suite": "GPUBatcherCullingParityChecks",
+              "error": "",
+              "success": true
+            },
+            {
+              "suite": "GPUBatcherHZBParityChecks",
+              "error": "",
+              "success": true
+            },
+            {
+              "suite": "GPUBatcherOcclusionCompatibilityChecks",
+              "error": "",
+              "success": true
+            },
+            {
+              "suite": "GPUBatcherShaderPortChecks",
+              "error": "",
+              "success": true
+            }
+          ],
+          "player_build_success": true,
+          "player_gpu_transforms": 2,
+          "player_wind_frames": 30
+        },
+        {
+          "unity": "6000.0.85f2",
+          "shared_source_check": {
+            "success": true,
+            "nativeIndirectSubmission": true,
+            "unityVersion": "6000.0.85f2",
+            "sourceProject": "D:\\projects\\unityProjects\\Duckov-Recovered\\ExportedProject",
+            "error": "",
+            "packages": [
+              {
+                "name": "com.bluewhitebow.fraxinus-gpu-batcher",
+                "resolvedPath": "D:\\projects\\unityProjects\\Duckov-Recovered\\ExportedProject\\Packages\\com.bluewhitebow.fraxinus-gpu-batcher",
+                "sharedSource": true
+              },
+              {
+                "name": "com.bluewhitebow.fraxinus-rp",
+                "resolvedPath": "D:\\projects\\unityProjects\\Duckov-Recovered\\ExportedProject\\Packages\\com.bluewhitebow.fraxinus-rp",
+                "sharedSource": true
+              },
+              {
+                "name": "com.unity.render-pipelines.core",
+                "resolvedPath": "D:\\projects\\unityProjects\\Duckov-Recovered\\ExportedProject\\Packages\\com.unity.render-pipelines.core",
+                "sharedSource": true
+              },
+              {
+                "name": "com.unity.shadergraph",
+                "resolvedPath": "D:\\projects\\unityProjects\\Duckov-Recovered\\ExportedProject\\Packages\\com.unity.shadergraph",
+                "sharedSource": true
+              }
+            ]
+          },
+          "native_submission": true,
+          "algorithm_suites": [
+            {
+              "suite": "HZB GPU and graph",
+              "error": "",
+              "success": true
+            },
+            {
+              "suite": "Command and GPU argument parity",
+              "error": "",
+              "success": true
+            },
+            {
+              "suite": "Native baked occlusion",
+              "error": "",
+              "success": true
+            },
+            {
+              "suite": "Shader and compute",
+              "error": "",
+              "success": true
+            }
+          ],
+          "native_brg_checks": 28,
+          "graph_cases": [
+            {
+              "name": "baseline-visible",
+              "submittedInstances": 2,
+              "redPixels": 196,
+              "greenPixels": 252,
+              "hzbValid": false
+            },
+            {
+              "name": "history-occluded",
+              "submittedInstances": 1,
+              "redPixels": 0,
+              "greenPixels": 252,
+              "hzbValid": true
+            },
+            {
+              "name": "retest-occluded",
+              "submittedInstances": 1,
+              "redPixels": 0,
+              "greenPixels": 252,
+              "hzbValid": true
+            },
+            {
+              "name": "retest-uncovered",
+              "submittedInstances": 2,
+              "redPixels": 196,
+              "greenPixels": 252,
+              "hzbValid": true
+            },
+            {
+              "name": "history-uncovered",
+              "submittedInstances": 2,
+              "redPixels": 196,
+              "greenPixels": 252,
+              "hzbValid": true
+            }
+          ]
+        }
+      ],
+      "version_boundaries": {
+        "submission": "FRAXINUS_BRG_INDIRECT_API enables the built-in writer on engines with matching bindings. isAvailable reflects the installed submitHandler; an empty handler leaves output untouched.",
+        "native_tracking": "Unity.InternalAPIEngineBridge.024 is the common engine-friend identity.",
+        "shadow_apis": "UNITY_6000_0_OR_NEWER selects CullShadowCasters and splitIndex; older paths retain splitData.",
+        "editor_apis": "Categorization namespace and GraphView override access are selected by Unity version.",
+        "gpu_driven": "The existing GPUDriven asmdef requires UNITY_6000_0_OR_NEWER."
+      },
+      "reports": {
+        "unity2022": "D:/projects/unityProjects/Duckov-Recovered/Library/GPUBatcherPortValidation",
+        "unity6": "D:/projects/unityProjects/Duckov-Recovered/Library/UnifiedPackages/Unity6/Fraxinus-Unity6-Validation",
+        "collected": "D:/projects/unityProjects/Fraxinus-Unity6-Validation/Validation/Results/UnifiedPackages"
+      },
+      "limits": [
+        "Windows D3D11 runtime; shader Vulkan bytecode is not Vulkan execution.",
+        "The stock Unity 2022 regression used the default empty binding. A separate dispatch check installed and removed a handler on the same engine.",
+        "Unity 6 full-game rendering, performance benchmarks, XR and additional editor versions are not established by these checks."
+      ],
+      "source_hashes": [
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher/Runtime/Fraxinus.GPUBatcher.Runtime.asmdef",
+          "sha256": "16f409c7388a03501d511a600b731f12d68b8a231b0182b080fd141a822126ce"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher/Runtime/Rendering/BRGIndirectSubmission.cs",
+          "sha256": "0c5b66f5741f34bbd3e675885fbaf41acd601a4f20fb1e0cee382a8404fe9c21"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Editor/UltraRPEditor/Fraxinus.Editor.UltraRP.asmdef",
+          "sha256": "8e4b20a210628329bee4514dfb8067ba4a545eed6286e0c77735d894fa521ef6"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/Fraxinus.Runtime.asmdef",
+          "sha256": "2b256dcdf0445ebb57e16a71f3b597d6ebd43a9e24fcfba07b8b542bb4b51b2f"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Data/PostProcessData.cs",
+          "sha256": "4972f40964d4d8692240ce05d831bc1764cb1b2c1237977d4956a7fce6b7f9af"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Passes/AdditionalLightsShadowCasterPass.cs",
+          "sha256": "b9299c81933926e6a60630b525ccbda856ee0e670e33cd500c8039ef2ac1d09f"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Passes/InternalPasses/InjectPass.cs",
+          "sha256": "a4d4579341419284bd10037c83e0770b556477d9c4295cee6db2bb1ac4a3f0c0"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Passes/MainLightShadowCasterPass.cs",
+          "sha256": "9ee1c77b9d1f7ecf89ea4c16bbaa1ed7f5f258a3a487e1a90240ea0cc6f015d5"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/RenderPipelineResources/UltraRenderPipelineDebugShaders.cs",
+          "sha256": "9e073b0499fb5098b4138fb074892bcac93385acd0b2cdb4b79de3cef23334a6"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/RenderPipelineResources/UltraRenderPipelineEditorAssets.cs",
+          "sha256": "86ff51e8b021ff441f8326f26a4c63b82f23c60df9ada699bf3b32f803f0756a"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/RenderPipelineResources/UltraRenderPipelineEditorMaterials.cs",
+          "sha256": "e18b889d0e1596653fd7ba7f0c272408b0907b4087d9d20a97db9435924a27c7"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/RenderPipelineResources/UltraRenderPipelineEditorShaders.cs",
+          "sha256": "351c315707c74cd389b8f1a35b3121f2ad9988ef2e26b9b1c155a767cc8afcce"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/RenderPipelineResources/UltraRenderPipelineRuntimeShaders.cs",
+          "sha256": "109591bb4190bab098995eae9db3ca9879c0997a62cbec7e0bfa7a896835b02f"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/RenderPipelineResources/UltraRenderPipelineRuntimeTextures.cs",
+          "sha256": "fa59bf6ae363abcb3a57b5d44e3f93418e289178a56165d9602093b1f275c79a"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/RenderPipelineResources/UltraRendererResources.cs",
+          "sha256": "cc72401eee71772731088a8cd3ec7c2e7210ae7f199b7dd5b3572f36f5d0bb83"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Settings/RenderGraphSettings.cs",
+          "sha256": "231b2890afa3a8dd97cfc2361db7ab30626c75ff3fbcfb360148e4b6ef57d5b5"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Settings/UltraRenderPipelineDefaultVolumeProfileSettings.cs",
+          "sha256": "1a3c7a37c41517475cfacc4f77ca7794fe41c8fcf51d214e11c849f78106b78b"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Settings/UltraRenderPipelineShaderStrippingSetting.cs",
+          "sha256": "845911acf9da3f7cdfd9a28bbbffd7aa769461f0afb887a9774c87a890e953c9"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/Shadow/ShadowCulling.cs",
+          "sha256": "40af194cff66559a1283613d16b0f512d11249cfea9859d79d0dcd233a5244c3"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp/Runtime/UltraRP/UltraRenderPipeline.cs",
+          "sha256": "183d8dd7382a3135441ddb55dad29972676c449c019c48d2f1bb9bb466e47e9c"
+        },
+        {
+          "path": "ExportedProject/Packages/com.unity.render-pipelines.core/Runtime/GPUDriven/InstanceCullingBatcherBurst.cs",
+          "sha256": "318fd08db8497b3bd3fb31f678a34790c457843701683aef7dc69fb84b5d9ba8"
+        },
+        {
+          "path": "ExportedProject/Packages/com.unity.render-pipelines.core/Runtime/SceneLightTracking/AssemblyInfo.cs",
+          "sha256": "9673ae578891144c706aa991190429e465d54118c3f1033c4df915e45646ade5"
+        },
+        {
+          "path": "ExportedProject/Packages/com.unity.render-pipelines.core/Runtime/SceneLightTracking/NativeObjectChangeTracker.cs",
+          "sha256": "7e600cf56a6081213b8f90ace55e49f023388787bd21ac9c329ddd53d9629915"
+        },
+        {
+          "path": "ExportedProject/Packages/com.unity.render-pipelines.core/Runtime/SceneLightTracking/Fraxinus.ObjectTracking.asmdef",
+          "sha256": "91701ddaaf2f8f31239c94e22c654a75e7e862449c51d510740d38b1ddc6518c"
+        },
+        {
+          "path": "ExportedProject/Packages/com.unity.shadergraph/Editor/Data/Nodes/GeometryNode.cs",
+          "sha256": "4b351662b98759c84632540b92e66fb8ad93b99e96da7ab38feb10075e9fc7fa"
+        },
+        {
+          "path": "ExportedProject/Packages/com.unity.shadergraph/Editor/Data/Nodes/Input/Geometry/ViewVectorNode.cs",
+          "sha256": "dd301297eccda7811f2123b6bf3621eb71c02d232cf834cff37747edce818cd0"
+        },
+        {
+          "path": "ExportedProject/Packages/com.unity.shadergraph/Editor/Drawing/Views/MaterialGraphView.cs",
+          "sha256": "1b4859542f7b833865f221f535f5b43e3ad3edc12f39a910216b8272c23f52fd"
+        },
+        {
+          "path": "ExportedProject/Packages/com.unity.shadergraph/Editor/Generation/Targets/BuiltIn/Editor/ShaderPreprocessor.cs",
+          "sha256": "ca1987dc33bc62f422eda97d052adb93035b7f9bb9409830d959c0915dc6ce47"
+        },
+        {
+          "path": "ExportedProject/Packages/com.unity.shadergraph/ShaderGraphLibrary/Nature/SpeedTree8Wind.hlsl",
+          "sha256": "7a2143b4805ed1ff4e983215e08e53e092a7a81b1ea23f8e556cecc45736fe0a"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher/Editor/AssemblyInfo.cs",
+          "sha256": "666a24d4360c9d385239a290b915547093e64c1d196eafcac8ed5fd6967b653c"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher/Runtime/AssemblyInfo.cs",
+          "sha256": "2cb3222db21c001d3e9f54d3aeed2703abd46a3bf43a4592590a4c32e78a5036"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher/Runtime/Core/GPUBatcherRenderer.Occlusion.cs",
+          "sha256": "23aac7746fd36083021aa169071129f09bcda403c86307f011e2541e0ebecf48"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher/Runtime/Rendering/BatchDrawCommandIndirect.cs",
+          "sha256": "a8c8c655822891da2af0a68c8cdc4d1c059ce126afc4cdd2bb8b42ab2e9f827e"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher/Runtime/Rendering/BRGIndirectSubmission.cs",
+          "sha256": "0c5b66f5741f34bbd3e675885fbaf41acd601a4f20fb1e0cee382a8404fe9c21"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher/Resources/FraxinusGPUBatcherSpeedTreeWindCapture.shader",
+          "sha256": "3464290015f2f18c0cf067a799b0fac559f07d3a99e31de49884d4e9b77605af"
+        },
+        {
+          "path": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher/Resources/FraxinusGPUBatcherSpeedTreeWindCopy.compute",
+          "sha256": "4bc3b033b85cdaa4f6299d1a0a9cc9648063834f43a48f77834a0a56da34b3c5"
+        }
+      ]
+    },
+    "historical_speedtree_capture_note": "The 450-assertion native capture suite was rerun successfully after the naming refactor.",
+    "naming_refactor": {
+      "timestamp_utc": "2026-11-22T05:42:33.133Z",
+      "scope": "GPU Batcher C# names only. Serialized field aliases preserve assets; shader identifiers, GPU layouts and resource GUIDs are unchanged.",
+      "rules": {
+        "private_fields": "_camelCase",
+        "private_static_fields": "s_camelCase",
+        "private_constants": "k_camelCase",
+        "public_internal_members": "camelCase",
+        "methods": "PascalCase",
+        "shared_constants": "private const value with a read-only public/internal property"
+      },
+      "renamed_members": 562,
+      "renamed_local_constants": 13,
+      "serialized_fields_with_migration": 14,
+      "public_constant_fields_remaining": 0,
+      "semantic_compile_errors": 0,
+      "editor2022_suites_passed": true,
+      "unity6_algorithm_suites_passed": true,
+      "unity6_native_brg_checks": 28,
+      "unity6_native_brg_passed": true,
+      "unity6_graph_cases": 5,
+      "unity6_graph_passed": true,
+      "speedtree_assertions": 450,
+      "speedtree_passed": true,
+      "serialized_asset_migration": {
+        "success": true,
+        "error": "",
+        "checks": [
+          "Config.useGPUOcclusionCulling persisted field migrates to the private backing field.",
+          "PrototypeData preserves serialized LOD reference size.",
+          "Legacy Terrain settings survive renaming and remain addressable by the new Inspector paths.",
+          "No public constant fields remain; version and resource identity retain their values."
+        ]
+      },
+      "player_note": "Runtime code was semantically compiled with Unity 2022 and Unity 6 Player defines; previous actual Player reports predate this naming-only change.",
+      "consumer_note": "Public property and field names are source API changes, for example GPUBatcherRenderer.Instance -> instance. Package consumers must use the camelCase names."
+    }
   }
 }

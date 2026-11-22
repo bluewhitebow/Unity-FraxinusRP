@@ -24,6 +24,15 @@ namespace FraxinusEngine.Rendering.Ultra
     {
         public const string shaderTagName = "UltraPipeline";
 
+        /// <summary>Observes the actual parameters immediately around a camera's native cull.</summary>
+        public delegate void CameraCullingCallback(Camera camera, in ScriptableCullingParameters parameters);
+
+        /// <summary>Called after culling parameters are finalized, before native visibility is evaluated.</summary>
+        public static event CameraCullingCallback beforeCameraCulling;
+
+        /// <summary>Called after native culling returns, before shadow culling and render graph execution.</summary>
+        public static event CameraCullingCallback afterCameraCulling;
+
         internal static class CameraMetadataCache
         {
             public class CameraMetadataCacheEntry
@@ -783,7 +792,9 @@ namespace FraxinusEngine.Rendering.Ultra
                 // RenderingData takes a copy of the CameraData.
                 // RenderingData needs to be created here to avoid copying cullResults.
                 var data = frameData.Create<RenderingData>();
+                beforeCameraCulling?.Invoke(camera, in cullingParameters);
                 data.cullResults = context.Cull(ref cullingParameters);
+                afterCameraCulling?.Invoke(camera, in cullingParameters);
 
                 GPUResidentDrawerBridge.PostCull(cmd);
 

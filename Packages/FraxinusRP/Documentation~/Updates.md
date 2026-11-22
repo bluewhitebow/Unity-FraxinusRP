@@ -1,3 +1,30 @@
+# 2026-11-22 Shared Unity 2022 / Unity 6 GPU batching
+
+Synchronizes Duckov-Recovered package changes through `5494613cd`, including the
+current GPU Batcher configuration/lifecycle edits and Shader Graph pipeline lookup.
+GPU Batcher now has a synchronous submission-handler contract and a built-in
+Unity 6 native writer. Stock Unity 2022 still needs a compatible handler for
+indirect scene output. Native CullingGroup visibility and SpeedTree wind capture
+replace the previous placeholder bridges; HZB supports normalized depth and MSAA
+inputs within the existing single-view pipeline.
+
+The matching Core, RP and Shader Graph changes share ObjectDispatcher access
+through `Unity.InternalAPIEngineBridge.024`, adapt Unity 6 shadow/editor APIs,
+and preserve SpeedTree capture variants. Shader assets move into the GPU package
+root while retaining their GUIDs; script importer defaults are normalized.
+This suite keeps `PrepareFrameResources`, URP light-data migration and its
+existing distribution layout. Install the four affected packages together.
+
+Source audit records remain historical evidence. See the
+[package status](../../Fraxinus-GPU-Batcher/README.md) and
+[synchronization provenance](../../../docs/PackageSources.json).
+
+Offline C# compilation of this checkout passed for 9 assemblies against
+Unity 2022.3.62f3 and 10 against Unity 6000.0.85f2, including the native BRG
+branch. There were no compilation errors; warnings remain for deprecated APIs
+and unused fields. This synchronization did not rerun shader/GPU execution,
+scene rendering or Player builds.
+
 # 2026-11-20 BRG GPU Batcher port
 
 Replaces the optional GPU Batcher's previous GPUInstancer implementation,

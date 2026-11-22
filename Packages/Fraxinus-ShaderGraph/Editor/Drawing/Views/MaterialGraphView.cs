@@ -74,12 +74,20 @@ namespace UnityEditor.ShaderGraph.Drawing
             }
         }
 
+#if UNITY_6000_0_OR_NEWER
+        protected internal override bool canCutSelection
+#else
         protected override bool canCutSelection
+#endif
         {
             get { return selection.OfType<IShaderNodeView>().Any(x => x.node.canCutNode) || selection.OfType<Group>().Any() || selection.OfType<SGBlackboardField>().Any() || selection.OfType<SGBlackboardCategory>().Any() || selection.OfType<StickyNote>().Any(); }
         }
 
+#if UNITY_6000_0_OR_NEWER
+        protected internal override bool canCopySelection
+#else
         protected override bool canCopySelection
+#endif
         {
             get { return selection.OfType<IShaderNodeView>().Any(x => x.node.canCopyNode) || selection.OfType<Group>().Any() || selection.OfType<SGBlackboardField>().Any() || selection.OfType<SGBlackboardCategory>().Any() || selection.OfType<StickyNote>().Any(); }
         }
@@ -680,7 +688,11 @@ namespace UnityEditor.ShaderGraph.Drawing
             m.Invoke(null, new object[] { (Action<Color>)ApplyColor, defaultColor, true, false });
         }
 
+#if UNITY_6000_0_OR_NEWER
+        protected internal override bool canDeleteSelection
+#else
         protected override bool canDeleteSelection
+#endif
         {
             get
             {

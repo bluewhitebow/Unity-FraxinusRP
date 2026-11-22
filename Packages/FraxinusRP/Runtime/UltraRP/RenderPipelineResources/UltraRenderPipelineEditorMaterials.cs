@@ -3,11 +3,17 @@ using System;
 using UnityEngine;
 using UnityEngine.Rendering;
 
+#if UNITY_6000_0_OR_NEWER
+using RenderingCategories = UnityEngine.Categorization;
+#else
+using RenderingCategories = UnityEngine.Rendering.Categorization;
+#endif
+
 namespace FraxinusEngine.Rendering.Ultra
 {
     [Serializable]
     [SupportedOnRenderPipeline(typeof(UltraRenderPipelineAsset))]
-    [UnityEngine.Rendering.Categorization.CategoryInfo(Name = "R: Editor Materials", Order = 1000), HideInInspector]
+    [RenderingCategories.CategoryInfo(Name = "R: Editor Materials", Order = 1000), HideInInspector]
     class UltraRenderPipelineEditorMaterials : IRenderPipelineResources
     {
         public int version => 0;

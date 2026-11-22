@@ -8,10 +8,10 @@ namespace Fraxinus.GPUBatcher.Editor
 {
     internal static class ConvertToTerrainPrefab
     {
-        const string kMenu = "Tools/Fraxinus GPU Batcher/Convert To Terrain Prefab";
-        const string kSubfolder = "TerrainDetailPrefab";
+        const string k_menu = "Tools/Fraxinus GPU Batcher/Convert To Terrain Prefab";
+        const string k_subfolder = "TerrainDetailPrefab";
 
-        [MenuItem(kMenu, true)]
+        [MenuItem(k_menu, true)]
         static bool Validate()
         {
             var selection = Selection.GetFiltered<GameObject>(SelectionMode.Assets);
@@ -23,7 +23,7 @@ namespace Fraxinus.GPUBatcher.Editor
             return false;
         }
 
-        [MenuItem(kMenu)]
+        [MenuItem(k_menu)]
         static void Convert()
         {
             var selection = Selection.GetFiltered<GameObject>(SelectionMode.Assets);
@@ -46,9 +46,9 @@ namespace Fraxinus.GPUBatcher.Editor
                     if (!AssetDatabase.IsValidFolder(sourceDir))
                         AssetDatabase.CreateFolder("Assets", "FraxinusGPUBatcherData");
                 }
-                string outDir = $"{sourceDir}/{kSubfolder}";
+                string outDir = $"{sourceDir}/{k_subfolder}";
                 if (!AssetDatabase.IsValidFolder(outDir))
-                    AssetDatabase.CreateFolder(sourceDir, kSubfolder);
+                    AssetDatabase.CreateFolder(sourceDir, k_subfolder);
                 outDirs[source] = outDir;
             }
 

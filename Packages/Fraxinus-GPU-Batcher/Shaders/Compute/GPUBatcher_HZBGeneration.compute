@@ -8,6 +8,8 @@
 
 #pragma kernel HZBDownscaleSPD
 #pragma kernel HZBDownscaleTail
+#pragma kernel HZBResolveMSAA2D
+#pragma kernel HZBResolveMSAAArray
 
 
 #pragma multi_compile_local _ HZB_SOURCE_TEXARRAY
@@ -16,7 +18,7 @@
 #include "GPUBatcher_HZB.hlsl"
 
 
-// HZB downscale: build atlas-based depth pyramid, min = farthest in reversed-Z
+// HZB downscale: normalize device depth before reducing the canonical atlas.
 
 // HDRP uses Texture2DArray for depth; URP uses Texture2D
 #ifdef HZB_SOURCE_TEXARRAY
@@ -30,7 +32,6 @@ SamplerState          sampler_HZBSource;
 #endif
 
 RWTexture2D<float> _HZBMipOut;
-int2 _HZBSourceSize;
 
 // single-pass downsampler, SPD pattern.
 // mips 0-4: each 16x16 workgroup reduces its tile via groupshared.
@@ -48,19 +49,29 @@ void HZBDownscaleSPD(uint3 groupId : SV_GroupID, uint3 lid : SV_GroupThreadID)
 
     // mip 0: each thread reduces 8x8 block from depth source via 16 GatherRed
     uint2 mip0Coord = groupId.xy * SPD_TILE + lid.xy;
-    uint2 srcBase = mip0Coord * 8;
-    float2 invSrcSize = 1.0 / float2(_HZBSourceSize);
+    int4 bounds = _OccluderMipBounds[0];
+    // Partial workgroups repeat the active viewport edge instead of reading an
+    // unused part of an oversized render target into the higher pyramid levels.
+    uint2 srcBase = min(mip0Coord, uint2(bounds.zw) - 1) * 8;
+    uint sourceWidth, sourceHeight;
+#ifdef HZB_SOURCE_TEXARRAY
+    uint sourceSlices;
+    _HZBSource.GetDimensions(sourceWidth, sourceHeight, sourceSlices);
+#else
+    _HZBSource.GetDimensions(sourceWidth, sourceHeight);
+#endif
+    // CPU descriptors need not match the GPU allocation under dynamic resolution.
+    float2 invSrcSize = 1.0 / float2(sourceWidth, sourceHeight);
 
     float d = 1.0;
     [unroll] for (uint gy = 0; gy < 4; gy++)
     [unroll] for (uint gx = 0; gx < 4; gx++)
     {
         float2 uv = (float2(srcBase) + float2(gx * 2 + 1, gy * 2 + 1)) * invSrcSize;
-        float4 g = GATHER_HZB_SOURCE(uv);
+        float4 g = HZBCanonicalDepth(GATHER_HZB_SOURCE(uv));
         d = min(d, min(min(g.x, g.y), min(g.z, g.w)));
     }
 
-    int4 bounds = _OccluderMipBounds[0];
     if (mip0Coord.x < (uint)bounds.z && mip0Coord.y < (uint)bounds.w)
         _HZBMipOut[mip0Coord + uint2(bounds.xy)] = d;
 
@@ -122,6 +133,43 @@ void HZBDownscaleSPD(uint3 groupId : SV_GroupID, uint3 lid : SV_GroupThreadID)
         if (mipCoord.x < (uint)bounds.z && mipCoord.y < (uint)bounds.w)
             _HZBMipOut[mipCoord + uint2(bounds.xy)] = d;
     }
+}
+
+// Resolve all samples to the farthest device depth before pyramid construction.
+// An uncovered sample must keep the pixel visible; using the nearest sample here
+// would make thin MSAA edges incorrectly occlude complete instances.
+Texture2DMS<float> _HZBSourceMSAA;
+Texture2DMSArray<float> _HZBSourceMSAAArray;
+RWTexture2D<float> _HZBResolvedDepth;
+int _HZBSourceSlice;
+
+float HZBDeviceDepth(float canonicalDepth)
+{
+    return _HZBDepthConvention.x > 0.5 ? canonicalDepth : 1.0 - canonicalDepth;
+}
+
+[numthreads(8, 8, 1)]
+void HZBResolveMSAA2D(uint3 id : SV_DispatchThreadID)
+{
+    uint width, height, samples;
+    _HZBSourceMSAA.GetDimensions(width, height, samples);
+    if (id.x >= width || id.y >= height) return;
+    float depth = 1.0;
+    for (uint sampleIndex = 0; sampleIndex < samples; ++sampleIndex)
+        depth = min(depth, HZBCanonicalDepth(_HZBSourceMSAA.Load(id.xy, sampleIndex)));
+    _HZBResolvedDepth[id.xy] = HZBDeviceDepth(depth);
+}
+
+[numthreads(8, 8, 1)]
+void HZBResolveMSAAArray(uint3 id : SV_DispatchThreadID)
+{
+    uint width, height, slices, samples;
+    _HZBSourceMSAAArray.GetDimensions(width, height, slices, samples);
+    if (id.x >= width || id.y >= height || (uint)_HZBSourceSlice >= slices) return;
+    float depth = 1.0;
+    for (uint sampleIndex = 0; sampleIndex < samples; ++sampleIndex)
+        depth = min(depth, HZBCanonicalDepth(_HZBSourceMSAAArray.Load(int3(id.xy, _HZBSourceSlice), sampleIndex)));
+    _HZBResolvedDepth[id.xy] = HZBDeviceDepth(depth);
 }
 
 

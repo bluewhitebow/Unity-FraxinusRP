@@ -2,6 +2,12 @@ using System;
 using UnityEngine;
 using UnityEngine.Rendering;
 
+#if UNITY_6000_0_OR_NEWER
+using RenderingCategories = UnityEngine.Categorization;
+#else
+using RenderingCategories = UnityEngine.Rendering.Categorization;
+#endif
+
 namespace FraxinusEngine.Rendering.Ultra
 {
     /// <summary>
@@ -9,7 +15,7 @@ namespace FraxinusEngine.Rendering.Ultra
     /// </summary>
     [Serializable]
     [SupportedOnRenderPipeline(typeof(UltraRenderPipelineAsset))]
-    [UnityEngine.Rendering.Categorization.CategoryInfo(Name = "R: Ultra Renderer Shaders", Order = 1000), HideInInspector]
+    [RenderingCategories.CategoryInfo(Name = "R: Ultra Renderer Shaders", Order = 1000), HideInInspector]
     public class UltraRendererResources : IRenderPipelineResources
     {
         /// <summary>Version of the resource. </summary>

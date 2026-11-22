@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using Unity.Profiling;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Fraxinus.GPUBatcher
 {
@@ -34,13 +35,11 @@ namespace Fraxinus.GPUBatcher
         private readonly List<Vector2Int> _patchListScratch = new();
         private readonly HashSet<Vector2Int> _checkedPatches = new();
 
-        // cache prototype properties for change detection
         private int _detailPrototypePropertiesHash;
 
         // cached hash of prefab renderer data, recomputed only when _rendererHashDirty is set
         private int _detailCachedRendererHash;
 
-        // cached terrain data state
         private bool _detailTerrainDataCached;
 
         private void OnSceneGUI(UnityEditor.SceneView sceneView)
@@ -92,7 +91,7 @@ namespace Fraxinus.GPUBatcher
             if (currentPrototypeCount != _lastKnownDetailPrototypeCount)
             {
 #if DEBUG
-                if (enableDebugLogging)
+                if (_enableDebugLogging)
                     Debug.Log($"TerrainGPUBatcherRegisterer[Details]: prototype count changed ({_lastKnownDetailPrototypeCount} -> {currentPrototypeCount}), full refresh");
 #endif
                 Refresh();
@@ -103,21 +102,20 @@ namespace Fraxinus.GPUBatcher
             if (currentPropsHash != _detailPrototypePropertiesHash)
             {
 #if DEBUG
-                if (enableDebugLogging)
+                if (_enableDebugLogging)
                     Debug.Log($"TerrainGPUBatcherRegisterer[Details]: prototype properties changed, full refresh");
 #endif
                 Refresh();
                 return;
             }
 
-            // check distance change
             float currentDetailDistance = _terrain.detailObjectDistance;
             if (!GPUBatcherBurstHelpers.Approximately(currentDetailDistance, _lastKnownDetailDistance))
             {
                 _lastKnownDetailDistance = currentDetailDistance;
                 _detailDistance = currentDetailDistance;
 #if DEBUG
-                if (enableDebugLogging)
+                if (_enableDebugLogging)
                     Debug.Log($"TerrainGPUBatcherRegisterer[Details]: detail distance changed ({currentDetailDistance}m), refreshing...");
 #endif
                 Refresh();
@@ -135,37 +133,28 @@ namespace Fraxinus.GPUBatcher
             int layerCount = _cachedDetailPrototypes?.Length ?? 0;
             if (layerCount == 0) return;
 
-            const int nearbyPatchRadius = 1;  // current patch + immediate neighbours
-            const int patchesPerFrame = 20;  // base scan rate
+            const int k_nearbyPatchRadius = 1;  // current patch + immediate neighbours
+            const int k_patchesPerFrame = 20;  // base scan rate
 
             _patchesToReload.Clear();
             _checkedPatches.Clear();
 
-            // check cursor-nearby patches first
-            try
+            Vector2Int? cursorPatch = GetMouseTerrainPatchCoord();
+            if (cursorPatch.HasValue)
             {
-                Vector2Int? cursorPatch = GetMouseTerrainPatchCoord();
-
-                if (cursorPatch.HasValue)
+                Vector2Int center = cursorPatch.Value;
+                for (int dy = -k_nearbyPatchRadius; dy <= k_nearbyPatchRadius; dy++)
                 {
-                    Vector2Int center = cursorPatch.Value;
-                    for (int dy = -nearbyPatchRadius; dy <= nearbyPatchRadius; dy++)
+                    for (int dx = -k_nearbyPatchRadius; dx <= k_nearbyPatchRadius; dx++)
                     {
-                        for (int dx = -nearbyPatchRadius; dx <= nearbyPatchRadius; dx++)
-                        {
-                            Vector2Int patch = new(center.x + dx, center.y + dy);
-                            if (patch.x < 0 || patch.y < 0 || patch.x >= _patchCount || patch.y >= _patchCount)
-                                continue;
-                            _checkedPatches.Add(patch);
-                            if (HasPatchChanged(patch, layerCount))
-                                _patchesToReload.Add(patch);
-                        }
+                        Vector2Int patch = new(center.x + dx, center.y + dy);
+                        if (patch.x < 0 || patch.y < 0 || patch.x >= _patchCount || patch.y >= _patchCount)
+                            continue;
+                        _checkedPatches.Add(patch);
+                        if (HasPatchChanged(patch, layerCount))
+                            _patchesToReload.Add(patch);
                     }
                 }
-            }
-            catch
-            {
-                // cursor detection failed, fall back to uniform scanning
             }
 
             // round-robin check loaded patches for changes outside cursor area
@@ -182,7 +171,7 @@ namespace Fraxinus.GPUBatcher
             if (patchCount > 0)
             {
                 bool checkAllPatches = (_detailPatchCheckOffset < 0);
-                int actualPatchesPerFrame = math.min(patchesPerFrame, patchCount);
+                int actualPatchesPerFrame = math.min(k_patchesPerFrame, patchCount);
 
                 int startIdx, endIdx;
                 if (checkAllPatches || actualPatchesPerFrame >= patchCount)
@@ -244,7 +233,7 @@ namespace Fraxinus.GPUBatcher
             if (_patchesToReload.Count == 0) return;
 
 #if DEBUG
-            if (enableDebugLogging)
+            if (_enableDebugLogging)
                 Debug.Log($"TerrainGPUBatcherRegisterer[Details]: detected changes in {_patchesToReload.Count} patches, reloading");
 #endif
 
@@ -281,32 +270,33 @@ namespace Fraxinus.GPUBatcher
             UnityEditor.SceneView.RepaintAll();
         }
 
-        // gets the terrain patch coordinate under the mouse cursor in scene view
         private Vector2Int? GetMouseTerrainPatchCoord()
         {
-            // get mouse position from scene view
             if (UnityEditor.SceneView.lastActiveSceneView == null)
                 return null;
 
-            Vector2 mousePos = _cachedMousePos;
+            Ray ray;
+            try
+            {
+                ray = UnityEditor.HandleUtility.GUIPointToWorldRay(_cachedMousePos);
+            }
+            catch
+            {
+                // EditorUpdate can run without a valid SceneView GUI context.
+                // Skip cursor prioritization; round-robin scanning still runs.
+                return null;
+            }
 
-            // convert GUI coords to world ray
-            Ray ray = UnityEditor.HandleUtility.GUIPointToWorldRay(mousePos);
-
-            // raycast against terrain
             if (Physics.Raycast(ray, out RaycastHit hit, 5000f))
             {
                 if (hit.collider.gameObject == _terrain.gameObject)
                 {
-                    // convert world position to terrain-local coordinates
                     Vector3 terrainPos = hit.point - _terrain.transform.position;
                     Vector3 terrainSize = _terrain.terrainData.size;
 
-                    // normalize to [0,1]
                     float normX = math.saturate(terrainPos.x / terrainSize.x);
                     float normZ = math.saturate(terrainPos.z / terrainSize.z);
 
-                    // convert to patch coordinates
                     int patchX = (int)math.floor(normX * _patchCount);
                     int patchY = (int)math.floor(normZ * _patchCount);
 
@@ -383,7 +373,6 @@ namespace Fraxinus.GPUBatcher
                 {
                     var proto = _cachedDetailPrototypes[i];
                     GameObject prefabToHash = proto.prototype;
-                    // check for component-based override
                     if (prefabToHash != null
                         && prefabToHash.TryGetComponent<GPUBatcherTerrainDetailOverride>(out var detailOverride)
                         && detailOverride.enabled
@@ -543,18 +532,18 @@ namespace Fraxinus.GPUBatcher
         private void ReloadChunk(Vector2Int detailChunkCoord)
         {
 #if DEBUG
-            if (enableDebugLogging && _pendingCoords.Contains(detailChunkCoord))
+            if (_enableDebugLogging && _pendingCoords.Contains(detailChunkCoord))
                 Debug.Log($"TerrainGPUBatcherRegisterer[Details]: ReloadChunk - force-completing pending job for detail chunk ({detailChunkCoord.x},{detailChunkCoord.y})");
 #endif
             ForceCompletePendingJob(detailChunkCoord, uploadResults: false);
             ReleaseDetailChunk(detailChunkCoord);
 
 #if DEBUG
-            if (enableDebugLogging)
-                Debug.Log($"TerrainGPUBatcherRegisterer[Details]: ReloadChunk ({detailChunkCoord.x},{detailChunkCoord.y}), useUnityTransforms={useUnityTransforms}");
+            if (_enableDebugLogging)
+                Debug.Log($"TerrainGPUBatcherRegisterer[Details]: ReloadChunk ({detailChunkCoord.x},{detailChunkCoord.y}), useUnityTransforms={_useUnityTransforms}");
 #endif
 
-            if (useUnityTransforms)
+            if (_useUnityTransforms)
             {
                 LoadDetailChunkUnity(detailChunkCoord);
             }
@@ -576,7 +565,7 @@ namespace Fraxinus.GPUBatcher
 
         #region detail editor update
 
-        private const float updateInterval = 0.02f; // 50Hz throttle for editor streaming/change detection
+        private const float k_updateInterval = 0.02f; // 50Hz throttle for editor streaming/change detection
 
         private double _editorLastUpdateTime;
 
@@ -601,7 +590,7 @@ namespace Fraxinus.GPUBatcher
             {
                 _lastKnownTreeDistance = currentTreeDistance;
 #if DEBUG
-                if (enableDebugLogging)
+                if (_enableDebugLogging)
                     Debug.Log($"TerrainGPUBatcherRegisterer: tree distance changed ({currentTreeDistance}m), refreshing...");
 #endif
                 Refresh();
@@ -614,7 +603,7 @@ namespace Fraxinus.GPUBatcher
                 _lastKnownDetailDistance = currentDetailDistance;
                 _detailDistance = currentDetailDistance;
 #if DEBUG
-                if (enableDebugLogging)
+                if (_enableDebugLogging)
                     Debug.Log($"TerrainGPUBatcherRegisterer: detail distance changed ({currentDetailDistance}m), refreshing...");
 #endif
                 Refresh();
@@ -626,7 +615,7 @@ namespace Fraxinus.GPUBatcher
             {
                 _lastKnownDetailDensity = currentDetailDensity;
 #if DEBUG
-                if (enableDebugLogging)
+                if (_enableDebugLogging)
                     Debug.Log($"TerrainGPUBatcherRegisterer: detail density changed ({currentDetailDensity:F3}), refreshing...");
 #endif
                 Refresh();
@@ -637,13 +626,13 @@ namespace Fraxinus.GPUBatcher
 
         #region detail debug
 
-        [SerializeField] private bool showDetailChunkGizmos = false;
+        [FormerlySerializedAs("showDetailChunkGizmos")]
+        [SerializeField] private bool _showDetailChunkGizmos = false;
 
-        // public accessors for custom inspector
-        public int DetailLoadedChunkCount => _loadedDetailChunks.Count;
-        public int DetailLoadedInstanceCount => _totalLoadedDetailInstances;
-        public int DetailPendingChunkCount => _loadQueue.Count + _extractQueue.Count + _pendingJobs.Count;
-        public int DetailAllocatedChunkCount => _allocatedDetailChunkCount;
+        public int detailLoadedChunkCount => _loadedDetailChunks.Count;
+        public int detailLoadedInstanceCount => _totalLoadedDetailInstances;
+        public int detailPendingChunkCount => _loadQueue.Count + _extractQueue.Count + _pendingJobs.Count;
+        public int detailAllocatedChunkCount => _allocatedDetailChunkCount;
 
         public void RefreshDetails() => Refresh();
 
@@ -664,7 +653,7 @@ namespace Fraxinus.GPUBatcher
             Refresh();
 
 #if DEBUG
-            if (enableDebugLogging)
+            if (_enableDebugLogging)
                 Debug.Log("TerrainGPUBatcherRegisterer[Details]: Force reload triggered");
 #endif
         }
@@ -672,8 +661,8 @@ namespace Fraxinus.GPUBatcher
         protected override void OnDrawGizmosSelected()
         {
             if (!_registered || GPUBatcherSystem == null) return;
-            if (showTreeChunkGizmos) DrawChunkBoundsGizmos(Registration, _treeChunkData.Keys);
-            if (showDetailChunkGizmos) DrawChunkBoundsGizmos(Registration, _detailChunkBRGChunkIds.Values);
+            if (_showTreeChunkGizmos) DrawChunkBoundsGizmos(registration, _treeChunkData.Keys);
+            if (_showDetailChunkGizmos) DrawChunkBoundsGizmos(registration, _detailChunkBRGChunkIds.Values);
         }
 
         #endregion

@@ -5,6 +5,7 @@
     "Fraxinus.Runtime",
     "Fraxinus.Editor",
     "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.GPUDriven.Runtime",
     "Unity.RenderPipelines.Core.Editor",
     "Unity.RenderPipelines.Core.Runtime.Shared",
     "Unity.RenderPipelines.Core.Editor.Shared",

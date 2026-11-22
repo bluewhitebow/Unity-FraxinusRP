@@ -826,7 +826,9 @@ namespace FraxinusEngine.Rendering.Ultra
                 ShadowDrawingSettings settings = new(cullResults, visibleLightIndex, BatchCullingProjectionType.Perspective)
                 {
                     useRenderingLayerMaskTest = UltraRenderPipeline.asset.useRenderingLayers,
+#if !UNITY_6000_0_OR_NEWER
                     splitData = _additionalLightsShadowSlices[globalShadowSliceIndex].splitData
+#endif
                 };
 
                 passData.shadowRendererListsHdl[globalShadowSliceIndex] = renderGraph.CreateShadowRendererList(ref settings);

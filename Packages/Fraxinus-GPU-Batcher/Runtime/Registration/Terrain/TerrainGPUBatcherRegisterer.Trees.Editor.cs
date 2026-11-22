@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Fraxinus.GPUBatcher
 {
@@ -67,7 +68,7 @@ namespace Fraxinus.GPUBatcher
                 return;
 
 #if DEBUG
-            if (enableDebugLogging)
+            if (_enableDebugLogging)
                 Debug.Log($"TerrainGPUBatcherRegisterer[Trees]: tree change on {gameObject.name}, doing full rebuild");
 #endif
 
@@ -80,7 +81,8 @@ namespace Fraxinus.GPUBatcher
 
         #region Tree Debug
 
-        [SerializeField] private bool showTreeChunkGizmos = false;
+        [FormerlySerializedAs("showTreeChunkGizmos")]
+        [SerializeField] private bool _showTreeChunkGizmos = false;
 
         [ContextMenu("Refresh Trees")]
         private void EditorRefresh()

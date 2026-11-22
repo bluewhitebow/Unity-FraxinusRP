@@ -9,20 +9,20 @@ namespace Fraxinus.GPUBatcher.Editor
     [CanEditMultipleObjects]
     internal class GPUBatcherPrototypeExtraDataEditor : UnityEditor.Editor
     {
-        static readonly GUIContent s_FadeMode = new GUIContent("Fade Mode");
-        static readonly GUIContent s_FadeWidth = new GUIContent("Fade Width");
-        static readonly GUIContent s_EnableDistanceDensity = new GUIContent("Enable Distance Density", "Randomly thin out instances based on distance or screen size.");
-        static readonly GUIContent s_DensityMode = new GUIContent("Density Mode", "ScreenSize: based on screen % (matches LOD). Raw Distance: based on world-space distance.");
-        static readonly GUIContent s_StartScreenSize = new GUIContent("Start Screen Size", "Screen size % where density starts reducing. Above = full density.");
-        static readonly GUIContent s_EndScreenSize = new GUIContent("End Screen Size", "Screen size % where density reaches minimum. Auto-derived from the prototype's LOD/screen cull threshold.");
-        static readonly GUIContent s_StartDistance = new GUIContent("Start Distance", "Distance (meters) where density is at full (100%). Closer = full density.");
-        static readonly GUIContent s_EndDistance = new GUIContent("End Distance", "Distance (meters) where density reaches minimum fraction. Farther = min density.");
-        static readonly GUIContent s_MinFraction = new GUIContent("Min Fraction", "Minimum density fraction (0 = cull all, 1 = keep all).");
-        static readonly GUIContent s_DensityFadeWidthStateless = new GUIContent("Fade Width", "Fade band width (0-1 for screen-size, 0-1 density fraction for distance). Wider = smoother fade.");
-        static readonly GUIContent s_DensityFadeWidthDisabled = new GUIContent("Fade Width", "Only available when using non-Animated Crossfade.");
-        static readonly GUIContent s_MaxShadowDistance = new GUIContent("Max Shadow Distance");
-        static readonly GUIContent s_MaxCrossfadeCascade = new GUIContent("Max Crossfade Cascade");
-        static readonly GUIContent s_CrossfadeDuration = new GUIContent("Animated Crossfade Duration");
+        static readonly GUIContent s_fadeMode = new GUIContent("Fade Mode");
+        static readonly GUIContent s_fadeWidth = new GUIContent("Fade Width");
+        static readonly GUIContent s_enableDistanceDensity = new GUIContent("Enable Distance Density", "Randomly thin out instances based on distance or screen size.");
+        static readonly GUIContent s_densityMode = new GUIContent("Density Mode", "ScreenSize: based on screen % (matches LOD). Raw Distance: based on world-space distance.");
+        static readonly GUIContent s_startScreenSize = new GUIContent("Start Screen Size", "Screen size % where density starts reducing. Above = full density.");
+        static readonly GUIContent s_endScreenSize = new GUIContent("End Screen Size", "Screen size % where density reaches minimum. Auto-derived from the prototype's LOD/screen cull threshold.");
+        static readonly GUIContent s_startDistance = new GUIContent("Start Distance", "Distance (meters) where density is at full (100%). Closer = full density.");
+        static readonly GUIContent s_endDistance = new GUIContent("End Distance", "Distance (meters) where density reaches minimum fraction. Farther = min density.");
+        static readonly GUIContent s_minFraction = new GUIContent("Min Fraction", "Minimum density fraction (0 = cull all, 1 = keep all).");
+        static readonly GUIContent s_densityFadeWidthStateless = new GUIContent("Fade Width", "Fade band width (0-1 for screen-size, 0-1 density fraction for distance). Wider = smoother fade.");
+        static readonly GUIContent s_densityFadeWidthDisabled = new GUIContent("Fade Width", "Only available when using non-Animated Crossfade.");
+        static readonly GUIContent s_maxShadowDistance = new GUIContent("Max Shadow Distance");
+        static readonly GUIContent s_maxCrossfadeCascade = new GUIContent("Max Crossfade Cascade");
+        static readonly GUIContent s_crossfadeDuration = new GUIContent("Animated Crossfade Duration");
 
         // cached serialized properties
         private SerializedProperty _propMaxShadowCascade;
@@ -92,11 +92,11 @@ namespace Fraxinus.GPUBatcher.Editor
             DrawOverrideField(
                 _propOverrideMaxShadowDistance,
                 _propMaxShadowDistance,
-                s_MaxShadowDistance);
+                s_maxShadowDistance);
             DrawOverrideSliderField(
                 _propOverrideMaxShadowCrossfadeCascade,
                 _propMaxShadowCrossfadeCascade,
-                s_MaxCrossfadeCascade, 0, 4);
+                s_maxCrossfadeCascade, 0, 4);
             EditorGUILayout.EndVertical();
 
             // screen size / LOD overrides
@@ -109,7 +109,7 @@ namespace Fraxinus.GPUBatcher.Editor
                 {
                     bool lodGroupAnimated = lodGroup.fadeMode != LODFadeMode.None && lodGroup.animateCrossFading;
                     EditorGUI.BeginDisabledGroup(!lodGroupAnimated);
-                    DrawOverrideField(_propOverrideLodFadeDuration, _propLodFadeDuration, s_CrossfadeDuration);
+                    DrawOverrideField(_propOverrideLodFadeDuration, _propLodFadeDuration, s_crossfadeDuration);
                     EditorGUI.EndDisabledGroup();
                 }
 
@@ -132,19 +132,19 @@ namespace Fraxinus.GPUBatcher.Editor
                     bool minScreenActive = extraData.minScreenSize > 0f && !meshLodActive && !hasLODGroup;
 
                     EditorGUI.BeginDisabledGroup(!minScreenActive);
-                    EditorGUILayout.PropertyField(_propMinScreenSizeFadeMode, s_FadeMode);
+                    EditorGUILayout.PropertyField(_propMinScreenSizeFadeMode, s_fadeMode);
                     EditorGUI.EndDisabledGroup();
 
                     bool fadeWidthEditable = minScreenActive &&
                                                 extraData.minScreenSizeFadeMode == MinScreenSizeFadeMode.Crossfade;
                     EditorGUI.BeginDisabledGroup(!fadeWidthEditable);
-                    EditorGUILayout.PropertyField(_propMinScreenSizeFadeWidth, s_FadeWidth);
+                    EditorGUILayout.PropertyField(_propMinScreenSizeFadeWidth, s_fadeWidth);
                     EditorGUI.EndDisabledGroup();
 
                     bool minScreenAnimated = minScreenActive &&
                                                 extraData.minScreenSizeFadeMode == MinScreenSizeFadeMode.AnimatedCrossfade;
                     EditorGUI.BeginDisabledGroup(!minScreenAnimated);
-                    DrawOverrideField(_propOverrideLodFadeDuration, _propLodFadeDuration, s_CrossfadeDuration);
+                    DrawOverrideField(_propOverrideLodFadeDuration, _propLodFadeDuration, s_crossfadeDuration);
                     EditorGUI.EndDisabledGroup();
                 }
 
@@ -161,7 +161,7 @@ namespace Fraxinus.GPUBatcher.Editor
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
             GPUBatcherInspectorGUI.DrawSectionHeader("Density");
             {
-                EditorGUILayout.PropertyField(_propEnableDistanceDensity, s_EnableDistanceDensity);
+                EditorGUILayout.PropertyField(_propEnableDistanceDensity, s_enableDistanceDensity);
 
                 bool densityEnabled = extraData.enableDistanceDensity;
                 EditorGUI.BeginDisabledGroup(!densityEnabled);
@@ -186,12 +186,12 @@ namespace Fraxinus.GPUBatcher.Editor
                 }
 
                 // shared parameters
-                EditorGUILayout.PropertyField(_propDensityMinFraction, s_MinFraction);
+                EditorGUILayout.PropertyField(_propDensityMinFraction, s_minFraction);
 
                 bool fadeWidthActive = hasCrossfade && !usesAnimatedCrossfade;
                 EditorGUI.BeginDisabledGroup(!fadeWidthActive);
                 EditorGUILayout.PropertyField(_propDensityFadeWidth,
-                    fadeWidthActive ? s_DensityFadeWidthStateless : s_DensityFadeWidthDisabled);
+                    fadeWidthActive ? s_densityFadeWidthStateless : s_densityFadeWidthDisabled);
                 EditorGUI.EndDisabledGroup();
 
                 if (densityEnabled && !hasCrossfade)
@@ -208,19 +208,19 @@ namespace Fraxinus.GPUBatcher.Editor
                 }
 
                 // mode selection
-                EditorGUILayout.PropertyField(_propDistanceDensityMode, s_DensityMode);
+                EditorGUILayout.PropertyField(_propDistanceDensityMode, s_densityMode);
 
                 // mode-specific parameters
                 bool useScreenSize = extraData.distanceDensityMode == DistanceDensityMode.ScreenSize;
                 if (useScreenSize)
                 {
-                    EditorGUILayout.PropertyField(_propDensityStartScreenSize, s_StartScreenSize);
+                    EditorGUILayout.PropertyField(_propDensityStartScreenSize, s_startScreenSize);
 
                     // show the auto-derived end screen size (cull threshold) read-only
                     float cullRatio = ComputeCullThresholdRatio(extraData, lodGroup, meshLodData);
                     float cullPercent = cullRatio * 100f;
                     EditorGUI.BeginDisabledGroup(true);
-                    EditorGUILayout.FloatField(s_EndScreenSize, cullPercent);
+                    EditorGUILayout.FloatField(s_endScreenSize, cullPercent);
                     EditorGUI.EndDisabledGroup();
 
                     // ensure start > end so the density ramp has positive range
@@ -230,8 +230,8 @@ namespace Fraxinus.GPUBatcher.Editor
                 }
                 else // Distance mode
                 {
-                    EditorGUILayout.PropertyField(_propDensityStartDistance, s_StartDistance);
-                    EditorGUILayout.PropertyField(_propDensityEndDistance, s_EndDistance);
+                    EditorGUILayout.PropertyField(_propDensityStartDistance, s_startDistance);
+                    EditorGUILayout.PropertyField(_propDensityEndDistance, s_endDistance);
                 }
 
                 EditorGUI.EndDisabledGroup();

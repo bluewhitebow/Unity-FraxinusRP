@@ -17,10 +17,8 @@ namespace FraxinusEngine.Rendering.Ultra
     }
 
     /// <summary>
-    /// Unity 2022 compatibility implementation of Unity 6 shadow-caster
-    /// culling. The older engine has no ScriptableRenderContext.CullShadowCasters
-    /// API, so UltraRP extracts the same per-light slices and uses the camera's
-    /// existing culling result as the caster source.
+    /// Extracts per-light shadow slices. Unity 6 submits them to native shadow
+    /// culling (including BRG light callbacks); Unity 2022 uses camera culling.
     /// </summary>
     internal static class ShadowCulling
     {
@@ -46,8 +44,6 @@ namespace FraxinusEngine.Rendering.Ultra
             ref CullingResults cullResults,
             int mainLightIndex = -1)
         {
-            _ = context;
-
             NativeArray<VisibleLight> visibleLights = cullResults.visibleLights;
             int lightCount = visibleLights.IsCreated ? visibleLights.Length : 0;
             var result = new NativeArray<UltraRPLightShadowCullingInfos>(
@@ -182,6 +178,34 @@ namespace FraxinusEngine.Rendering.Ultra
                 };
             }
 
+#if UNITY_6000_0_OR_NEWER
+            int splitCount = 0;
+            for (int lightIndex = 0; lightIndex < lightCount; ++lightIndex)
+                if (result[lightIndex].slices.IsCreated)
+                    splitCount += result[lightIndex].slices.Length;
+            var splitBuffer = new NativeArray<ShadowSplitData>(splitCount, Allocator.Temp);
+            var perLightInfos = new NativeArray<LightShadowCasterCullingInfo>(lightCount, Allocator.Temp);
+            int splitOffset = 0;
+            for (int lightIndex = 0; lightIndex < lightCount; ++lightIndex)
+            {
+                var slices = result[lightIndex].slices;
+                if (!slices.IsCreated) continue;
+                for (int sliceIndex = 0; sliceIndex < slices.Length; ++sliceIndex)
+                    splitBuffer[splitOffset + sliceIndex] = slices[sliceIndex].splitData;
+                perLightInfos[lightIndex] = new LightShadowCasterCullingInfo
+                {
+                    splitRange = new RangeInt(splitOffset, slices.Length),
+                    projectionType = visibleLights[lightIndex].lightType == LightType.Directional
+                        ? BatchCullingProjectionType.Orthographic : BatchCullingProjectionType.Perspective,
+                };
+                splitOffset += slices.Length;
+            }
+            context.CullShadowCasters(cullResults, new ShadowCastersCullingInfos
+            {
+                splitBuffer = splitBuffer,
+                perLightInfos = perLightInfos,
+            });
+#endif
             return result;
         }
 

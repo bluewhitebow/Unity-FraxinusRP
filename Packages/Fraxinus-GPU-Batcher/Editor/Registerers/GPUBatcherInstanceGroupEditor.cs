@@ -9,11 +9,11 @@ namespace Fraxinus.GPUBatcher.Editor
     [CustomEditor(typeof(GPUBatcherInstanceGroup))]
     internal class GPUBatcherInstanceGroupEditor : UnityEditor.Editor
     {
-        static readonly GUIContent s_ChunkMode = new GUIContent("Chunk Mode", "How instances are spatially partitioned into chunks.");
-        static readonly GUIContent s_ChunkSize = new GUIContent("Chunk Size (m)", "World-space size of each spatial grid cell.");
-        static readonly GUIContent s_CullDistance = new GUIContent("Chunk Cull Distance (m)", "Max render distance per chunk. 0 = no distance culling.");
+        static readonly GUIContent s_chunkMode = new GUIContent("Chunk Mode", "How instances are spatially partitioned into chunks.");
+        static readonly GUIContent s_chunkSize = new GUIContent("Chunk Size (m)", "World-space size of each spatial grid cell.");
+        static readonly GUIContent s_cullDistance = new GUIContent("Chunk Cull Distance (m)", "Max render distance per chunk. 0 = no distance culling.");
 
-        static readonly GUIContent s_DetectOverrides = new GUIContent("Detect Prefab Overrides", "When enabled, instances with different property overrides (e.g. material, shadow, LOD settings) bake as separate prototypes. When disabled, all instances of the same prefab share one prototype.");
+        static readonly GUIContent s_detectOverrides = new GUIContent("Detect Prefab Overrides", "When enabled, instances with different property overrides (e.g. material, shadow, LOD settings) bake as separate prototypes. When disabled, all instances of the same prefab share one prototype.");
 
         SerializedProperty _propChunkMode;
         SerializedProperty _propChunkSize;
@@ -36,28 +36,28 @@ namespace Fraxinus.GPUBatcher.Editor
 
             var group = (GPUBatcherInstanceGroup)target;
 
-            EditorGUILayout.PropertyField(_propChunkMode, s_ChunkMode);
+            EditorGUILayout.PropertyField(_propChunkMode, s_chunkMode);
             var mode = (ChunkMode)_propChunkMode.enumValueIndex;
             if (mode == ChunkMode.Static)
             {
                 // delayed field so chunk size only commits on end-of-edit, not every frame mid-drag
                 EditorGUI.BeginChangeCheck();
-                float newSize = EditorGUILayout.DelayedFloatField(s_ChunkSize, _propChunkSize.floatValue);
+                float newSize = EditorGUILayout.DelayedFloatField(s_chunkSize, _propChunkSize.floatValue);
                 if (EditorGUI.EndChangeCheck())
                     _propChunkSize.floatValue = Mathf.Max(10f, newSize);
             }
             if (mode != ChunkMode.DynamicGlobalChunk)
-                EditorGUILayout.PropertyField(_propCullDistance, s_CullDistance);
+                EditorGUILayout.PropertyField(_propCullDistance, s_cullDistance);
 
             // bake-time only; ignored once baked
-            if (!group.IsBaked)
-                EditorGUILayout.PropertyField(_propDetectOverrides, s_DetectOverrides);
+            if (!group.isBaked)
+                EditorGUILayout.PropertyField(_propDetectOverrides, s_detectOverrides);
 
             serializedObject.ApplyModifiedProperties();
 
             EditorGUILayout.Space();
 
-            if (!group.IsBaked)
+            if (!group.isBaked)
             {
                 EditorGUILayout.HelpBox(
                     "Place instance GameObjects as children, then Bake. Each LODGroup/renderer becomes a BRG " +
@@ -87,8 +87,8 @@ namespace Fraxinus.GPUBatcher.Editor
 
             EditorGUILayout.LabelField("Status", EditorStyles.boldLabel);
             EditorGUI.indentLevel++;
-            EditorGUILayout.LabelField("Instances", group.InstanceCount.ToString());
-            EditorGUILayout.LabelField("Prototypes", group.PrototypeCount.ToString());
+            EditorGUILayout.LabelField("Instances", group.instanceCount.ToString());
+            EditorGUILayout.LabelField("Prototypes", group.prototypeCount.ToString());
             EditorGUI.indentLevel--;
 
             EditorGUILayout.Space();

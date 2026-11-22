@@ -26,11 +26,11 @@ namespace Fraxinus.GPUBatcher.Editor
             }
 
             // only process if BRG system exists
-            if (!GPUBatcherRenderer.HasInstance) return;
+            if (!GPUBatcherRenderer.hasInstance) return;
 
             // any asset reimport can trigger shader variant recompilation,
             // which silently unbinds all ComputeShader.SetBuffer bindings
-            GPUBatcherRenderer.Instance.InvalidateBufferBindings();
+            GPUBatcherRenderer.instance.InvalidateBufferBindings();
 
             bool anyMaterialChanged = false;
 
@@ -53,14 +53,14 @@ namespace Fraxinus.GPUBatcher.Editor
 
             // deletions destroy assets the BRG may still have registered
             bool anyDestroyed = deletedAssets.Length > 0
-                && GPUBatcherRenderer.Instance.IsInitialized
-                && GPUBatcherRenderer.Instance.HasDestroyedRegisteredAssets();
+                && GPUBatcherRenderer.instance.isInitialized
+                && GPUBatcherRenderer.instance.HasDestroyedRegisteredAssets();
 
             // if any material changed, mark system dirty for batch rebuild
             // (can't cheaply map material -> prefab)
-            if ((anyMaterialChanged || anyDestroyed) && GPUBatcherRenderer.HasInstance && GPUBatcherRenderer.Instance.IsInitialized)
+            if ((anyMaterialChanged || anyDestroyed) && GPUBatcherRenderer.hasInstance && GPUBatcherRenderer.instance.isInitialized)
             {
-                GPUBatcherRenderer.Instance.MarkBatchesDirtyForFullRebuild();
+                GPUBatcherRenderer.instance.MarkBatchesDirtyForFullRebuild();
             }
         }
     }

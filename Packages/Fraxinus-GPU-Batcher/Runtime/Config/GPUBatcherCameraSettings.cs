@@ -14,22 +14,22 @@ namespace Fraxinus.GPUBatcher
                  "Combined with QualitySettings.lodBias. Default 1.0.")]
         public float lodBiasMultiplier = 1.0f;
 
-        public Camera Camera { get; private set; }
+        public new Camera camera { get; private set; }
 
         private static readonly List<GPUBatcherCameraSettings> s_activeInstances = new();
-        public static IReadOnlyList<GPUBatcherCameraSettings> ActiveInstances => s_activeInstances;
+        public static IReadOnlyList<GPUBatcherCameraSettings> activeInstances => s_activeInstances;
 
         private void OnEnable()
         {
-            Camera = GetComponent<Camera>();
+            camera = GetComponent<Camera>();
             s_activeInstances.Add(this);
         }
         private void OnDisable() => s_activeInstances.Remove(this);
 
         public void SnapCrossfade()
         {
-            if (GPUBatcherRenderer.HasInstance)
-                GPUBatcherRenderer.Instance.SnapCrossfadeState(Camera);
+            if (GPUBatcherRenderer.hasInstance)
+                GPUBatcherRenderer.instance.SnapCrossfadeState(camera);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

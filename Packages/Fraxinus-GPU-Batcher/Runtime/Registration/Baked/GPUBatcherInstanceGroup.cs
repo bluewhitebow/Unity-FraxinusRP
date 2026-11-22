@@ -79,11 +79,11 @@ namespace Fraxinus.GPUBatcher
         [SerializeField] ChunkMode _chunkMode = ChunkMode.Static;
         [SerializeField, Min(10f)] float _chunkSize = 256f;
         [SerializeField, Tooltip("Max render distance per chunk (0 = no limit)")]
-        float _cullDistance;
+        float _cullDistance = 0f;
         [SerializeField, Tooltip("When enabled, instances with different property overrides (e.g. material, " +
             "shadow, LOD settings) bake as separate prototypes. When disabled, all instances of the same prefab " +
             "share one prototype and per-instance overrides are ignored.")]
-        bool _detectPrefabOverrides;
+        bool _detectPrefabOverrides = false;
         [SerializeField] List<BakedSignature> _signatures = new();
         [SerializeField, HideInInspector] byte[] _instanceBlob;
         [SerializeField] int _instanceCount;
@@ -92,9 +92,9 @@ namespace Fraxinus.GPUBatcher
         // runtime state
         int[] _globalProtoIndices;
 
-        public bool IsBaked => _baked;
-        public int InstanceCount => _instanceCount;
-        public int PrototypeCount => _signatures?.Count ?? 0;
+        public bool isBaked => _baked;
+        public int instanceCount => _instanceCount;
+        public int prototypeCount => _signatures?.Count ?? 0;
 
         protected override void OnEnable()
         {
@@ -126,7 +126,7 @@ namespace Fraxinus.GPUBatcher
                 if (chunk.instances == null || chunk.instances.Length == 0) continue;
 
                 var link = AllocChunk();
-                if (!link.IsValid)
+                if (!link.isValid)
                 {
                     Debug.LogWarning($"GPUBatcherInstanceGroup: failed to allocate chunk, {chunk.instances.Length} instances dropped");
                     continue;
@@ -185,8 +185,8 @@ namespace Fraxinus.GPUBatcher
 
         int MaxInstancesPerChunkConfigured()
         {
-            var cfg = GPUBatcherConfig.Instance;
-            return cfg != null ? cfg.maxPoolRefsPerChunk * GPUBatcherRenderer.kPoolSize : MaxInstancesPerChunk;
+            var cfg = GPUBatcherConfig.instance;
+            return cfg != null ? cfg.maxPoolRefsPerChunk * GPUBatcherRenderer.instancesPerPool : MaxInstancesPerChunk;
         }
 
         // rebuild a RenderSignature from a stored snapshot, recombining meshes where needed
@@ -203,7 +203,7 @@ namespace Fraxinus.GPUBatcher
                 lodFadeTransitionWidths = new float[n],
                 lodShadowCastingModes = new ShadowCastingMode[n],
                 lodMotionVectorModes = new MotionVectorGenerationMode[n],
-                LodReferenceSize = b.lodReferenceSize,
+                lodReferenceSize = b.lodReferenceSize,
                 fadeMode = b.fadeMode,
                 percentageFadeMask = b.percentageFadeMask,
             };
@@ -212,7 +212,7 @@ namespace Fraxinus.GPUBatcher
             proto.meshLodIndices = (b.meshLodIndices != null && b.meshLodIndices.Length > 0) ? b.meshLodIndices : null;
 #endif
 
-            var cache = GPUBatcherSystem?.MeshCombineCache;
+            var cache = GPUBatcherSystem?.meshCombineCache;
             for (int i = 0; i < n; i++)
             {
                 var lod = b.lods[i];
@@ -256,7 +256,7 @@ namespace Fraxinus.GPUBatcher
             if (lod.sourceMeshes == null || lod.sourceMeshes.Length == 0) return null;
 
             // combining disabled: use first source mesh, ignore offset transforms
-            if (!GPUBatcherConfig.Instance.combineMultiMeshLODs)
+            if (!GPUBatcherConfig.instance.combineMultiMeshLODs)
                 return lod.sourceMeshes[0];
 
             string debugName = $"{name}_proto{protoIndex}_LOD{lodIndex}_Combined";

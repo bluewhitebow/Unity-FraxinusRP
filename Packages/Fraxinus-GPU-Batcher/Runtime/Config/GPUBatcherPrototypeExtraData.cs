@@ -56,7 +56,7 @@ namespace Fraxinus.GPUBatcher
         [Min(0.01f)]
         public float maxShadowDistance = 80f;
 
-        public float EffectiveMaxShadowDistance => overrideMaxShadowDistance ? maxShadowDistance : 0f;
+        public float effectiveMaxShadowDistance => overrideMaxShadowDistance ? maxShadowDistance : 0f;
 
         public bool overrideMaxShadowCrossfadeCascade = false;
 
@@ -67,7 +67,7 @@ namespace Fraxinus.GPUBatcher
         [Range(0, 4)]
         public int maxShadowCrossfadeCascade = 4;
 
-        public int EffectiveMaxShadowCrossfadeCascade => overrideMaxShadowCrossfadeCascade ? maxShadowCrossfadeCascade : -99; // -99 = use global
+        public int effectiveMaxShadowCrossfadeCascade => overrideMaxShadowCrossfadeCascade ? maxShadowCrossfadeCascade : -99; // -99 = use global
 
         [Tooltip("Enable per-instance distance density culling. Randomly thins out instances based on distance or screen size. " +
                  "Uses the prototype's LOD fade mode for transitions.")]

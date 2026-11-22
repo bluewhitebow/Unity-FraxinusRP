@@ -21,36 +21,36 @@ public static class TerrainTreeSelector
         public float heightScale;
     }
 
-    static List<TreeCache> _cache = new List<TreeCache>();
-    static Mesh[] _protoMeshes;
-    static Vector3[] _protoScales;
-    static Terrain _cachedTerrain;
-    static int _cachedTreeCount;
+    static List<TreeCache> s_cache = new List<TreeCache>();
+    static Mesh[] s_protoMeshes;
+    static Vector3[] s_protoScales;
+    static Terrain s_cachedTerrain;
+    static int s_cachedTreeCount;
     delegate bool IntersectRayMeshDelegate(Ray ray, Mesh mesh, Matrix4x4 matrix, out RaycastHit hit);
-    static IntersectRayMeshDelegate _intersectRayMesh;
-    static TerrainTreeProxy _activeProxy;
-    static PivotMode _savedPivotMode;
+    static IntersectRayMeshDelegate s_intersectRayMesh;
+    static TerrainTreeProxy s_activeProxy;
+    static PivotMode s_savedPivotMode;
 
     // track drag state
-    static int _lastHotControl;
-    static bool _wasDragging;
+    static int s_lastHotControl;
+    static bool s_wasDragging;
 
     // screen-space radius around handle center where tree picking is suppressed
-    const float kHandleGuardRadius = 120f;
+    const float k_handleGuardRadius = 120f;
 
     // scratch list for GetComponentsInChildren, avoids allocation per raycast
-    static readonly List<MeshFilter> _meshFilterScratch = new List<MeshFilter>();
+    static readonly List<MeshFilter> s_meshFilterScratch = new List<MeshFilter>();
 
     // reusable scratch list for treeInstances copies, avoids allocation per edit
-    static List<TreeInstance> _treeListScratch;
+    static List<TreeInstance> s_treeListScratch;
 
     internal static List<TreeInstance> RentTreeList(TerrainData data)
     {
-        if (_treeListScratch == null)
-            _treeListScratch = new List<TreeInstance>();
-        _treeListScratch.Clear();
-        _treeListScratch.AddRange(data.treeInstances);
-        return _treeListScratch;
+        if (s_treeListScratch == null)
+            s_treeListScratch = new List<TreeInstance>();
+        s_treeListScratch.Clear();
+        s_treeListScratch.AddRange(data.treeInstances);
+        return s_treeListScratch;
     }
 
     static TerrainTreeSelector()
@@ -81,13 +81,13 @@ public static class TerrainTreeSelector
         if (mi == null)
             Debug.LogError("TerrainTreeSelector: Could not find HandleUtility.IntersectRayMesh via reflection");
         else
-            _intersectRayMesh = (IntersectRayMeshDelegate)System.Delegate.CreateDelegate(typeof(IntersectRayMeshDelegate), mi);
+            s_intersectRayMesh = (IntersectRayMeshDelegate)System.Delegate.CreateDelegate(typeof(IntersectRayMeshDelegate), mi);
     }
 
     static bool IntersectRayMesh(Ray ray, Mesh mesh, Matrix4x4 matrix, out RaycastHit hit)
     {
-        if (_intersectRayMesh == null) { hit = default; return false; }
-        return _intersectRayMesh(ray, mesh, matrix, out hit);
+        if (s_intersectRayMesh == null) { hit = default; return false; }
+        return s_intersectRayMesh(ray, mesh, matrix, out hit);
     }
 
     static void OnSceneSaving(UnityEngine.SceneManagement.Scene scene, string path)
@@ -98,9 +98,9 @@ public static class TerrainTreeSelector
     static void OnBeforeAssemblyReload()
     {
         FlushProxy();
-        _cache.Clear();
-        _cachedTerrain = null;
-        _cachedTreeCount = -1;
+        s_cache.Clear();
+        s_cachedTerrain = null;
+        s_cachedTreeCount = -1;
     }
 
     static void OnPlayModeChanged(PlayModeStateChange state)
@@ -111,44 +111,44 @@ public static class TerrainTreeSelector
 
     static void ResetProxyState()
     {
-        _activeProxy = null;
-        Tools.pivotMode = _savedPivotMode;
+        s_activeProxy = null;
+        Tools.pivotMode = s_savedPivotMode;
     }
 
     static void FlushProxy()
     {
-        if (_activeProxy != null)
+        if (s_activeProxy != null)
         {
-            _activeProxy.ConvertBackToTree(false);
+            s_activeProxy.ConvertBackToTree(false);
             ResetProxyState();
         }
     }
 
     static void RebuildCache(Terrain terrain)
     {
-        _cache.Clear();
-        _cachedTerrain = terrain;
+        s_cache.Clear();
+        s_cachedTerrain = terrain;
 
         TerrainData data = terrain.terrainData;
         Vector3 terrainPos = terrain.transform.position;
         TreeInstance[] trees = data.treeInstances;
         TreePrototype[] protos = data.treePrototypes;  // cache, each access allocates
-        _cachedTreeCount = trees.Length;
+        s_cachedTreeCount = trees.Length;
 
-        _protoMeshes = new Mesh[protos.Length];
-        _protoScales = new Vector3[protos.Length];
+        s_protoMeshes = new Mesh[protos.Length];
+        s_protoScales = new Vector3[protos.Length];
         for (int p = 0; p < protos.Length; p++)
         {
             MeshFilter mf = GetLOD0MeshFilter(protos[p].prefab);
-            _protoMeshes[p] = mf != null ? mf.sharedMesh : null;
-            _protoScales[p] = protos[p].prefab != null ? protos[p].prefab.transform.localScale : Vector3.one;
+            s_protoMeshes[p] = mf != null ? mf.sharedMesh : null;
+            s_protoScales[p] = protos[p].prefab != null ? protos[p].prefab.transform.localScale : Vector3.one;
         }
 
         for (int i = 0; i < trees.Length; i++)
         {
             TreeInstance tree = trees[i];
-            Mesh mesh = tree.prototypeIndex >= 0 && tree.prototypeIndex < _protoMeshes.Length
-                ? _protoMeshes[tree.prototypeIndex] : null;
+            Mesh mesh = tree.prototypeIndex >= 0 && tree.prototypeIndex < s_protoMeshes.Length
+                ? s_protoMeshes[tree.prototypeIndex] : null;
             if (mesh == null) continue;
 
             Vector3 worldPos = Vector3.Scale(tree.position, data.size) + terrainPos;
@@ -156,11 +156,11 @@ public static class TerrainTreeSelector
 
             // prefab root scale matches the registerer's rendered scale (widthScale * prefab localScale)
             Vector3 scale = Vector3.Scale(new Vector3(tree.widthScale, tree.heightScale, tree.widthScale),
-                _protoScales[tree.prototypeIndex]);
+                s_protoScales[tree.prototypeIndex]);
             Vector3 scaledCenter = Vector3.Scale(localBounds.center, scale) + worldPos;
             Vector3 scaledExtents = Vector3.Scale(localBounds.extents, scale);
 
-            _cache.Add(new TreeCache
+            s_cache.Add(new TreeCache
             {
                 worldPos = worldPos,
                 worldBounds = new Bounds(scaledCenter, scaledExtents * 2f),
@@ -175,7 +175,7 @@ public static class TerrainTreeSelector
 
     static void EnsureCache(Terrain terrain)
     {
-        if (_cachedTerrain != terrain || _cachedTreeCount != terrain.terrainData.treeInstanceCount)
+        if (s_cachedTerrain != terrain || s_cachedTreeCount != terrain.terrainData.treeInstanceCount)
             RebuildCache(terrain);
     }
 
@@ -205,24 +205,24 @@ public static class TerrainTreeSelector
 
     static void OnSelectionChanged()
     {
-        if (_activeProxy == null) return;
+        if (s_activeProxy == null) return;
 
         if (Selection.activeGameObject == null || Selection.activeGameObject.GetComponent<TerrainTreeProxy>() == null)
         {
-            _activeProxy.ConvertBackToTree(true);
+            s_activeProxy.ConvertBackToTree(true);
             ResetProxyState();
         }
     }
 
     static void OnEditorUpdate()
     {
-        if (_activeProxy == null) return;
+        if (s_activeProxy == null) return;
 
         // enforce pivot mode, user can't switch to center while proxy is active
         if (Tools.pivotMode != PivotMode.Pivot)
             Tools.pivotMode = PivotMode.Pivot;
 
-        Transform t = _activeProxy.transform;
+        Transform t = s_activeProxy.transform;
 
         // enforce Y-only rotation
         Vector3 euler = t.eulerAngles;
@@ -245,29 +245,29 @@ public static class TerrainTreeSelector
         Event e = Event.current;
 
         // detect drag completion on the proxy
-        if (_activeProxy != null)
+        if (s_activeProxy != null)
         {
             int hotControl = GUIUtility.hotControl;
 
-            if (_lastHotControl != 0 && hotControl == 0 && _wasDragging)
+            if (s_lastHotControl != 0 && hotControl == 0 && s_wasDragging)
             {
                 // drag just ended, write tree back to terrain
-                _activeProxy.WriteToTerrain();
-                _wasDragging = false;
+                s_activeProxy.WriteToTerrain();
+                s_wasDragging = false;
             }
 
-            if (hotControl != 0 && Selection.activeGameObject == _activeProxy.gameObject)
+            if (hotControl != 0 && Selection.activeGameObject == s_activeProxy.gameObject)
             {
-                _wasDragging = true;
+                s_wasDragging = true;
             }
 
-            _lastHotControl = hotControl;
+            s_lastHotControl = hotControl;
         }
 
         if (e.type == EventType.MouseDown && e.button == 0)
         {
             // check config toggle
-            var config = GPUBatcherConfig.Instance;
+            var config = GPUBatcherConfig.instance;
             if (config != null && !config.enableTerrainTreeSelection) return;
 
             // don't interfere if Unity has GUI control
@@ -293,9 +293,9 @@ public static class TerrainTreeSelector
 
             if (hitIndex >= 0)
             {
-                if (_activeProxy != null)
+                if (s_activeProxy != null)
                 {
-                    _activeProxy.ConvertBackToTree(true);
+                    s_activeProxy.ConvertBackToTree(true);
                     ResetProxyState();
                 }
 
@@ -308,9 +308,9 @@ public static class TerrainTreeSelector
 
         if (e.type == EventType.KeyDown && (e.keyCode == KeyCode.Delete || e.keyCode == KeyCode.Backspace))
         {
-            if (_activeProxy != null && Selection.activeGameObject == _activeProxy.gameObject)
+            if (s_activeProxy != null && Selection.activeGameObject == s_activeProxy.gameObject)
             {
-                _activeProxy.DeleteTree();
+                s_activeProxy.DeleteTree();
                 ResetProxyState();
                 e.Use();
                 sceneView.Repaint();
@@ -361,20 +361,20 @@ public static class TerrainTreeSelector
         proxyComp.originalHeightScale = tree.heightScale;
         proxyComp.terrainTreeIndex = -1; // not in terrain yet
 
-        _activeProxy = proxyComp;
-        _wasDragging = false;
-        _lastHotControl = 0;
+        s_activeProxy = proxyComp;
+        s_wasDragging = false;
+        s_lastHotControl = 0;
         Selection.activeGameObject = proxy;
-        _savedPivotMode = Tools.pivotMode;
+        s_savedPivotMode = Tools.pivotMode;
         Tools.pivotMode = PivotMode.Pivot;
 
-        if (GPUBatcherConfig.Instance != null && GPUBatcherConfig.Instance.enableDebugLogging)
+        if (GPUBatcherConfig.instance != null && GPUBatcherConfig.instance.enableDebugLogging)
             Debug.Log($"Selected tree #{treeIndex}: {proto.prefab.name}");
     }
 
     static void InvalidateCache()
     {
-        _cachedTreeCount = -1;
+        s_cachedTreeCount = -1;
     }
 
     static bool ShouldAllowTreeSelection()
@@ -392,7 +392,7 @@ public static class TerrainTreeSelector
     {
         if (Selection.activeTransform == null) return false;
         Vector2 handleScreen = HandleUtility.WorldToGUIPoint(Tools.handlePosition);
-        return Vector2.Distance(handleScreen, mousePosition) < kHandleGuardRadius;
+        return Vector2.Distance(handleScreen, mousePosition) < k_handleGuardRadius;
     }
 
     static int RaycastTreeMeshes(Ray ray, Vector2 mousePosition)
@@ -405,9 +405,9 @@ public static class TerrainTreeSelector
         if (pickedObject != null && pickedObject.GetComponent<Terrain>() == null)
         {
             // get the mesh from the picked object and raycast against it for actual distance
-            _meshFilterScratch.Clear();
-            pickedObject.GetComponentsInChildren(_meshFilterScratch);
-            foreach (MeshFilter mf in _meshFilterScratch)
+            s_meshFilterScratch.Clear();
+            pickedObject.GetComponentsInChildren(s_meshFilterScratch);
+            foreach (MeshFilter mf in s_meshFilterScratch)
             {
                 if (mf == null || mf.sharedMesh == null) continue;
 
@@ -430,9 +430,9 @@ public static class TerrainTreeSelector
         float closestDist = float.MaxValue;
         int closestIndex = -1;
 
-        for (int i = 0; i < _cache.Count; i++)
+        for (int i = 0; i < s_cache.Count; i++)
         {
-            TreeCache cached = _cache[i];
+            TreeCache cached = s_cache[i];
 
             if (!cached.worldBounds.IntersectRay(ray, out float boundsDist))
                 continue;
@@ -444,15 +444,15 @@ public static class TerrainTreeSelector
             if (boundsDist >= pickedObjectDistance)
                 continue;
 
-            Mesh mesh = cached.prototypeIndex >= 0 && cached.prototypeIndex < _protoMeshes.Length
-                ? _protoMeshes[cached.prototypeIndex] : null;
+            Mesh mesh = cached.prototypeIndex >= 0 && cached.prototypeIndex < s_protoMeshes.Length
+                ? s_protoMeshes[cached.prototypeIndex] : null;
             if (mesh == null) continue;
 
             Matrix4x4 treeMatrix = Matrix4x4.TRS(
                 cached.worldPos,
                 Quaternion.Euler(0f, cached.rotation * Mathf.Rad2Deg, 0f),
                 Vector3.Scale(new Vector3(cached.widthScale, cached.heightScale, cached.widthScale),
-                    _protoScales[cached.prototypeIndex])
+                    s_protoScales[cached.prototypeIndex])
             );
 
             Matrix4x4 inv = treeMatrix.inverse;
@@ -594,7 +594,7 @@ public class TerrainTreeProxy : MonoBehaviour
             }
         }
 
-        if (GPUBatcherConfig.Instance != null && GPUBatcherConfig.Instance.enableDebugLogging)
+        if (GPUBatcherConfig.instance != null && GPUBatcherConfig.instance.enableDebugLogging)
             Debug.Log($"Deleted terrain tree: {gameObject.name}");
         DestroyImmediate(gameObject);
     }

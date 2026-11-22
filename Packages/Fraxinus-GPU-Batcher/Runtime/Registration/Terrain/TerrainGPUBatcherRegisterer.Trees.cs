@@ -7,6 +7,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Fraxinus.GPUBatcher
 {
@@ -17,19 +18,21 @@ namespace Fraxinus.GPUBatcher
         // cached TerrainData properties, used at runtime and in editor change detection
         private TreeInstance[] _cachedTreeInstances;
 
+        [FormerlySerializedAs("treeChunkSize")]
         [Header("Chunking")]
         [Tooltip("World-space size of each spatial chunk (meters). " +
                  "Smaller = more chunks = better culling but more overhead. " +
                  "A 2048m terrain with 256m chunks gives 8x8 = 64 chunks.")]
         [Min(1f)]
-        [SerializeField] private float treeChunkSize = 256f;
+        [SerializeField] private float _treeChunkSize = 256f;
 
-        [SerializeField] private bool debugSkipTreeBRGUpload = false;
+        [FormerlySerializedAs("debugSkipTreeBRGUpload")]
+        [SerializeField] private bool _debugSkipTreeBRGUpload = false;
 
         private static float s_treeRenderDistance = float.MaxValue;
 
         /// <summary>Global per-instance tree render distance. Assigning re-applies to all registered tree chunks.</summary>
-        public static float TreeRenderDistance
+        public static float treeRenderDistance
         {
             get => s_treeRenderDistance;
             set
@@ -56,7 +59,6 @@ namespace Fraxinus.GPUBatcher
         // terrain proto index -> global BRG proto index, size = treePrototypes.Length, -1 = unmapped
         private int[] _treeProtoToGlobal;
 
-        // chunk state: chunkId -> (bounds, instanceCount)
         private Dictionary<int, (Bounds bounds, int instanceCount)> _treeChunkData = new();
         private int _totalTreeInstances;
 
@@ -103,14 +105,14 @@ namespace Fraxinus.GPUBatcher
                 if (_treeCachedInstances.Count == 0)
                 {
 #if DEBUG
-                    if (enableDebugLogging)
+                    if (_enableDebugLogging)
                         Debug.LogWarning($"TerrainGPUBatcherRegisterer[Trees]: No trees extracted from {gameObject.name}");
 #endif
                     return;
                 }
 
 #if DEBUG
-                if (enableDebugLogging)
+                if (_enableDebugLogging)
                     Debug.Log($"TerrainGPUBatcherRegisterer[Trees]: Extracted {_treeCachedInstances.Count} trees from {gameObject.name}");
 #endif
 
@@ -138,7 +140,6 @@ namespace Fraxinus.GPUBatcher
         {
             if (!_treesRegistered) return;
 
-            // release chunks from BRG system
             foreach (int chunkId in _treeChunkData.Keys)
                 ReleaseChunk(new ChunkLink(chunkId));
 
@@ -159,7 +160,7 @@ namespace Fraxinus.GPUBatcher
             UploadChunks();
 
 #if DEBUG
-            if (enableDebugLogging)
+            if (_enableDebugLogging)
                 Debug.Log($"TerrainGPUBatcherRegisterer[Trees]: Registered {_totalTreeInstances:N0} trees in {_treeChunkData.Count} chunks");
 #endif
         }
@@ -247,8 +248,8 @@ namespace Fraxinus.GPUBatcher
                 prefabScales[i] = (float3)prefab.transform.localScale;
 
 #if DEBUG
-                if (enableDebugLogging)
-                    Debug.Log($"TerrainGPUBatcherRegisterer[Trees]: Registered tree[{i}] '{prefab.name}' as global proto[{globalIdx}] with {sig.LODCount} LODs");
+                if (_enableDebugLogging)
+                    Debug.Log($"TerrainGPUBatcherRegisterer[Trees]: Registered tree[{i}] '{prefab.name}' as global proto[{globalIdx}] with {sig.lodCount} LODs");
 #endif
             }
 
@@ -320,7 +321,7 @@ namespace Fraxinus.GPUBatcher
                 math.max(_maxMeshProtrusionPos.z, _maxMeshProtrusionNeg.z));
 
 #if DEBUG
-            if (enableDebugLogging)
+            if (_enableDebugLogging)
                 Debug.Log($"TerrainGPUBatcherRegisterer[Trees]: Mesh protrusion pos={_maxMeshProtrusionPos} neg={_maxMeshProtrusionNeg}");
 #endif
         }
@@ -361,11 +362,11 @@ namespace Fraxinus.GPUBatcher
             UploadWithGrid();
 
 #if DEBUG
-            if (enableDebugLogging)
+            if (_enableDebugLogging)
             {
                 int avg = _treeChunkData.Count > 0 ? _totalTreeInstances / _treeChunkData.Count : 0;
-                Debug.Log($"TerrainGPUBatcherRegisterer[Trees]: Grid ({treeChunkSize}m) produced {_treeChunkData.Count} chunks " +
-                          $"for {_totalTreeInstances} instances (avg {avg} per chunk, max {GPUBatcherSystem.MaxInstancesPerChunk})");
+                Debug.Log($"TerrainGPUBatcherRegisterer[Trees]: Grid ({_treeChunkSize}m) produced {_treeChunkData.Count} chunks " +
+                          $"for {_totalTreeInstances} instances (avg {avg} per chunk, max {GPUBatcherSystem.maxInstancesPerChunk})");
             }
 #endif
         }
@@ -379,8 +380,8 @@ namespace Fraxinus.GPUBatcher
             {
                 var pos = _treeCachedInstances[i].position;
                 int2 gridCoord = new int2(
-                    (int)math.floor(pos.x / treeChunkSize),
-                    (int)math.floor(pos.z / treeChunkSize)
+                    (int)math.floor(pos.x / _treeChunkSize),
+                    (int)math.floor(pos.z / _treeChunkSize)
                 );
 
                 if (!chunkGroups.TryGetValue(gridCoord, out var list))
@@ -410,7 +411,6 @@ namespace Fraxinus.GPUBatcher
         // upload a contiguous range of indices as a single chunk
         private int UploadChunkFromList(List<int> indices, int start, int count)
         {
-            // fill instance buffer
             _treeInstanceBuffer.Clear();
             if (_treeInstanceBuffer.Capacity < count)
                 _treeInstanceBuffer.SetCapacity(count);
@@ -419,7 +419,7 @@ namespace Fraxinus.GPUBatcher
                 _treeInstanceBuffer.Add(_treeCachedInstances[indices[start + i]]);
 
             var link = AllocChunk();
-            if (!link.IsValid)
+            if (!link.isValid)
             {
                 Debug.LogWarning($"TerrainGPUBatcherRegisterer[Trees]: Failed to allocate chunk, {count} instances dropped");
                 return -1;
@@ -430,7 +430,7 @@ namespace Fraxinus.GPUBatcher
 
             Bounds chunkBounds = CalculateTreeBounds(instSlice);
 
-            _treeChunkData[link.Id] = (chunkBounds, count);
+            _treeChunkData[link.id] = (chunkBounds, count);
 
             // populated before WriteChunk since OnChunkWritten may fire synchronously
             if (_cachedToTerrainTreeIndex.Count > 0)
@@ -438,10 +438,10 @@ namespace Fraxinus.GPUBatcher
                 var terrainIndices = new List<int>(count);
                 for (int i = 0; i < count; i++)
                     terrainIndices.Add(_cachedToTerrainTreeIndex[indices[start + i]]);
-                _chunkIdToTerrainTreeIndices[link.Id] = terrainIndices;
+                _chunkIdToTerrainTreeIndices[link.id] = terrainIndices;
             }
 
-            if (!debugSkipTreeBRGUpload)
+            if (!_debugSkipTreeBRGUpload)
             {
                 float chunkCull = Mathf.Min(_terrain.treeDistance, s_treeRenderDistance);
                 WriteChunk(link, instSlice, chunkBounds, chunkCull, s_treeRenderDistance);
@@ -449,7 +449,7 @@ namespace Fraxinus.GPUBatcher
 
             _totalTreeInstances += count;
 
-            return link.Id;
+            return link.id;
         }
 
         // re-applies TreeRenderDistance to every registered tree chunk after a runtime change
@@ -465,14 +465,14 @@ namespace Fraxinus.GPUBatcher
 
         #region InstanceLink data
 
-        public event Action<ChunkLink, List<int>> OnTreeChunkWritten;
-        public Dictionary<int, List<int>> ChunkOwnedTrees => _chunkIdToTerrainTreeIndices;
-        public ICollection<int> TreeChunkIds => _treeChunkData.Keys;
-        public TreeInstance[] CachedTreeInstanceData => _cachedTreeInstances;
+        public event Action<ChunkLink, List<int>> onTreeChunkWritten;
+        public Dictionary<int, List<int>> chunkOwnedTrees => _chunkIdToTerrainTreeIndices;
+        public ICollection<int> treeChunkIds => _treeChunkData.Keys;
+        public TreeInstance[] cachedTreeInstanceData => _cachedTreeInstances;
         private void OnTreeChunkWrittenInternal(int chunkId)
         {
             _chunkIdToTerrainTreeIndices.TryGetValue(chunkId, out var terrainIndices);
-            OnTreeChunkWritten?.Invoke(new ChunkLink(chunkId), terrainIndices);
+            onTreeChunkWritten?.Invoke(new ChunkLink(chunkId), terrainIndices);
         }
 
         #endregion

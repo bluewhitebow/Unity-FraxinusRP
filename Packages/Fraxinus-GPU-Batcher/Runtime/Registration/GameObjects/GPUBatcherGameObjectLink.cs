@@ -19,52 +19,50 @@ namespace Fraxinus.GPUBatcher
 #endif
 
         [SerializeField, HideInInspector] GPUBatcherGameObjectGroup _group;
-        InstanceLink _instanceLink = InstanceLink.Invalid;
+        InstanceLink _instanceLink = InstanceLink.invalid;
         [SerializeField, HideInInspector] int _globalProtoIndex = -1;
 
-        public GPUBatcherGameObjectGroup Group
+        public GPUBatcherGameObjectGroup group
         {
             get => _group;
             set => _group = value;
         }
 
-        public InstanceLink InstanceLink
+        public InstanceLink instanceLink
         {
             get => _instanceLink;
             internal set
             {
-                // unregister old
-                if (_instanceLink.IsValid)
+                if (_instanceLink.isValid)
                     s_instanceMap.Remove(InstanceMapKey);
 
                 _instanceLink = value;
 
-                // register new
-                if (_instanceLink.IsValid)
+                if (_instanceLink.isValid)
                     s_instanceMap[InstanceMapKey] = _instanceLink;
             }
         }
 
-        public int GlobalProtoIndex
+        public int globalProtoIndex
         {
             get => _globalProtoIndex;
             internal set => _globalProtoIndex = value;
         }
 
-        public bool ShouldRender => gameObject.activeInHierarchy && enabled;
+        public bool shouldRender => gameObject.activeInHierarchy && enabled;
 
         void OnEnable()
         {
             bool isClone = false;
 
             // detect clones from Instantiate (runtime - _instanceLink is memory-copied)
-            if (_instanceLink.IsValid && !s_instanceMap.ContainsKey(InstanceMapKey))
+            if (_instanceLink.isValid && !s_instanceMap.ContainsKey(InstanceMapKey))
             {
-                _instanceLink = InstanceLink.Invalid;
+                _instanceLink = InstanceLink.invalid;
                 isClone = _group != null && _globalProtoIndex >= 0;
             }
             // detect clones from editor duplication (_instanceLink not serialized, _globalProtoIndex is)
-            else if (!_instanceLink.IsValid && _group != null && _globalProtoIndex >= 0)
+            else if (!_instanceLink.isValid && _group != null && _globalProtoIndex >= 0)
             {
                 isClone = true;
             }
@@ -81,13 +79,13 @@ namespace Fraxinus.GPUBatcher
                 _group.RegisterClonedInstance(this);
             }
 
-            if (_instanceLink.IsValid && _group != null && _group.IsRegistered)
+            if (_instanceLink.isValid && _group != null && _group.isRegistered)
             {
-                _group.Registration.SetEnabledUnsafe(_instanceLink, true);
+                _group.registration.SetEnabledUnsafe(_instanceLink, true);
 
                 // sync position - transform changes while disabled aren't tracked
                 var t = transform;
-                _group.Registration.StageMove(_instanceLink,
+                _group.registration.StageMove(_instanceLink,
                     (Unity.Mathematics.float3)t.position,
                     (Unity.Mathematics.quaternion)t.rotation,
                     (Unity.Mathematics.float3)t.lossyScale);
@@ -97,14 +95,14 @@ namespace Fraxinus.GPUBatcher
         void OnDisable()
         {
             if (!gameObject.scene.isLoaded) return;
-            if (_instanceLink.IsValid && _group != null && _group.IsRegistered)
-                _group.Registration.SetEnabledUnsafe(_instanceLink, false);
+            if (_instanceLink.isValid && _group != null && _group.isRegistered)
+                _group.registration.SetEnabledUnsafe(_instanceLink, false);
         }
 
         // native transform change tracking via ObjectDispatcher
         public static void TryProcessTransformChanges(ChangeTrackerTransformData changes, GPUBatcherRenderer renderer)
         {
-            for (int i = 0; i < changes.Length; i++)
+            for (int i = 0; i < changes.length; i++)
             {
                 var objectId = changes.transformedIDs[i];
                 if (!s_instanceMap.TryGetValue(objectId, out InstanceLink link))
@@ -114,23 +112,22 @@ namespace Fraxinus.GPUBatcher
                 var pos = new Unity.Mathematics.float3(m.m03, m.m13, m.m23);
                 var rot = new Unity.Mathematics.quaternion(m.rotation.x, m.rotation.y, m.rotation.z, m.rotation.w);
                 var scale = (Unity.Mathematics.float3)m.lossyScale;
-                renderer.MoveInstance(link.GlobalBRGSlotIndex, pos, rot, scale);
+                renderer.MoveInstance(link.globalBRGSlotIndex, pos, rot, scale);
             }
         }
 
         void OnDestroy()
         {
-            if (_instanceLink.IsValid)
+            if (_instanceLink.isValid)
             {
                 s_instanceMap.Remove(InstanceMapKey);
 
-                // free the BRG slot
-                if (gameObject.scene.isLoaded && _group != null && _group.IsRegistered)
-                    _group.Registration.RemoveUnsafe(_instanceLink);
+                if (gameObject.scene.isLoaded && _group != null && _group.isRegistered)
+                    _group.registration.RemoveUnsafe(_instanceLink);
             }
 
             if (!gameObject.scene.isLoaded) return;
-            if (_group != null && _group.IsRegistered)
+            if (_group != null && _group.isRegistered)
                 _group.NotifyInstanceDestroyed(this);
         }
 
@@ -145,13 +142,13 @@ namespace Fraxinus.GPUBatcher
         public static void TryProcessRendererChanges(ChangeTrackerTypeData changes)
         {
             HashSet<GPUBatcherGameObjectGroup> dirtyGroups = null;
-            for (int i = 0; i < changes.Length; i++)
+            for (int i = 0; i < changes.length; i++)
             {
                 var mr = changes.changed[i] as MeshRenderer;
                 if (mr == null) continue;
 
                 var link = mr.GetComponent<GPUBatcherGameObjectLink>();
-                if (link == null || link._group == null || !link._group.IsRegistered) continue;
+                if (link == null || link._group == null || !link._group.isRegistered) continue;
 
                 dirtyGroups ??= new HashSet<GPUBatcherGameObjectGroup>();
                 dirtyGroups.Add(link._group);

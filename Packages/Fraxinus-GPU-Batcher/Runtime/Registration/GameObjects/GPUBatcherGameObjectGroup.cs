@@ -42,7 +42,7 @@ namespace Fraxinus.GPUBatcher
 #endif
         [SerializeField, Min(10f)] float _chunkSize = 256f;
         [SerializeField, Tooltip("Max render distance per chunk (0 = no limit)")]
-        float _cullDistance;
+        float _cullDistance = 0f;
 #if UNITY_EDITOR
         [SerializeField, Tooltip("When enabled, instances with different property overrides (e.g. crossfade, shadow settings) " +
             "will register as separate prototypes. When disabled, all instances of the same prefab share one prototype.")]
@@ -58,14 +58,14 @@ namespace Fraxinus.GPUBatcher
         int[] _globalProtoIndices;
         long[] _prototypeSourceHashes; // parallel to _prototypeSources, resolves runtime clones to local proto
         Dictionary<int, int> _chunkIdToCachedIndex; // chunkId -> index in _cachedChunks
-        ChunkLink _primaryChunk = ChunkLink.Invalid; // first allocated chunk, used for AddInstance on clones
+        ChunkLink _primaryChunk = ChunkLink.invalid; // first allocated chunk, used for AddInstance on clones
         readonly HashSet<GPUBatcherGameObjectLink> _trackedLinks = new(); // every wired link this group owns, cleared on Shutdown
 
-        public bool IsConverted => _converted;
-        public int ChunkCount => _cachedChunks?.Length ?? 0;
-        public int PrototypeCount => _prototypeSources.Count;
-        public IReadOnlyList<GameObject> PrototypeSources => _prototypeSources;
-        public float ChunkSize { get => _chunkSize; set => _chunkSize = value; }
+        public bool isConverted => _converted;
+        public int chunkCount => _cachedChunks?.Length ?? 0;
+        public int prototypeCount => _prototypeSources.Count;
+        public IReadOnlyList<GameObject> prototypeSources => _prototypeSources;
+        public float chunkSize { get => _chunkSize; set => _chunkSize = value; }
 
         public int GetGlobalProtoIndex(int localIndex)
         {
@@ -74,7 +74,7 @@ namespace Fraxinus.GPUBatcher
             return _globalProtoIndices[localIndex];
         }
 
-        public int InstanceCount
+        public int instanceCount
         {
             get
             {
@@ -136,16 +136,16 @@ namespace Fraxinus.GPUBatcher
                 if (cached.instances == null || cached.instances.Length == 0) continue;
 
                 var link = AllocChunk();
-                if (!link.IsValid)
+                if (!link.isValid)
                 {
                     Debug.LogWarning($"GPUBatcherGameObjectGroup: Failed to allocate chunk, {cached.instances.Length} instances dropped");
                     continue;
                 }
 
-                if (!_primaryChunk.IsValid)
+                if (!_primaryChunk.isValid)
                     _primaryChunk = link;
 
-                _chunkIdToCachedIndex[link.Id] = c;
+                _chunkIdToCachedIndex[link.id] = c;
 
                 // remap local prototype indices to global
                 var instances = new NativeArray<InstanceData>(cached.instances.Length, Allocator.TempJob);
@@ -170,18 +170,18 @@ namespace Fraxinus.GPUBatcher
                 SetSourceRenderersHidden(false);
 
             foreach (var link in _trackedLinks)
-                if (link != null) link.InstanceLink = InstanceLink.Invalid;
+                if (link != null) link.instanceLink = InstanceLink.invalid;
             _trackedLinks.Clear();
 
             _globalProtoIndices = null;
             _prototypeSourceHashes = null;
             _chunkIdToCachedIndex = null;
-            _primaryChunk = ChunkLink.Invalid;
+            _primaryChunk = ChunkLink.invalid;
         }
 
         internal void RegisterClonedInstance(GPUBatcherGameObjectLink link)
         {
-            if (!_registered || !_primaryChunk.IsValid) return;
+            if (!_registered || !_primaryChunk.isValid) return;
 
             // skip existing source objects (fires after domain reload when _instanceLink resets)
             if (_sourceObjects.Contains(link.gameObject)) return;
@@ -203,14 +203,14 @@ namespace Fraxinus.GPUBatcher
             };
 
             var instanceLink = AddInstance(_primaryChunk, instanceData);
-            if (instanceLink.IsValid)
+            if (instanceLink.isValid)
             {
-                link.InstanceLink = instanceLink;
-                link.Group = this;
-                link.GlobalProtoIndex = globalProto; // refresh stale serialized value to current session
+                link.instanceLink = instanceLink;
+                link.group = this;
+                link.globalProtoIndex = globalProto; // refresh stale serialized value to current session
                 _trackedLinks.Add(link);
 #if UNITY_EDITOR
-                GPUBatcherSystem.SetEntityId(instanceLink.GlobalBRGSlotIndex,
+                GPUBatcherSystem.SetEntityId(instanceLink.globalBRGSlotIndex,
                     GetPickingId(link.gameObject),
                     globalProto, link.transform);
 #endif
@@ -284,8 +284,8 @@ namespace Fraxinus.GPUBatcher
                 {
                     // dead source on a build re-upload: disable the re-written ghost slot
                     var deadLink = GetInstanceLink(chunkLink, i);
-                    if (deadLink.IsValid)
-                        Registration.SetEnabledUnsafe(deadLink, false);
+                    if (deadLink.isValid)
+                        registration.SetEnabledUnsafe(deadLink, false);
                     continue;
                 }
 
@@ -293,29 +293,28 @@ namespace Fraxinus.GPUBatcher
                 if (goLink != null)
                 {
                     var link = GetInstanceLink(chunkLink, i);
-                    goLink.InstanceLink = link;
+                    goLink.instanceLink = link;
 
                     int srcProtoIdx = (srcIdx < _sourceProtoIndices.Count) ? _sourceProtoIndices[srcIdx] : -1;
-                    goLink.GlobalProtoIndex = (srcProtoIdx >= 0 && srcProtoIdx < _globalProtoIndices.Length)
+                    goLink.globalProtoIndex = (srcProtoIdx >= 0 && srcProtoIdx < _globalProtoIndices.Length)
                         ? _globalProtoIndices[srcProtoIdx] : -1;
 
-                    if (!link.IsValid) continue;
+                    if (!link.isValid) continue;
 
                     _trackedLinks.Add(goLink);
 
-                    if (!goLink.ShouldRender)
-                        Registration.SetEnabledUnsafe(link, false);
+                    if (!goLink.shouldRender)
+                        registration.SetEnabledUnsafe(link, false);
 
 #if UNITY_EDITOR
-                    GPUBatcherSystem.SetEntityId(link.GlobalBRGSlotIndex,
+                    GPUBatcherSystem.SetEntityId(link.globalBRGSlotIndex,
                         GetPickingId(go),
-                        goLink.GlobalProtoIndex, go.transform);
+                        goLink.globalProtoIndex, go.transform);
 #endif
                 }
             }
         }
 
-        // forceRenderingOff isn't serialized (no m_Enabled prefab override) so it's re-applied each Initialize
         void SetSourceRenderersHidden(bool hidden)
         {
             foreach (var go in _sourceObjects)
@@ -366,7 +365,6 @@ namespace Fraxinus.GPUBatcher
             {
                 _sourceObjects.RemoveAt(idx);
                 _sourceProtoIndices.RemoveAt(idx);
-                // invalidate cached index map
                 _chunkIdToCachedIndex?.Clear();
             }
 
@@ -417,7 +415,7 @@ namespace Fraxinus.GPUBatcher
 
             _sourceObjects.Add(go);
             _sourceProtoIndices.Add(0); // placeholder, RebuildPrototypes fixes it
-            link.Group = this;
+            link.group = this;
 
             if (!_pendingCloneRebuild)
             {
@@ -467,8 +465,6 @@ namespace Fraxinus.GPUBatcher
             if (isActiveAndEnabled) Initialize();
         }
 #endif
-
-        // chunk gizmos handled by base class
 
         #region editor-only: conversion, cache building, revert
 
@@ -573,7 +569,7 @@ namespace Fraxinus.GPUBatcher
         {
             // detach links and release chunks; prototypes stay registered
             foreach (var link in _trackedLinks)
-                if (link != null) link.InstanceLink = InstanceLink.Invalid;
+                if (link != null) link.instanceLink = InstanceLink.invalid;
             _trackedLinks.Clear();
 
             if (_chunkIdToCachedIndex != null)
@@ -581,7 +577,7 @@ namespace Fraxinus.GPUBatcher
                 foreach (var chunkId in _chunkIdToCachedIndex.Keys)
                     ReleaseChunk(new ChunkLink(chunkId));
             }
-            _primaryChunk = ChunkLink.Invalid;
+            _primaryChunk = ChunkLink.invalid;
 
             BuildCache();
             UploadCachedChunks(); // reassigns _chunkIdToCachedIndex
@@ -696,7 +692,6 @@ namespace Fraxinus.GPUBatcher
                 return;
             }
 
-            // hide renderers and add links for new sources
             for (int i = prevCount; i < _sourceObjects.Count; i++)
             {
                 var go = _sourceObjects[i];
@@ -707,7 +702,7 @@ namespace Fraxinus.GPUBatcher
                 var link = go.GetComponent<GPUBatcherGameObjectLink>();
                 if (link == null)
                     link = go.AddComponent<GPUBatcherGameObjectLink>();
-                link.Group = this;
+                link.group = this;
             }
 
             Shutdown();
@@ -742,7 +737,6 @@ namespace Fraxinus.GPUBatcher
             // track GOs added this call to prevent duplicates (e.g. LODGroup GO also has a standalone renderer)
             var addedGOs = new HashSet<GameObject>();
 
-            // register each LODGroup
             foreach (var lg in lodGroups)
             {
                 var go = lg.gameObject;
@@ -760,7 +754,6 @@ namespace Fraxinus.GPUBatcher
                 _sourceProtoIndices.Add(localIndex);
             }
 
-            // register standalone renderers
             var renderers = root.GetComponentsInChildren<MeshRenderer>();
             foreach (var mr in renderers)
             {
@@ -910,7 +903,7 @@ namespace Fraxinus.GPUBatcher
                 var link = go.GetComponent<GPUBatcherGameObjectLink>();
                 if (link == null)
                     link = go.AddComponent<GPUBatcherGameObjectLink>();
-                link.Group = this;
+                link.group = this;
             }
         }
 
@@ -922,7 +915,7 @@ namespace Fraxinus.GPUBatcher
                 var link = go.GetComponent<GPUBatcherGameObjectLink>();
                 if (link != null)
                 {
-                    link.Group = null; // prevent OnDestroy callback from modifying _sourceObjects
+                    link.group = null; // prevent OnDestroy callback from modifying _sourceObjects
                     DestroyImmediate(link);
                 }
             }
@@ -982,8 +975,8 @@ namespace Fraxinus.GPUBatcher
             }
 
             var protoExtents = ComputePerPrototypeExtent();
-            var cfg = GPUBatcherConfig.Instance;
-            int maxPerChunk = cfg != null ? cfg.maxPoolRefsPerChunk * GPUBatcherRenderer.kPoolSize : MaxInstancesPerChunk;
+            var cfg = GPUBatcherConfig.instance;
+            int maxPerChunk = cfg != null ? cfg.maxPoolRefsPerChunk * GPUBatcherRenderer.instancesPerPool : MaxInstancesPerChunk;
             var chunks = new List<CachedChunk>();
 
             switch (_chunkMode)

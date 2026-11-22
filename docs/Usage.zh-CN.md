@@ -4,9 +4,9 @@
 
 使用 **Unity 2022.3**，其中 **2022.3.62f3** 与源工程一致。本仓库是一组 UPM 包，使用它们的 Unity 工程自行提供 `Assets`、`ProjectSettings` 和 `Packages/manifest.json`。
 
-本仓库包含 **ScriptableNode / UltraRP** 的四个配套包：Core、Light Transport、Shader Graph 和 FraxinusRP，以及可选的 **Fraxinus GPU Batcher**。下方配置安装全部五个包。GPU Batcher 是尚未实现原生间接绘制提交的开发中移植；不评估这套实现时，请省略 `com.bluewhitebow.fraxinus-gpu-batcher`。UltraRP 不依赖 URP。
+本仓库包含 **ScriptableNode / UltraRP** 的四个配套包：Core、Light Transport、Shader Graph 和 FraxinusRP，以及可选的 **Fraxinus GPU Batcher**。下方配置安装全部五个包。GPU Batcher 在 Unity 2022.3 与 Unity 6 共用一套实现，原版 Unity 6 默认启用原生间接提交，原版 Unity 2022 需要配置提交 handler。不需要 GPU Batcher 时，请省略 `com.bluewhitebow.fraxinus-gpu-batcher`。UltraRP 不依赖 URP。
 
-四个配套包及选装的 GPU Batcher 请使用同一提交中的版本。BRG 移植依赖 Core 的原生对象变化追踪封装与 UltraRP 的逐节点注入执行钩子，仅匹配包版本号不足以保证兼容。
+四个配套包及选装的 GPU Batcher 请使用同一提交中的版本。BRG 移植依赖 Core 的原生对象变化追踪封装、UltraRP 的剔除与逐节点注入钩子，以及 Shader Graph 的 SpeedTree 适配，仅匹配包版本号不足以保证兼容。
 
 ## 使用本地 checkout
 
@@ -69,15 +69,15 @@ UltraRP 的 Target 内部 API 需要配套 Shader Graph 分支。它的版本仍
 
 ## 可选 GPU Batcher
 
-[Fraxinus GPU Batcher](../Packages/Fraxinus-GPU-Batcher/README.md) 是 BRG 移植，包含实例注册、存储、变换上传、相机／阴影剔除、LOD 和间接参数生成。**原生间接绘制提交尚未实现**：`BRGIndirectSubmission.TrySubmit` 返回 `false`。注册仍会接管原 Renderer／Terrain，因此注册物体目前没有间接绘制输出。Bake 会删除源子 GameObject，评估这些流程时请使用可丢弃的场景副本。
+[Fraxinus GPU Batcher](../Packages/Fraxinus-GPU-Batcher/README.md) 在 Unity 2022.3 与 Unity 6 共用实例注册、存储、变换上传、相机／阴影剔除、LOD 和间接参数生成实现。**原版 Unity 6 自动安装内置原生间接提交实现；原版 Unity 2022 默认没有提交 handler。** 相机与阴影输出都使用 `BRGIndirectSubmission.submitHandler`，引擎集成可在启动时注册同步 handler。`isAvailable` 表示是否已安装 handler；没有 handler 时，`TrySubmit` 返回 `false`，且不写入输出。注册会接管原 Renderer／Terrain，因此没有 handler 时，注册物体没有间接绘制输出。Bake 会删除源子 GameObject，评估这些流程时请使用可丢弃的场景副本。
 
 BRG 实现替换了旧 GPUInstancer 代码、Profile、公开 API 和可导入示例，不提供自动迁移。已有项目数据需要按新组件与配置重建；UPM 标识和 `0.1.0` 版本号不变，不代表这些契约仍兼容。
 
 通过 **Tools > Fraxinus GPU Batcher > System Window** 查看新系统。配置会在 `Assets/FraxinusGPUBatcherData/FraxinusGPUBatcherConfig.asset` 自动查找或创建，优先使用已有项目配置，修复 Shader 引用，并将选定配置加入 Player Settings 的 Preloaded Assets。GameObject 和地形注册改用新的 `GPUBatcher*`／`TerrainGPUBatcherRegisterer` 组件。
 
-Core 与 FraxinusRP 必须使用同一修订的配套版本。Core 通过 `NativeObjectChangeTracker` 提供原生 ObjectDispatcher 追踪；RP 的 `InjectPass.ShouldExecute` 钩子让 HZB 历史选择最后一个受支持的不透明 Pass。BRG 包自己管理历史 HZB 与当前帧重测：历史在不透明渲染后生成，不要求完整预通道；重测会申请完整预通道深度。这替代了旧 GPU Batcher 对 `HiZDepthHistory` 的使用。
+Core、FraxinusRP 与 Shader Graph 必须使用同一修订的配套版本。Core 通过 `NativeObjectChangeTracker` 提供原生 ObjectDispatcher 追踪；RP 的 `InjectPass.ShouldExecute` 钩子让 HZB 历史选择最后一个受支持的不透明 Pass。Shader Graph 提供 SpeedTree 8 DOTS 风参数映射，并在 Player 构建中保留内部风捕获 Pass。BRG 包自己管理历史 HZB 与当前帧重测：历史在不透明渲染后生成，不要求完整预通道；重测会申请完整预通道深度。这替代了旧 GPU Batcher 对 `HiZDepthHistory` 的使用。
 
-Unity 2022 还缺少所需的原生 SpeedTree 风参数提取与 Umbra AABB 查询绑定，当前移植提供中性风参数，并保留 Umbra 候选物体。算法范围、验证边界和剩余引擎接口差异见[移植说明](../Packages/Fraxinus-GPU-Batcher/Documentation~/Port.md)与[等价性审查](../Packages/Fraxinus-GPU-Batcher/Documentation~/EquivalenceAudit.md)。
+两个版本都使用当前相机剔除得到的原生 `CullingGroup` 结果处理烘焙遮挡。包围每个 chunk 边界的球体提供保守可见性判断，相比原实现的 AABB 查询可能保留更多候选；相机遮挡不会过滤阴影候选。SpeedTree 风通过保留的隐藏原生 `Tree` 代理、两个私有捕获 Pass 和 GPU 复制获取当前／历史参数，不逐帧向 CPU 回读风数据。这些路径使用现有原生 API，Unity 2022 仍缺少原实现的 wind-manager 与 Umbra AABB 查询绑定。算法范围、验证边界和剩余引擎接口差异见[移植说明](../Packages/Fraxinus-GPU-Batcher/Documentation~/Port.md)与[等价性审查](../Packages/Fraxinus-GPU-Batcher/Documentation~/EquivalenceAudit.md)。
 
 ## 常见配置问题
 
@@ -85,8 +85,8 @@ Unity 2022 还缺少所需的原生 SpeedTree 风参数提取与 Umbra AABB 查�
 | --- | --- |
 | 缺少 `ScopeData` 或类型化 RenderGraph API | 确认 UltraRP 与 Core 来自本仓库同一提交，并检查旧 embedded 副本是否优先生效。 |
 | UltraRP Shader Graph 内部访问或 Target 编译错误 | 确认 `com.unity.shadergraph` 解析到 `Fraxinus-ShaderGraph`，而不是官方包。 |
-| GPU Batcher 找不到原生追踪或注入 API | 将 Core、FraxinusRP 与 GPU Batcher 一起更新到同一提交。 |
-| GPU Batcher 注册后物体消失 | 原生间接绘制提交尚未实现，而注册会接管原 Renderer／Terrain；当前开发中实现还没有替代它们的绘制输出。 |
+| GPU Batcher 找不到原生追踪或注入 API | 将 Core、FraxinusRP、Shader Graph 与 GPU Batcher 一起更新到同一提交。 |
+| GPU Batcher 注册后物体消失 | 检查 `BRGIndirectSubmission.isAvailable` 与已安装的 handler。原版 Unity 2022 默认没有 handler，注册仍会接管原 Renderer／Terrain。 |
 | 找不到包或 Git 路径无效 | 检查 GitHub 连接、`?path=/Packages/...` 是否与目录名称一致、所有引用的修订是否存在。 |
 | 安装后仍使用原来的管线 | 检查 Graphics 与当前 Quality 的管线资产；安装包本身不会选择管线。 |
 | 材质变粉或 UltraRP 画面为空 | 检查材质对应的管线、Renderer Graph 连接及绘制标签。URP Renderer Feature 不是 UltraRP 图节点。 |

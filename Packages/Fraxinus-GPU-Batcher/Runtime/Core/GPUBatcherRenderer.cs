@@ -21,67 +21,64 @@ using ViewID = System.Int32;
 
 namespace Fraxinus.GPUBatcher
 {
-    /// <summary>
-    /// Core BRG renderer. Split into partial classes: .Batches, .Chunks, .Culling, .Debug, .Prototypes
-    /// </summary>
     public partial class GPUBatcherRenderer : IDisposable
     {
         #region singleton
 
-        private static GPUBatcherRenderer _instance;
-        private static bool _isShuttingDown;  // prevents auto-creation during disposal/domain reload
+        private static GPUBatcherRenderer s_instance;
+        private static bool s_isShuttingDown;
         private bool _disposed;
 
         private GPUBatcherRenderer() { }
 
-        public static GPUBatcherRenderer Instance
+        public static GPUBatcherRenderer instance
         {
             get
             {
-                if (_isShuttingDown)
+                if (s_isShuttingDown)
                     return null;
 
-                if (_instance == null)
-                {
-                    _instance = new GPUBatcherRenderer();
-                }
-                if (!_instance.IsInitialized)
-                    _instance.Initialize();
-                return _instance;
+                if (s_instance == null)
+                    s_instance = new GPUBatcherRenderer();
+
+                if (!s_instance.isInitialized)
+                    s_instance.Initialize();
+
+                return s_instance;
             }
         }
 
-        public static bool HasInstance => _instance != null;
+        public static bool hasInstance => s_instance != null;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStaticInstance()
         {
             Shutdown();
-            _isShuttingDown = false;
-            _configWarningShown = false;
+            s_isShuttingDown = false;
         }
 
-        public bool IsInitialized => _initialized;
+        public bool isInitialized => _initialized;
 
-        public static bool CanSubmitDraws => Rendering.BRGIndirectSubmission.IsAvailable;
+        public static bool canSubmitDraws => Rendering.BRGIndirectSubmission.isAvailable;
 
         public static void Shutdown()
         {
-            _isShuttingDown = true;
+            s_isShuttingDown = true;
 
-            if (_instance != null)
+            if (s_instance != null)
             {
-                _instance.Dispose();
-                _instance = null;
+                s_instance.Dispose();
+                s_instance = null;
             }
         }
 
-        public static void ClearShutdownGuard() => _isShuttingDown = false;
+        public static void ClearShutdownGuard() => s_isShuttingDown = false;
 
         public void Dispose()
         {
             if (_disposed)
                 return;
+
             _disposed = true;
 
             // shut down all registrations while BRG is still valid, so trackers
@@ -94,33 +91,8 @@ namespace Fraxinus.GPUBatcher
 #if UNITY_EDITOR
             _sceneViewCamPositions.DisposeIfCreated();
 #endif
-            if (_instance == this)
-                _instance = null;
-        }
-
-        private static bool _configWarningShown;
-        private static void ShowConfigMissingWarning()
-        {
-            if (_configWarningShown) return;
-            _configWarningShown = true;
-            var go = new GameObject("GPU Batcher Config Missing Warning");
-            UnityEngine.Object.DontDestroyOnLoad(go);
-            go.hideFlags = HideFlags.HideAndDontSave;
-            go.AddComponent<ConfigMissingWarningGUI>();
-        }
-
-        private class ConfigMissingWarningGUI : MonoBehaviour
-        {
-            private void OnGUI()
-            {
-                var style = new GUIStyle(GUI.skin.box)
-                {
-                    fontSize = 24,
-                    alignment = TextAnchor.MiddleCenter,
-                    normal = { textColor = Color.red }
-                };
-                GUI.Box(new Rect(10, 10, 600, 40), "GPUBatcherConfig is null", style);
-            }
+            if (s_instance == this)
+                s_instance = null;
         }
 
         #endregion
@@ -129,25 +101,22 @@ namespace Fraxinus.GPUBatcher
 
 #if UNITY_EDITOR
 
-        /// <summary>
-        /// Camera used as freeze culling reference (scene view reuses its culling data). Falls back to Camera.main.
-        /// </summary>
-        public Camera FreezeCullingReferenceCamera { get; set; }
+        public Camera freezeCullingReferenceCamera { get; set; }
 
         // just used when FreezeCullingReferenceCamera is not set
         private Camera _cachedMainCamera;
 
         // active game cameras seen this frame
         private readonly List<Camera> _activeGameCameras = new();
-        public IReadOnlyList<Camera> ActiveGameCameras => _activeGameCameras;
+        public IReadOnlyList<Camera> activeGameCameras => _activeGameCameras;
 
 #endif
 
-        private GPUBatcherConfig Config => GPUBatcherConfig.Instance;
+        private GPUBatcherConfig Config => GPUBatcherConfig.instance;
 
         // compute shaders
-        private ComputeShader cullingShader;
-        private ComputeShader uploadShader;
+        private ComputeShader _cullingShader;
+        private ComputeShader _uploadShader;
 
         #endregion
 
@@ -173,7 +142,7 @@ namespace Fraxinus.GPUBatcher
         private bool _chunkCompactionDirty;
         private bool _protoCompactionDirty;
         private int _compactionCooldown;        // render cycles to skip after compaction
-        private const int kCompactionCooldownCycles = 300; // ~5s at 60fps
+        private const int k_compactionCooldownCycles = 300; // ~5s at 60fps
 
         // request a batch rebuild - higher scopes cannot be downgraded by lower ones
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -201,11 +170,11 @@ namespace Fraxinus.GPUBatcher
         // per-instance color
         private bool _perInstanceColorEnabled;
         private int _colorRegionByteOffset;
-        private static readonly int _ID_ColorRegionByteOffset = Shader.PropertyToID("_ColorRegionByteOffset");
-        private static readonly int _ID_ColorStagingSrc = Shader.PropertyToID("_ColorStagingSrc");
-        private static readonly int _ID_ColorScatterCount = Shader.PropertyToID("_ColorScatterCount");
-        private static readonly int _ID_ColorRegionOffsetUint = Shader.PropertyToID("_ColorRegionOffsetUint");
-        private static readonly int _ID_ColorEnabled = Shader.PropertyToID("_ColorEnabled");
+        private static readonly int s_idColorRegionByteOffset = Shader.PropertyToID("_ColorRegionByteOffset");
+        private static readonly int s_idColorStagingSrc = Shader.PropertyToID("_ColorStagingSrc");
+        private static readonly int s_idColorScatterCount = Shader.PropertyToID("_ColorScatterCount");
+        private static readonly int s_idColorRegionOffsetUint = Shader.PropertyToID("_ColorRegionOffsetUint");
+        private static readonly int s_idColorEnabled = Shader.PropertyToID("_ColorEnabled");
 
         // speedtree
         private int _speedTreeRegionByteOffset;
@@ -216,16 +185,20 @@ namespace Fraxinus.GPUBatcher
         private int[] _protoSpeedTreeSlotIndex; // protoIndex -> speedtree slot, -1 if not speedtree
 
         // constants
-        internal const int kPoolSize = 16; // must match _PoolSizeShift in GPUBatcher_Common.hlsl
-        internal const int kSizeOfPackedMatrix = sizeof(float) * 4 * 3;
-        internal const int kSHFloat4sPerInstance = 8;                    // 7 SH + 1 ProbesOcclusion, packed as unity_SHCoefficients
-        internal const int kSHBytesPerInstance = kSHFloat4sPerInstance * 16;
-        private const int kSpeedTreeParamsPerProto = 128; // 32 float4s, 512 bytes per prototype
+        private const int k_poolSize = 16; // must match _PoolSizeShift in GPUBatcher_Common.hlsl
+        internal static int instancesPerPool => k_poolSize;
+        private const int k_sizeOfPackedMatrix = sizeof(float) * 4 * 3;
+        internal static int sizeOfPackedMatrix => k_sizeOfPackedMatrix;
+        private const int k_shFloat4sPerInstance = 8;                    // 7 SH + 1 ProbesOcclusion, packed as unity_SHCoefficients
+        internal static int shFloat4sPerInstance => k_shFloat4sPerInstance;
+        private const int k_shBytesPerInstance = k_shFloat4sPerInstance * 16;
+        internal static int shBytesPerInstance => k_shBytesPerInstance;
+        private const int k_speedTreeParamsPerProto = 128; // 32 float4s, 512 bytes per prototype
 
-        internal bool LightProbesEnabled => _lightProbes != null;
+        internal bool lightProbesEnabled => _lightProbes != null;
 
         // max work groups per dispatch dimension (D3D11/D3D12/Vulkan/GLES3.1)
-        private const int kDispatchMaxX = 65535;
+        private const int k_dispatchMaxX = 65535;
 
         /// <summary>
         /// Dispatch a compute shader, wrapping overflow from X into Y when groupCount exceeds 65535.
@@ -234,14 +207,14 @@ namespace Fraxinus.GPUBatcher
         private static void DispatchSafe(ComputeShader cs, int kernel, int groupCount)
         {
             if (groupCount <= 0) return;
-            if (groupCount <= kDispatchMaxX)
+            if (groupCount <= k_dispatchMaxX)
             {
                 cs.Dispatch(kernel, groupCount, 1, 1);
             }
             else
             {
-                int y = (groupCount + kDispatchMaxX - 1) / kDispatchMaxX;
-                cs.Dispatch(kernel, kDispatchMaxX, y, 1);
+                int y = (groupCount + k_dispatchMaxX - 1) / k_dispatchMaxX;
+                cs.Dispatch(kernel, k_dispatchMaxX, y, 1);
             }
         }
 
@@ -252,14 +225,14 @@ namespace Fraxinus.GPUBatcher
         private static void DispatchSafe(CommandBuffer cmd, ComputeShader cs, int kernel, int groupCount)
         {
             if (groupCount <= 0) return;
-            if (groupCount <= kDispatchMaxX)
+            if (groupCount <= k_dispatchMaxX)
             {
                 cmd.DispatchCompute(cs, kernel, groupCount, 1, 1);
             }
             else
             {
-                int y = (groupCount + kDispatchMaxX - 1) / kDispatchMaxX;
-                cmd.DispatchCompute(cs, kernel, kDispatchMaxX, y, 1);
+                int y = (groupCount + k_dispatchMaxX - 1) / k_dispatchMaxX;
+                cmd.DispatchCompute(cs, kernel, k_dispatchMaxX, y, 1);
             }
         }
 
@@ -268,7 +241,7 @@ namespace Fraxinus.GPUBatcher
         /// Currently only DX12 needs this (AMD AoSoA corruption + Intel Arc rejection with Structured).
         /// All other platforms (DX11, PS5, Vulkan, Metal, etc.) use Structured | IndirectArguments.
         /// </summary>
-        internal static bool UseRawIndirectArgs =>
+        internal static bool useRawIndirectArgs =>
             SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D12;
 
         // grow _protoSpeedTreeSlotIndex to cover [0, needed); new entries default to -1
@@ -280,9 +253,9 @@ namespace Fraxinus.GPUBatcher
             for (int i = oldLen; i < needed; i++) _protoSpeedTreeSlotIndex[i] = -1;
         }
 
-        internal NativeArray<bool> PoolInUse => _poolInUse;
-        internal NativeArray<ulong> PoolSlotMask => _poolSlotMask;
-        public GraphicsBuffer MatrixBuffer => _matrixBuffer;
+        internal NativeArray<bool> poolInUse => _poolInUse;
+        internal NativeArray<ulong> poolSlotMask => _poolSlotMask;
+        public GraphicsBuffer matrixBuffer => _matrixBuffer;
 
         internal void DispatchCopyBufferRegion(GraphicsBuffer src, int srcOffsetBytes,
             GraphicsBuffer dst, int dstOffsetBytes, int sizeBytes)
@@ -296,8 +269,7 @@ namespace Fraxinus.GPUBatcher
 
         private static int FindKernelSafe(ComputeShader cs, string name)
         {
-            try { return cs.FindKernel(name); }
-            catch (System.ArgumentException) { return -1; }
+            return cs.HasKernel(name) ? cs.FindKernel(name) : -1;
         }
 
         private void Initialize()
@@ -309,15 +281,11 @@ namespace Fraxinus.GPUBatcher
             _crossfadeTimeScale = 1f;
             _protoFadeElapsed = 0;
 
-            if (GPUBatcherConfig.Instance == null)
-            {
-                Debug.LogError("GPUBatcherRenderer: No GPUBatcherConfig asset found. Create one via Assets > Create > Fraxinus GPU Batcher Config.");
-                ShowConfigMissingWarning();
+            if (GPUBatcherConfig.instance == null)
                 return;
-            }
 
-            cullingShader = Config.cullingShader;
-            uploadShader = Config.uploadShader;
+            _cullingShader = Config.cullingShader;
+            _uploadShader = Config.uploadShader;
 
             _brg = new BatchRendererGroup(OnPerformCulling, IntPtr.Zero);
 
@@ -340,26 +308,26 @@ namespace Fraxinus.GPUBatcher
             }
 #endif
 
-            if (cullingShader != null)
+            if (_cullingShader != null)
             {
-                _finalizeDrawArgsKernel = FindKernelSafe(cullingShader, "FinalizeDrawArgs");
+                _finalizeDrawArgsKernel = FindKernelSafe(_cullingShader, "FinalizeDrawArgs");
 
                 // shadow culling kernels
-                _finalizeShadowDrawArgsKernel = FindKernelSafe(cullingShader, "FinalizeShadowDrawArgs");
+                _finalizeShadowDrawArgsKernel = FindKernelSafe(_cullingShader, "FinalizeShadowDrawArgs");
 
                 // chunk kernels
-                _cullChunksKernel = FindKernelSafe(cullingShader, "CullChunks");
-                _cullInstancesKernel = FindKernelSafe(cullingShader, "CullInstances");
-                _cullChunksShadowKernel = FindKernelSafe(cullingShader, "CullChunksShadow");
-                _cullInstancesShadowKernel = FindKernelSafe(cullingShader, "CullInstancesShadow");
+                _cullChunksKernel = FindKernelSafe(_cullingShader, "CullChunks");
+                _cullInstancesKernel = FindKernelSafe(_cullingShader, "CullInstances");
+                _cullChunksShadowKernel = FindKernelSafe(_cullingShader, "CullChunksShadow");
+                _cullInstancesShadowKernel = FindKernelSafe(_cullingShader, "CullInstancesShadow");
                 // combined reset kernel
-                _resetCullingStateKernel = FindKernelSafe(cullingShader, "ResetCullingState");
+                _resetCullingStateKernel = FindKernelSafe(_cullingShader, "ResetCullingState");
 
                 // multi_compile keywords
-                _hzbEnabledKeyword = new LocalKeyword(cullingShader, "HZB_ENABLED");
-                _rawIndirectArgsKeyword = new LocalKeyword(cullingShader, "RAW_INDIRECT_ARGS");
-                if (UseRawIndirectArgs)
-                    cullingShader.EnableKeyword(_rawIndirectArgsKeyword);
+                _hzbEnabledKeyword = new LocalKeyword(_cullingShader, "HZB_ENABLED");
+                _rawIndirectArgsKeyword = new LocalKeyword(_cullingShader, "RAW_INDIRECT_ARGS");
+                if (useRawIndirectArgs)
+                    _cullingShader.EnableKeyword(_rawIndirectArgsKeyword);
 
                 bool hasCameraKernels = _finalizeDrawArgsKernel >= 0 &&
                                         _cullChunksKernel >= 0 && _cullInstancesKernel >= 0;
@@ -370,7 +338,7 @@ namespace Fraxinus.GPUBatcher
                 if (!hasCameraKernels)
                 {
                     Debug.LogError("GPUBatcherRenderer: Missing camera culling compute shader kernels!");
-                    cullingShader = null;
+                    _cullingShader = null;
                 }
                 else if (!hasShadowKernels)
                 {
@@ -378,39 +346,39 @@ namespace Fraxinus.GPUBatcher
                 }
             }
 
-            if (uploadShader != null)
+            if (_uploadShader != null)
             {
                 // animated crossfade kernels
-                _updateFadeStatesPerInstanceKernel = FindKernelSafe(uploadShader, "UpdateFadeStatesPerInstance");
-                _updateFadeStatesPerPrototypeKernel = FindKernelSafe(uploadShader, "UpdateFadeStatesPerPrototype");
+                _updateFadeStatesPerInstanceKernel = FindKernelSafe(_uploadShader, "UpdateFadeStatesPerInstance");
+                _updateFadeStatesPerPrototypeKernel = FindKernelSafe(_uploadShader, "UpdateFadeStatesPerPrototype");
 
                 // GPU buffer copy kernel
-                _copyBufferRegionKernel = FindKernelSafe(uploadShader, "CopyBufferRegion");
+                _copyBufferRegionKernel = FindKernelSafe(_uploadShader, "CopyBufferRegion");
 
                 // typed upload kernels
-                _initFadeStateTypedKernel = FindKernelSafe(uploadShader, "InitFadeStateTyped");
-                _copyChunkRegionKernel = FindKernelSafe(uploadShader, "CopyChunkRegion");
-                _copyFadeStateRegionKernel = FindKernelSafe(uploadShader, "CopyFadeStateRegion");
-                _scatterWriteChunksKernel = FindKernelSafe(uploadShader, "ScatterWriteChunks");
-                _settleMotionVectorsKernel = FindKernelSafe(uploadShader, "SettleMotionVectors");
-                _computeMatricesBatchedKernel = FindKernelSafe(uploadShader, "ComputeMatricesFromTRSBatched");
+                _initFadeStateTypedKernel = FindKernelSafe(_uploadShader, "InitFadeStateTyped");
+                _copyChunkRegionKernel = FindKernelSafe(_uploadShader, "CopyChunkRegion");
+                _copyFadeStateRegionKernel = FindKernelSafe(_uploadShader, "CopyFadeStateRegion");
+                _scatterWriteChunksKernel = FindKernelSafe(_uploadShader, "ScatterWriteChunks");
+                _settleMotionVectorsKernel = FindKernelSafe(_uploadShader, "SettleMotionVectors");
+                _computeMatricesBatchedKernel = FindKernelSafe(_uploadShader, "ComputeMatricesFromTRSBatched");
 
                 // batched dispatch kernels
-                _batchUploadInstancesKernel = FindKernelSafe(uploadShader, "BatchUploadInstances");
-                _trsPatchInstancesKernel = FindKernelSafe(uploadShader, "TRSPatchInstances");
-                _batchComputeMatricesKernel = FindKernelSafe(uploadShader, "BatchComputeMatrices");
-                _batchClearInstancesKernel = FindKernelSafe(uploadShader, "BatchClearInstances");
-                _batchUploadIntsKernel = FindKernelSafe(uploadShader, "BatchUploadInts");
-                _batchInitFadeStatesKernel = FindKernelSafe(uploadShader, "BatchInitFadeStates");
-                _copyInstanceBufferKernel = FindKernelSafe(uploadShader, "CopyInstanceBuffer");
-                _scatterWriteColorsKernel = FindKernelSafe(uploadShader, "ScatterWriteColors");
-                _scatterWriteSigOverridesKernel = FindKernelSafe(uploadShader, "ScatterWriteSigOverrides");
-                _scatterWriteSignaturesKernel = FindKernelSafe(uploadShader, "ScatterWriteSignatures");
-                _copyRotScaleBufferKernel = FindKernelSafe(uploadShader, "CopyRotScaleBuffer");
+                _batchUploadInstancesKernel = FindKernelSafe(_uploadShader, "BatchUploadInstances");
+                _trsPatchInstancesKernel = FindKernelSafe(_uploadShader, "TRSPatchInstances");
+                _batchComputeMatricesKernel = FindKernelSafe(_uploadShader, "BatchComputeMatrices");
+                _batchClearInstancesKernel = FindKernelSafe(_uploadShader, "BatchClearInstances");
+                _batchUploadIntsKernel = FindKernelSafe(_uploadShader, "BatchUploadInts");
+                _batchInitFadeStatesKernel = FindKernelSafe(_uploadShader, "BatchInitFadeStates");
+                _copyInstanceBufferKernel = FindKernelSafe(_uploadShader, "CopyInstanceBuffer");
+                _scatterWriteColorsKernel = FindKernelSafe(_uploadShader, "ScatterWriteColors");
+                _scatterWriteSigOverridesKernel = FindKernelSafe(_uploadShader, "ScatterWriteSigOverrides");
+                _scatterWriteSignaturesKernel = FindKernelSafe(_uploadShader, "ScatterWriteSignatures");
+                _copyRotScaleBufferKernel = FindKernelSafe(_uploadShader, "CopyRotScaleBuffer");
 
                 // floating origin shift kernels
-                _shiftAllInstancesKernel = FindKernelSafe(uploadShader, "ShiftAllInstances");
-                _shiftAllChunksKernel = FindKernelSafe(uploadShader, "ShiftAllChunks");
+                _shiftAllInstancesKernel = FindKernelSafe(_uploadShader, "ShiftAllInstances");
+                _shiftAllChunksKernel = FindKernelSafe(_uploadShader, "ShiftAllChunks");
 
                 bool hasAnimatedCrossfadeKernels = _updateFadeStatesPerInstanceKernel >= 0 &&
                     _updateFadeStatesPerPrototypeKernel >= 0;
@@ -427,7 +395,7 @@ namespace Fraxinus.GPUBatcher
 
             _cullingCmd = new CommandBuffer { name = "FraxinusGPUBatcher Culling" };
 
-            if (GPUBatcherConfig.Instance.supportLegacyLightProbes)
+            if (GPUBatcherConfig.instance.supportLegacyLightProbes)
                 _lightProbes = new GPUBatcherLightProbes();
 
             // native transform change tracking for GPUBatcherGameObjectLink
@@ -457,6 +425,7 @@ namespace Fraxinus.GPUBatcher
 
             RenderPipelineManager.beginContextRendering -= OnBeginContextRendering;
             RenderPipelineManager.beginContextRendering += OnBeginContextRendering;
+            InitializeBakedOcclusion();
 
 #if UNITY_EDITOR
             UnityEditor.SceneView.beforeSceneGui -= BeforeSceneGUI;
@@ -470,7 +439,15 @@ namespace Fraxinus.GPUBatcher
 
             InitHZB();
 
-            InitializeChunkSystem();
+            try
+            {
+                InitializeChunkSystem();
+            }
+            catch (Exception ex)
+            {
+                Cleanup();
+                Debug.LogException(ex);
+            }
         }
 
         #endregion
@@ -481,7 +458,7 @@ namespace Fraxinus.GPUBatcher
         private float _realDeltaTime;
         private double _protoFadeElapsed;
         private float _crossfadeTimeScale = 1f;
-        public float CrossfadeTimeScale
+        public float crossfadeTimeScale
         {
             get => _crossfadeTimeScale;
             set => _crossfadeTimeScale = math.max(0f, value);
@@ -497,8 +474,6 @@ namespace Fraxinus.GPUBatcher
         {
             if (Event.current.type != EventType.Repaint) return;
             if (!_initialized) return;
-            //Debug.Log("Scene Render");
-            //SystemUpdate();
         }
 #endif
 
@@ -506,9 +481,8 @@ namespace Fraxinus.GPUBatcher
         private void BeforeRender()
         {
             if (!_initialized) return;
-            //Debug.Log("Game Render");
 #if DEBUG
-            using var _su = s_MarkerSystemUpdate.Auto();
+            using var _su = s_markerSystemUpdate.Auto();
 #endif
 
             SystemUpdate();
@@ -518,10 +492,8 @@ namespace Fraxinus.GPUBatcher
 #endif
         }
 
-        // per-frame update: merge camera positions, fire streaming event, flush, batch rebuilds, etc.
-        // split into two phases: idempotent work (safe to run multiple times per frame) runs first,
-        // then once-per-frame work (counters, eviction, compaction) runs behind a dedup guard.
-        // protects against scene view and game view having weird unsynced render timings.
+        // Flush before every render; advance counters, eviction and compaction once per frame.
+        // Scene and game views can invoke this at different times in the same frame.
         private void SystemUpdate()
         {
 #if UNITY_EDITOR
@@ -535,8 +507,6 @@ namespace Fraxinus.GPUBatcher
             _realDeltaTime = deltaTime;
 
             #region idempotent phase
-            //small chance that SystemUpdate can run multiple times per frame.
-            // we need to guarentee that some work (like batch flushges) runs before rendering EVERY frame.
 
 #if UNITY_EDITOR
             // merge camera accumulators -> published positions
@@ -552,7 +522,7 @@ namespace Fraxinus.GPUBatcher
 #endif
 
             // fire streaming event
-            OnStreamingPositionsReady?.Invoke();
+            onStreamingPositionsReady?.Invoke();
 
             // apply native transform changes from tracked GPUBatcherGameObjectLink components
             ProcessTrackedTransformChanges();
@@ -562,7 +532,7 @@ namespace Fraxinus.GPUBatcher
 #endif
 
 #if DEBUG
-            using var _plu = s_MarkerPreRender.Auto();
+            using var _plu = s_markerPreRender.Auto();
 #endif
 
             ProcessPendingPrototypePurges();
@@ -589,9 +559,9 @@ namespace Fraxinus.GPUBatcher
             if (_pendingShadowSplitWiden)
             {
                 _pendingShadowSplitWiden = false;
-                if (_shadowSplitCapacity < kMaxCascades)
+                if (_shadowSplitCapacity < k_maxCascades)
                 {
-                    _shadowSplitCapacity = kMaxCascades;
+                    _shadowSplitCapacity = k_maxCascades;
                     if (_chunkSystemInitialized && _renderSignatures.Count > 0)
                         RequestBatchRebuild(BatchRebuildScope.FullRebuild);
                     LogMessageDevelopment("GPUBatcherRenderer: widening shadow buckets to 6 splits for point light shadows");
@@ -648,9 +618,6 @@ namespace Fraxinus.GPUBatcher
             if (_chunkSystemInitialized && _shadowChunksDirty)
                 RebuildShadowActiveChunks();
 
-            if (_chunkSystemInitialized)
-                UpdateSpeedTree();
-
             RebuildAnimatedCrossfadePoolList();
 
             #endregion
@@ -700,7 +667,7 @@ namespace Fraxinus.GPUBatcher
 #endif
 
             // evict stale per-view fade states
-            if (_viewFadeStates.Count > 0 && _renderCycleCounter % kViewFadeEvictFrames == 0)
+            if (_viewFadeStates.Count > 0 && _renderCycleCounter % k_viewFadeEvictFrames == 0)
             {
                 _staleViewKeys.Clear();
                 for (int i = _viewFadeStateKeys.Count - 1; i >= 0; i--)
@@ -710,7 +677,7 @@ namespace Fraxinus.GPUBatcher
 #if UNITY_EDITOR
                         !state.isPersistent &&
 #endif
-                        _renderCycleCounter - state.lastSeenFrame > kViewFadeEvictFrames)
+                        _renderCycleCounter - state.lastSeenFrame > k_viewFadeEvictFrames)
                     {
                         _staleViewKeys.Add(key);
                         // swap-remove from key list
@@ -722,7 +689,7 @@ namespace Fraxinus.GPUBatcher
                 {
                     if (_viewFadeStates.Remove(key, out var staleState))
                     {
-                        _trackedTotalFadeStates -= staleState.FadeStateBuffer?.count ?? 0;
+                        _trackedTotalFadeStates -= staleState.fadeStateBuffer?.count ?? 0;
                         staleState.Dispose();
                     }
 #if UNITY_EDITOR
@@ -770,7 +737,7 @@ namespace Fraxinus.GPUBatcher
                     }
 
                     if (_compactionCooldown < 0)
-                        _compactionCooldown = kCompactionCooldownCycles; // grace frame done - start cooldown
+                        _compactionCooldown = k_compactionCooldownCycles; // grace frame done - start cooldown
                     else if (compacted)
                         _compactionCooldown = -1;  // compaction fired - allow one grace frame first
                 }
@@ -875,6 +842,7 @@ namespace Fraxinus.GPUBatcher
             if (!_updateRanThisFrame)
                 SystemUpdate();
 #endif
+            CaptureSpeedTreeWind(ctx);
         }
 
 
@@ -895,7 +863,7 @@ namespace Fraxinus.GPUBatcher
                 cameraPoolSnapshot = _cameraPoolNextIndex,
                 shadowPoolSnapshot = _shadowPoolNextIndex,
             };
-            if (IsGPUOcclusionEnabled)
+            if (isGPUOcclusionEnabled)
             {
                 var hzbCamData = GPUBatcherHZBBridge.ComputeCameraData(camera);
                 camData.vpMatrix = hzbCamData.viewProjMatrix;
@@ -922,7 +890,7 @@ namespace Fraxinus.GPUBatcher
             // freeze culling: identify the reference camera
             if (_cachedMainCamera == null)
                 _cachedMainCamera = Camera.main;
-            var refCam = FreezeCullingReferenceCamera != null ? FreezeCullingReferenceCamera : _cachedMainCamera;
+            var refCam = freezeCullingReferenceCamera != null ? freezeCullingReferenceCamera : _cachedMainCamera;
             camData.isRef = (refCam != null && camera == refCam);
             camData.isGame = camera.cameraType == CameraType.Game;
             if (camData.isGame && !_activeGameCameras.Contains(camera))
@@ -973,7 +941,7 @@ namespace Fraxinus.GPUBatcher
         // prevents ObjectDispatcher from auto-disabling type tracking after 64 uncollected frames
         private void EditorDrainRendererChanges()
         {
-            if (Application.isPlaying || !_initialized || !GPUBatcherChangeTracker.IsInitialized) return;
+            if (Application.isPlaying || !_initialized || !GPUBatcherChangeTracker.isInitialized) return;
             ProcessTrackedRendererChanges();
         }
 #endif
@@ -1007,6 +975,7 @@ namespace Fraxinus.GPUBatcher
             _cameraRenderData.Clear();
 
             GPUBatcherChangeTracker.Dispose();
+            CleanupBakedOcclusion();
 
             _brg?.Dispose();
             _brg = null;
@@ -1078,8 +1047,8 @@ namespace Fraxinus.GPUBatcher
             _gpuCullingReady = false;
             DrainDeferredVisibilitySlots();
             _deferredContexts.Clear();
-            cullingShader = null;
-            uploadShader = null;
+            _cullingShader = null;
+            _uploadShader = null;
         }
 
         /// <summary>
@@ -1122,6 +1091,7 @@ namespace Fraxinus.GPUBatcher
             _compactionCooldown = 0;
 
             Initialize();
+            if (!_initialized) return;
 
             foreach (var reg in prevRegistrations)
                 reg.Initialize();
@@ -1185,11 +1155,11 @@ namespace Fraxinus.GPUBatcher
         }
 
         #if UNITY_EDITOR
-        public NativeList<float3> StreamingCameraPositions => _streamingCameraPositions;
+        public NativeList<float3> streamingCameraPositions => _streamingCameraPositions;
         #else
-        public NativeList<float3> StreamingCameraPositions => _gameCamPositions;
+        public NativeList<float3> streamingCameraPositions => _gameCamPositions;
         #endif
-        public event Action OnStreamingPositionsReady;
+        public event Action onStreamingPositionsReady;
 
         /// <summary>Forces all compute shader buffer bindings to be refreshed on the next dispatch.</summary>
         internal void InvalidateBufferBindings() => _dirtyBufferBindings = BufferBindingFlags.All;
@@ -1233,7 +1203,7 @@ namespace Fraxinus.GPUBatcher
         /// </summary>
         public void ShiftInstances(Vector3 offset)
         {
-            if (!_chunkSystemInitialized || uploadShader == null)
+            if (!_chunkSystemInitialized || _uploadShader == null)
                 return;
 
             if (math.lengthsq((float3)offset) < 1e-12f)
@@ -1248,30 +1218,30 @@ namespace Fraxinus.GPUBatcher
 
             FlushStagedUploads();
 
-            int totalSlots = _poolCapacity * kPoolSize;
+            int totalSlots = _poolCapacity * k_poolSize;
             if (totalSlots <= 0)
                 return;
 
             // shift instance slots
             if (_shiftAllInstancesKernel >= 0)
             {
-                uploadShader.SetVector(_ID_ShiftOffset, (Vector3)(float3)offset);
-                uploadShader.SetInt(_ID_ShiftCount, totalSlots);
-                uploadShader.SetInt(_ID_ShiftTotalSlots, totalSlots);
-                uploadShader.SetBuffer(_shiftAllInstancesKernel, _ID_InstancesRW, _instanceBuffer);
-                uploadShader.SetBuffer(_shiftAllInstancesKernel, _ID_CopyDst, _matrixBuffer);
+                _uploadShader.SetVector(s_idShiftOffset, (Vector3)(float3)offset);
+                _uploadShader.SetInt(s_idShiftCount, totalSlots);
+                _uploadShader.SetInt(s_idShiftTotalSlots, totalSlots);
+                _uploadShader.SetBuffer(_shiftAllInstancesKernel, s_idInstancesRW, _instanceBuffer);
+                _uploadShader.SetBuffer(_shiftAllInstancesKernel, s_idCopyDst, _matrixBuffer);
 
-                DispatchSafe(uploadShader, _shiftAllInstancesKernel, (totalSlots + 255) / 256);
+                DispatchSafe(_uploadShader, _shiftAllInstancesKernel, (totalSlots + 255) / 256);
             }
 
             // shift chunk bounds
             if (_shiftAllChunksKernel >= 0 && _chunkHighWaterMark > 0)
             {
-                uploadShader.SetVector(_ID_ShiftOffset, (Vector3)(float3)offset);
-                uploadShader.SetInt(_ID_ShiftCount, _chunkHighWaterMark);
-                uploadShader.SetBuffer(_shiftAllChunksKernel, _ID_ChunkScatterDst, _chunkBuffer);
+                _uploadShader.SetVector(s_idShiftOffset, (Vector3)(float3)offset);
+                _uploadShader.SetInt(s_idShiftCount, _chunkHighWaterMark);
+                _uploadShader.SetBuffer(_shiftAllChunksKernel, s_idChunkScatterDst, _chunkBuffer);
 
-                DispatchSafe(uploadShader, _shiftAllChunksKernel, (_chunkHighWaterMark + 63) / 64);
+                DispatchSafe(_uploadShader, _shiftAllChunksKernel, (_chunkHighWaterMark + 63) / 64);
             }
 
             // CPU-side cached chunk bounds
@@ -1319,7 +1289,7 @@ namespace Fraxinus.GPUBatcher
                 {
                     int oldCapacity = _poolCapacity;
                     ResizePoolBuffer(newPoolCapacity, allowShrink: true);
-                    LogMessageDevelopment($"GPUBatcherRenderer: Pools compacted ({oldCapacity} -> {newPoolCapacity}, freed {(oldCapacity - newPoolCapacity) * kPoolSize} slots, used={usedPools}, highest={highestUsedPool})");
+                    LogMessageDevelopment($"GPUBatcherRenderer: Pools compacted ({oldCapacity} -> {newPoolCapacity}, freed {(oldCapacity - newPoolCapacity) * k_poolSize} slots, used={usedPools}, highest={highestUsedPool})");
                     return true;
                 }
             }

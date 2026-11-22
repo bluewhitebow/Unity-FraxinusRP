@@ -20,8 +20,6 @@ void GPUBatcher_UnpackColor_float(out float4 Color)
     uint packedValue = DOTSInstanceData_Load(byteOffset);
     if (packedValue == 0u) return;
 
-    //return;
-
     //color is stored as packed uint, 255 values per channel.
     float4 inv = float4(
         (packedValue      ) & 0xFF,

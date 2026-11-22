@@ -61,6 +61,8 @@ namespace UnityEditor.Rendering.BuiltIn
     internal class ShaderPreprocessor : IPreprocessShaders
     {
         public static readonly string kPassNameGBuffer = "BuiltIn Deferred";
+        const string kNativeWindCaptureShader = "Hidden/FraxinusGPUBatcher/NativeSpeedTreeWindCapture";
+        const string kNativeWindCapturePath = "Packages/com.bluewhitebow.fraxinus-gpu-batcher/Resources/FraxinusGPUBatcherSpeedTreeWindCapture.shader";
 #if PROFILE_BUILD
         private const string k_ProcessShaderTag = "OnProcessShader";
 #endif
@@ -106,6 +108,16 @@ namespace UnityEditor.Rendering.BuiltIn
         {
             return (snippetData.passType == PassType.ScriptableRenderPipeline ||
                 snippetData.passType == PassType.ScriptableRenderPipelineDefaultUnlit);
+        }
+
+        static bool IsNativeWindCapturePass(Shader shader, ShaderSnippetData snippet)
+        {
+            // This private utility is invoked by runtime-created render contexts too.
+            // A null pipeline asset at build time does not prove that these two SRP
+            // passes are unused. Limit the exception to the owned asset and pass names.
+            return shader != null && shader.name == kNativeWindCaptureShader &&
+                AssetDatabase.GetAssetPath(shader) == kNativeWindCapturePath &&
+                (snippet.passName == "CurrentWind" || snippet.passName == "HistoryWind");
         }
 
         bool IsShaderGraphShader(Shader shader, ShaderSnippetData snippetData)
@@ -339,18 +351,28 @@ namespace UnityEditor.Rendering.BuiltIn
 
             double stripTimeMs = 0.0;
             int prevVariantCount = compilerDataList.Count;
+            bool nativeWindCapture = IsNativeWindCapturePass(shader, snippetData);
+            var windQuality = nativeWindCapture ? shader.keywordSpace.FindKeyword("_WINDQUALITY_BEST") : default;
             using (TimedScope.FromRef(ref stripTimeMs))
             {
                 var inputShaderVariantCount = compilerDataList.Count;
                 for (int i = 0; i < inputShaderVariantCount;)
                 {
-                    bool removeInput = true;
-                    foreach (var supportedFeatures in ShaderBuildPreprocessor.supportedFeaturesList)
+                    // The capture material always enables BEST. Keep its actual native
+                    // current/history programs, without retaining unrelated SRP passes
+                    // or disabling the built-in pipeline's normal stripping rules.
+                    bool requiredWindVariant = nativeWindCapture && windQuality.isValid &&
+                        compilerDataList[i].shaderKeywordSet.IsEnabled(windQuality);
+                    bool removeInput = !requiredWindVariant;
+                    if (!requiredWindVariant)
                     {
-                        if (!StripUnused(supportedFeatures, shader, snippetData, compilerDataList[i]))
+                        foreach (var supportedFeatures in ShaderBuildPreprocessor.supportedFeaturesList)
                         {
-                            removeInput = false;
-                            break;
+                            if (!StripUnused(supportedFeatures, shader, snippetData, compilerDataList[i]))
+                            {
+                                removeInput = false;
+                                break;
+                            }
                         }
                     }
 

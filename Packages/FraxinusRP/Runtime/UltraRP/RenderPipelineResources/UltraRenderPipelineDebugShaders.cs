@@ -1,13 +1,18 @@
 using System;
 using UnityEngine;
-using UnityEngine.Rendering.Categorization;
 using UnityEngine.Rendering;
+
+#if UNITY_6000_0_OR_NEWER
+using RenderingCategories = UnityEngine.Categorization;
+#else
+using RenderingCategories = UnityEngine.Rendering.Categorization;
+#endif
 
 namespace FraxinusEngine.Rendering.Ultra
 {
     [Serializable]
     [SupportedOnRenderPipeline(typeof(UltraRenderPipelineAsset))]
-    [CategoryInfo(Name = "R: Debug Shaders", Order = 1000), HideInInspector]
+    [RenderingCategories.CategoryInfo(Name = "R: Debug Shaders", Order = 1000), HideInInspector]
     public class UltraPipelineDebugShaders : IRenderPipelineResources
     {
         public int version => 0;

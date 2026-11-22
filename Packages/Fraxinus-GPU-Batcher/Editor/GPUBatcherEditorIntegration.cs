@@ -4,7 +4,6 @@ using UnityEngine;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using System.Collections.Generic;
-using UnityEditor.Rendering;
 
 namespace Fraxinus.GPUBatcher.Editor
 {
@@ -12,12 +11,11 @@ namespace Fraxinus.GPUBatcher.Editor
     [InitializeOnLoad]
     internal static class GPUBatcherEditorIntegration
     {
-        private static readonly HashSet<GameObject> dirtyPrototypes = new();
-        private static bool pendingProcess;
+        private static readonly HashSet<GameObject> s_dirtyPrototypes = new();
+        private static bool s_pendingProcess;
 
         static GPUBatcherEditorIntegration()
         {
-            // wire up delegate hooks on the runtime class
             GPUBatcherRenderer.editorOnPrototypeDirty = OnMarkPrototypeDirty;
 
             // domain reload just completed - safe to auto-create instances again
@@ -54,8 +52,8 @@ namespace Fraxinus.GPUBatcher.Editor
         {
             GPUBatcherRenderer.Shutdown();
             TerrainGPUBatcherRegisterer.DisposeStaticNativeCollections();
-            dirtyPrototypes.Clear();
-            pendingProcess = false;
+            s_dirtyPrototypes.Clear();
+            s_pendingProcess = false;
         }
 
         private static void OnEditorQuitting() => Cleanup();
@@ -88,12 +86,12 @@ namespace Fraxinus.GPUBatcher.Editor
 
         private static void OnSceneViewGUI(SceneView sceneView)
         {
-            if (!GPUBatcherRenderer.HasInstance) return;
-            var brg = GPUBatcherRenderer.Instance;
-            if (brg == null || !brg.IsInitialized) return;
-            if (!GPUBatcherConfig.Instance.debugVisualizeCullingInSceneView) return;
+            if (!GPUBatcherRenderer.hasInstance) return;
+            var brg = GPUBatcherRenderer.instance;
+            if (brg == null || !brg.isInitialized) return;
+            if (!GPUBatcherConfig.instance.debugVisualizeCullingInSceneView) return;
 
-            var refCam = brg.FreezeCullingReferenceCamera;
+            var refCam = brg.freezeCullingReferenceCamera;
             if (refCam == null) refCam = Camera.main;
             string camName = refCam != null ? refCam.name : "(none)";
 
@@ -136,7 +134,7 @@ namespace Fraxinus.GPUBatcher.Editor
             var prefabAsset = AssetDatabase.LoadAssetAtPath<GameObject>(prefabStage.assetPath);
             if (prefabAsset == null) return;
 
-            if (GPUBatcherRenderer.HasInstance && GPUBatcherRenderer.Instance.IsInitialized)
+            if (GPUBatcherRenderer.hasInstance && GPUBatcherRenderer.instance.isInitialized)
                 OnMarkPrototypeDirty(prefabAsset);
         }
 
@@ -145,7 +143,7 @@ namespace Fraxinus.GPUBatcher.Editor
             var prefabAsset = PrefabUtility.GetCorrespondingObjectFromSource(instance);
             if (prefabAsset == null) return;
 
-            if (GPUBatcherRenderer.HasInstance && GPUBatcherRenderer.Instance.IsInitialized)
+            if (GPUBatcherRenderer.hasInstance && GPUBatcherRenderer.instance.isInitialized)
                 OnMarkPrototypeDirty(prefabAsset);
         }
 
@@ -157,48 +155,48 @@ namespace Fraxinus.GPUBatcher.Editor
             if (prefabAsset == null) return;
 
             // check if prototype is registered
-            if (GPUBatcherRenderer.HasInstance
-                && GPUBatcherRenderer.Instance.IsInitialized
-                && !GPUBatcherRenderer.Instance.IsRegisteredPrototype(prefabAsset))
+            if (GPUBatcherRenderer.hasInstance
+                && GPUBatcherRenderer.instance.isInitialized
+                && !GPUBatcherRenderer.instance.IsRegisteredPrototype(prefabAsset))
             {
                 return;
             }
 
-            dirtyPrototypes.Add(prefabAsset);
+            s_dirtyPrototypes.Add(prefabAsset);
             ScheduleProcess();
         }
 
         private static void ScheduleProcess()
         {
-            if (!pendingProcess)
+            if (!s_pendingProcess)
             {
-                pendingProcess = true;
+                s_pendingProcess = true;
                 EditorApplication.delayCall += ProcessDirtyPrototypes;
             }
         }
 
         private static void ProcessDirtyPrototypes()
         {
-            pendingProcess = false;
+            s_pendingProcess = false;
 
-            if (dirtyPrototypes.Count == 0)
+            if (s_dirtyPrototypes.Count == 0)
                 return;
 
-            if (!GPUBatcherRenderer.HasInstance || !GPUBatcherRenderer.Instance.IsInitialized)
+            if (!GPUBatcherRenderer.hasInstance || !GPUBatcherRenderer.instance.isInitialized)
             {
-                dirtyPrototypes.Clear();
+                s_dirtyPrototypes.Clear();
                 return;
             }
 
-            var sys = GPUBatcherRenderer.Instance;
+            var sys = GPUBatcherRenderer.instance;
 
-            foreach (var prefab in dirtyPrototypes)
+            foreach (var prefab in s_dirtyPrototypes)
             {
                 if (prefab == null) continue;
                 sys.RefreshPrototype(prefab);
             }
 
-            dirtyPrototypes.Clear();
+            s_dirtyPrototypes.Clear();
         }
 
         private static GameObject ResolvePrefabAsset(GameObject obj)

@@ -18,13 +18,13 @@ namespace Fraxinus.GPUBatcher
         private int ComputeSettingsHash()
         {
             var h = new System.HashCode();
-            h.Add(treeChunkSize);
-            h.Add(detailChunkSize);
-            h.Add(useUnityTransforms);
-            h.Add(useStreaming);
-            h.Add(preservePrototypeLayers);
-            h.Add(snapCrossfadeOnStart);
-            var config = GPUBatcherConfig.Instance;
+            h.Add(_treeChunkSize);
+            h.Add(_requestedDetailChunkSize);
+            h.Add(_useUnityTransforms);
+            h.Add(_useStreaming);
+            h.Add(_preservePrototypeLayers);
+            h.Add(_snapCrossfadeOnStart);
+            var config = GPUBatcherConfig.instance;
             if (config != null)
             {
                 h.Add(config.terrainMaxUploadsPerFrame);
@@ -36,12 +36,12 @@ namespace Fraxinus.GPUBatcher
 
         private void OnValidate()
         {
-            if (treeChunkSize < 1f) treeChunkSize = 1f;
+            if (_treeChunkSize < 1f) _treeChunkSize = 1f;
 
             // handle drawTreesAndFoliage toggle immediately
             if (_terrain != null)
             {
-                bool shouldDisable = disableBuiltInRendering && enabled;
+                bool shouldDisable = _disableBuiltInRendering && enabled;
                 if (shouldDisable != _prevDisableBuiltIn)
                 {
                     _terrain.drawTreesAndFoliage = !shouldDisable;
@@ -68,7 +68,7 @@ namespace Fraxinus.GPUBatcher
                         if (this != null && enabled)
                         {
 #if DEBUG
-                            if (enableDebugLogging)
+                            if (_enableDebugLogging)
                                 Debug.Log("TerrainGPUBatcherRegisterer: Settings changed, refreshing...");
 #endif
                             Refresh();
@@ -151,7 +151,7 @@ namespace Fraxinus.GPUBatcher
                 return;
             }
 
-            if (GPUBatcherSystem != null && GPUBatcherConfig.Instance.debugDisableCulling)
+            if (GPUBatcherSystem != null && GPUBatcherConfig.instance.debugDisableCulling)
                 return;
 
             if (_pendingTerrainFlags != 0)
@@ -165,11 +165,11 @@ namespace Fraxinus.GPUBatcher
 
         #region Public Accessors (for custom inspector)
 
-        public bool IsTreesRegistered => _treesRegistered;
-        public bool IsDetailsRegistered => GPUBatcherSystem != null && _detailsInitialized;
-        public int TreeChunkCount => _treeChunkData.Count;
-        public int TreeInstanceCount => _totalTreeInstances;
-        public float TreeCullDistance => _terrain != null ? _terrain.treeDistance : 0f;
+        public bool isTreesRegistered => _treesRegistered;
+        public bool isDetailsRegistered => GPUBatcherSystem != null && _detailsInitialized;
+        public int treeChunkCount => _treeChunkData.Count;
+        public int treeInstanceCount => _totalTreeInstances;
+        public float treeCullDistance => _terrain != null ? _terrain.treeDistance : 0f;
 
         #endregion
 
@@ -178,7 +178,6 @@ namespace Fraxinus.GPUBatcher
         [UnityEditor.InitializeOnLoadMethod]
         private static void EditorStaticInitialize()
         {
-            // subscribe to undo/redo for terrain change detection
             UnityEditor.Undo.undoRedoPerformed -= OnGlobalUndoRedo;
             UnityEditor.Undo.undoRedoPerformed += OnGlobalUndoRedo;
         }

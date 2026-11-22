@@ -131,11 +131,11 @@ namespace Fraxinus.GPUBatcher
             int ix1 = math.min(ix + 1, ctx.regionW - 1);
             int iz1 = math.min(iz + 1, ctx.regionH - 1);
 
-            const float inv65535 = 1f / 65535f;
-            float h00 = ctx.heightmap[iz  * ctx.regionW + ix]  * inv65535;
-            float h10 = ctx.heightmap[iz  * ctx.regionW + ix1] * inv65535;
-            float h01 = ctx.heightmap[iz1 * ctx.regionW + ix]  * inv65535;
-            float h11 = ctx.heightmap[iz1 * ctx.regionW + ix1] * inv65535;
+            const float k_inv65535 = 1f / 65535f;
+            float h00 = ctx.heightmap[iz  * ctx.regionW + ix]  * k_inv65535;
+            float h10 = ctx.heightmap[iz  * ctx.regionW + ix1] * k_inv65535;
+            float h01 = ctx.heightmap[iz1 * ctx.regionW + ix]  * k_inv65535;
+            float h11 = ctx.heightmap[iz1 * ctx.regionW + ix1] * k_inv65535;
 
             return (h00 * (1 - fx) + h10 * fx) * (1 - fz)
                  + (h01 * (1 - fx) + h11 * fx) * fz;
@@ -204,10 +204,14 @@ namespace Fraxinus.GPUBatcher
         }
 
         // Roberts R2 quasi-random sequence (plastic number)
-        public const float R2_ALPHA_X = 0.7548777f;   // 1/phi_2
-        public const float R2_ALPHA_Z = 0.5698403f;   // 1/phi_2^2
-        public const float R2_X0 = 0.00976f;          // universal phase
-        public const float R2_Y0 = 0.63968f;
+        private const float k_r2AlphaX = 0.7548777f;   // 1/phi_2
+        public static float r2AlphaX => k_r2AlphaX;
+        private const float k_r2AlphaZ = 0.5698403f;   // 1/phi_2^2
+        public static float r2AlphaZ => k_r2AlphaZ;
+        private const float k_r2X0 = 0.00976f;          // universal phase
+        public static float r2X0 => k_r2X0;
+        private const float k_r2Y0 = 0.63968f;
+        public static float r2Y0 => k_r2Y0;
 
         // base R2 cell-relative position (rx, rz in [0, 1))
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -234,8 +238,8 @@ namespace Fraxinus.GPUBatcher
             if (positionInPatch + patchOffset + seedContribution >= 4095)
                 N -= 4095;
 
-            rx = math.frac(R2_X0 + N * R2_ALPHA_X);
-            rz = math.frac(R2_Y0 + N * R2_ALPHA_Z);
+            rx = math.frac(k_r2X0 + N * k_r2AlphaX);
+            rz = math.frac(k_r2Y0 + N * k_r2AlphaZ);
         }
 
         // shared per-instance body; returns false if skipped
@@ -275,7 +279,6 @@ namespace Fraxinus.GPUBatcher
             float normX = (worldX - ctx.terrainPosition.x) * ctx.invTerrainSizeX;
             float normZ = (worldZ - ctx.terrainPosition.z) * ctx.invTerrainSizeZ;
 
-            // hole check
             if (ctx.hasHoles)
             {
                 int hx = math.clamp((int)(normX * ctx.holesResolution) - ctx.holeRegionX, 0, ctx.holeRegionW - 1);
@@ -285,10 +288,8 @@ namespace Fraxinus.GPUBatcher
                     return false;
             }
 
-            // sample height
             float worldY = SampleHeight(in ctx.hm, normX, normZ) + ctx.terrainPosition.y;
 
-            // random yaw rotation
             float yaw = Hash01(instanceHash + 3u) * 6.283185307f;
 
             // scale from Perlin noise
@@ -317,7 +318,6 @@ namespace Fraxinus.GPUBatcher
                 signatureIndex = config.globalProtoIndex,
             });
 
-            // track bounds
             if (!hasBounds)
             {
                 boundsMin = worldPos;

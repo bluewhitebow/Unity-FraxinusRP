@@ -1,5 +1,4 @@
 // Copyright (c) 2026 Milk_Drinker01. All rights reserved.
-using UnityEngine;
 using UnityEditor;
 
 namespace Fraxinus.GPUBatcher.Editor

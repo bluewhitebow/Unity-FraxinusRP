@@ -19,19 +19,19 @@ namespace Fraxinus.GPUBatcher
         #region Batch System Fields
 
         // cached shader property IDs
-        private static readonly int _ID_O2W = Shader.PropertyToID("unity_ObjectToWorld");
-        private static readonly int _ID_W2O = Shader.PropertyToID("unity_WorldToObject");
-        private static readonly int _ID_PrevM = Shader.PropertyToID("unity_MatrixPreviousM");
-        private static readonly int _ID_SHCoeff = Shader.PropertyToID("unity_SHCoefficients");
+        private static readonly int s_idO2W = Shader.PropertyToID("unity_ObjectToWorld");
+        private static readonly int s_idW2O = Shader.PropertyToID("unity_WorldToObject");
+        private static readonly int s_idPrevM = Shader.PropertyToID("unity_MatrixPreviousM");
+        private static readonly int s_idShCoeff = Shader.PropertyToID("unity_SHCoefficients");
 
-        private static readonly int[] _windParamIds = new int[GPUBatcherSpeedTreeWindBridge.kMaxWindParamsCount];
-        private static readonly int[] _windHistoryParamIds = new int[GPUBatcherSpeedTreeWindBridge.kMaxWindParamsCount];
+        private static readonly int[] s_windParamIds = new int[GPUBatcherSpeedTreeWindBridge.maxWindParamsCount];
+        private static readonly int[] s_windHistoryParamIds = new int[GPUBatcherSpeedTreeWindBridge.maxWindParamsCount];
         static GPUBatcherRenderer()
         {
-            for (int i = 0; i < GPUBatcherSpeedTreeWindBridge.kMaxWindParamsCount; i++)
+            for (int i = 0; i < GPUBatcherSpeedTreeWindBridge.maxWindParamsCount; i++)
             {
-                _windParamIds[i] = Shader.PropertyToID($"DOTS_ST_WindParam{i}");
-                _windHistoryParamIds[i] = Shader.PropertyToID($"DOTS_ST_WindHistoryParam{i}");
+                s_windParamIds[i] = Shader.PropertyToID($"DOTS_ST_WindParam{i}");
+                s_windHistoryParamIds[i] = Shader.PropertyToID($"DOTS_ST_WindHistoryParam{i}");
             }
         }
 
@@ -86,7 +86,7 @@ namespace Fraxinus.GPUBatcher
         private int _shadowDrawCommandCount; // = _shadowDrawCommandTemplate.Length (capacity)
         private int _shadowDrawRangeCount;
 
-        private const int kIndirectArgsStride = 5 * sizeof(uint);
+        private const int k_indirectArgsStride = 5 * sizeof(uint);
 
         // per-prototype bucket offsets and layout params (set by allocators)
         private int[] _cameraBucketOffsets;
@@ -193,10 +193,10 @@ namespace Fraxinus.GPUBatcher
             public uint lodFadeWidths23;
             public uint lodFadeWidths45;
             public uint lodFadeWidths67;
-            public uint densMinFrac_fadeDur;
+            public uint densMinFracFadeDur;
             public uint boundsRadiusLodSize;
-            public uint densParam1_densParam2;
-            public uint fadeWidth_pad;
+            public uint densParam1DensParam2;
+            public uint fadeWidthPad;
             public uint cameraBucketOffset;
             public uint shadowBucketOffset;
             public uint flipBucketOffset;
@@ -265,29 +265,29 @@ namespace Fraxinus.GPUBatcher
 
         private NativeArray<MetadataValue> BuildBatchMetadata(int protoIndex = -1)
         {
-            uint totalSlots = (uint)(_poolCapacity * kPoolSize);
+            uint totalSlots = (uint)(_poolCapacity * k_poolSize);
             uint byteAddressO2W = 0;
-            uint byteAddressW2O = totalSlots * kSizeOfPackedMatrix;
-            uint byteAddressPrevM = totalSlots * 2 * kSizeOfPackedMatrix;
+            uint byteAddressW2O = totalSlots * k_sizeOfPackedMatrix;
+            uint byteAddressPrevM = totalSlots * 2 * k_sizeOfPackedMatrix;
             int speedTreeSlot = IsSpeedTreeProto(protoIndex) ? _protoSpeedTreeSlotIndex[protoIndex] : -1;
-            int baseCount = LightProbesEnabled ? 4 : 3;
-            int speedTreeCount = speedTreeSlot >= 0 ? GPUBatcherSpeedTreeWindBridge.kMaxWindParamsCount * 2 : 0;
+            int baseCount = lightProbesEnabled ? 4 : 3;
+            int speedTreeCount = speedTreeSlot >= 0 ? GPUBatcherSpeedTreeWindBridge.maxWindParamsCount * 2 : 0;
             var metadata = new NativeArray<MetadataValue>(baseCount + speedTreeCount, Allocator.Temp)
             {
-                [0] = new MetadataValue { NameID = _ID_O2W, Value = 0x80000000 | byteAddressO2W },
-                [1] = new MetadataValue { NameID = _ID_W2O, Value = 0x80000000 | byteAddressW2O },
-                [2] = new MetadataValue { NameID = _ID_PrevM, Value = 0x80000000 | byteAddressPrevM }
+                [0] = new MetadataValue { NameID = s_idO2W, Value = 0x80000000 | byteAddressO2W },
+                [1] = new MetadataValue { NameID = s_idW2O, Value = 0x80000000 | byteAddressW2O },
+                [2] = new MetadataValue { NameID = s_idPrevM, Value = 0x80000000 | byteAddressPrevM }
             };
-            if (LightProbesEnabled)
-                metadata[3] = new MetadataValue { NameID = _ID_SHCoeff, Value = 0x80000000 | (totalSlots * 3 * 12 * sizeof(float)) };
+            if (lightProbesEnabled)
+                metadata[3] = new MetadataValue { NameID = s_idShCoeff, Value = 0x80000000 | (totalSlots * 3 * 12 * sizeof(float)) };
             if (speedTreeSlot >= 0)
             {
-                int k = GPUBatcherSpeedTreeWindBridge.kMaxWindParamsCount;
-                uint stBase = (uint)(_speedTreeRegionByteOffset + speedTreeSlot * kSpeedTreeParamsPerProto * sizeof(float));
+                int k = GPUBatcherSpeedTreeWindBridge.maxWindParamsCount;
+                uint stBase = (uint)(_speedTreeRegionByteOffset + speedTreeSlot * k_speedTreeParamsPerProto * sizeof(float));
                 for (int i = 0; i < k; i++)
                 {
-                    metadata[baseCount + i] = new MetadataValue { NameID = _windParamIds[i], Value = stBase + (uint)(i * 16) };
-                    metadata[baseCount + k + i] = new MetadataValue { NameID = _windHistoryParamIds[i], Value = stBase + (uint)(k * 16 + i * 16) };
+                    metadata[baseCount + i] = new MetadataValue { NameID = s_windParamIds[i], Value = stBase + (uint)(i * 16) };
+                    metadata[baseCount + k + i] = new MetadataValue { NameID = s_windHistoryParamIds[i], Value = stBase + (uint)(k * 16 + i * 16) };
                 }
             }
             return metadata;
@@ -307,15 +307,15 @@ namespace Fraxinus.GPUBatcher
             return slot;
         }
 
-        private static readonly ProfilerMarker s_MarkerAddBatch = new ProfilerMarker("BRG.AddBatch");
-        private static readonly ProfilerMarker s_MarkerRegMesh = new ProfilerMarker("BRG.RegisterMesh");
-        private static readonly ProfilerMarker s_MarkerRegMat = new ProfilerMarker("BRG.RegisterMaterial");
+        private static readonly ProfilerMarker s_markerAddBatch = new ProfilerMarker("BRG.AddBatch");
+        private static readonly ProfilerMarker s_markerRegMesh = new ProfilerMarker("BRG.RegisterMesh");
+        private static readonly ProfilerMarker s_markerRegMat = new ProfilerMarker("BRG.RegisterMaterial");
 
         private void EnsureSharedBatchID()
         {
             if (_sharedBatchIDValid || _matrixBuffer == null) return;
             var metadata = BuildBatchMetadata();
-            using (s_MarkerAddBatch.Auto())
+            using (s_markerAddBatch.Auto())
                 _sharedBatchID = _brg.AddBatch(metadata, _matrixBuffer.bufferHandle);
             metadata.Dispose();
             _sharedBatchIDValid = true;
@@ -333,7 +333,7 @@ namespace Fraxinus.GPUBatcher
                 int slot = _protoSpeedTreeSlotIndex[p];
                 if (slot < 0 || _speedTreeBatchIDs[slot].value != 0) continue;
                 var metadata = BuildBatchMetadata(p);
-                using (s_MarkerAddBatch.Auto())
+                using (s_markerAddBatch.Auto())
                     _speedTreeBatchIDs[slot] = _brg.AddBatch(metadata, _matrixBuffer.bufferHandle);
                 metadata.Dispose();
             }
@@ -362,7 +362,7 @@ namespace Fraxinus.GPUBatcher
             }
             _protoBatchSlots[protoIndex] ??= new List<int>(4);
             var slots = _protoBatchSlots[protoIndex];
-            int lodCount = proto.LODCount;
+            int lodCount = proto.lodCount;
 #if UNITY_EDITOR
             ValidatePrototypeForBRG(protoIndex);
 #endif
@@ -375,7 +375,7 @@ namespace Fraxinus.GPUBatcher
                 bool newMesh = !_meshIdCache.TryGetValue(lodMesh, out var meshID);
                 if (newMesh)
                 {
-                    using (s_MarkerRegMesh.Auto()) meshID = _brg.RegisterMesh(lodMesh);
+                    using (s_markerRegMesh.Auto()) meshID = _brg.RegisterMesh(lodMesh);
                     _meshIdCache[lodMesh] = meshID;
                     _meshIdReverse[meshID] = lodMesh;
                     _meshRefCount[meshID] = 0;
@@ -388,7 +388,7 @@ namespace Fraxinus.GPUBatcher
                     _meshRefCount[meshID] = _meshRefCount.GetValueOrDefault(meshID) + 1;
                     if (!_materialIdCache.TryGetValue(mat, out var materialID))
                     {
-                        using (s_MarkerRegMat.Auto()) materialID = _brg.RegisterMaterial(mat);
+                        using (s_markerRegMat.Auto()) materialID = _brg.RegisterMaterial(mat);
                         _materialIdCache[mat] = materialID;
                         _materialIdReverse[materialID] = mat;
                         _materialRefCount[materialID] = 0;
@@ -447,7 +447,7 @@ namespace Fraxinus.GPUBatcher
             _emptyLodCheckedProtos ??= new HashSet<RenderSignature>();
             if (_emptyLodCheckedProtos.Add(proto))
             {
-                int lodCount = proto.LODCount;
+                int lodCount = proto.lodCount;
                 for (int lod = 0; lod < lodCount; lod++)
                     if (proto.GetLODMeshRaw(lod) == null)
                         Debug.LogWarning($"GPUBatcherRenderer: prototype '{name}' LOD {lod} has no mesh and will not render in its screen-size range.", prefab);
@@ -462,7 +462,7 @@ namespace Fraxinus.GPUBatcher
         private HashSet<Shader> ProtoShaders(RenderSignature proto)
         {
             _protoShaderScratch.Clear();
-            int lodCount = proto.LODCount;
+            int lodCount = proto.lodCount;
             for (int lod = 0; lod < lodCount; lod++)
             {
                 var mats = proto.GetLODMaterials(lod) ?? proto.materials;
@@ -557,7 +557,7 @@ namespace Fraxinus.GPUBatcher
             if (proto == null) return;
             EnsurePerProtoArrays(_renderSignatures.Count);
 
-            int lodCount = proto.LODCount;
+            int lodCount = proto.lodCount;
             bool anyFade = _prototypeCrossfadeEnabled.IsCreated && protoIndex < _prototypeCrossfadeEnabled.Length
                 && (_prototypeCrossfadeEnabled[protoIndex] || _prototypeAnimatedCrossfade[protoIndex]);
 
@@ -636,7 +636,7 @@ namespace Fraxinus.GPUBatcher
             var proto = _renderSignatures[protoIndex];
             if (proto == null) return;
 
-            int lodCount = proto.LODCount;
+            int lodCount = proto.lodCount;
             bool protoHasMotion = proto.motionVectorMode == MotionVectorGenerationMode.Object;
             int hwm = (_protoInstanceCountHWM.IsCreated && protoIndex < _protoInstanceCountHWM.Length) ? _protoInstanceCountHWM[protoIndex] : 0;
             uint slots = (uint)math.max(hwm, 64);
@@ -649,8 +649,8 @@ namespace Fraxinus.GPUBatcher
                 || _prototypeShadowMaskCache[protoIndex] != 0;
 
             // ensure bucket NativeArrays are large enough
-            EnsureBucketCapacity(ref _buckets, _camBucketAlloc.HighWaterMark);
-            if (hasShadow) EnsureBucketCapacity(ref _shadowBuckets, _shdBucketAlloc.HighWaterMark);
+            EnsureBucketCapacity(ref _buckets, _camBucketAlloc.highWaterMark);
+            if (hasShadow) EnsureBucketCapacity(ref _shadowBuckets, _shdBucketAlloc.highWaterMark);
 
             // camera: normal + flip (flip needs normalSlots for vis base offset)
             EmitCameraCommands(protoIndex, lodCount, slots, slots, protoHasMotion, false);
@@ -738,7 +738,7 @@ namespace Fraxinus.GPUBatcher
 #else
                             visibleOffset = bucketVisOffset,
 #endif
-                            indirectArgsBufferOffset = (uint)(cmdIdx * kIndirectArgsStride),
+                            indirectArgsBufferOffset = (uint)(cmdIdx * k_indirectArgsStride),
                         };
                         WriteMeshArgsNative(_cameraIndirectArgsTemplate, cmdIdx, batch, proto);
 #if ADRENO_DRIVER_WORKAROUND
@@ -816,7 +816,7 @@ namespace Fraxinus.GPUBatcher
 #else
                                 visibleOffset = bucketVisOffset,
 #endif
-                                indirectArgsBufferOffset = (uint)(cmdIdx * kIndirectArgsStride),
+                                indirectArgsBufferOffset = (uint)(cmdIdx * k_indirectArgsStride),
                             };
                             WriteMeshArgsNative(_shadowIndirectArgsTemplate, cmdIdx, batch, proto);
 #if ADRENO_DRIVER_WORKAROUND
@@ -827,7 +827,7 @@ namespace Fraxinus.GPUBatcher
                             _shdCmd2Proto[cmdIdx] = protoIndex;
 
                             int protoMaxCascades = (_prototypeMaxShadowCascade.IsCreated && batch.signatureIndex < _prototypeMaxShadowCascade.Length)
-                                ? _prototypeMaxShadowCascade[batch.signatureIndex] : kMaxCascades;
+                                ? _prototypeMaxShadowCascade[batch.signatureIndex] : k_maxCascades;
                             _shadowCommandFilterInfo[cmdIdx] = new ShadowCommandFilterInfo { cascadeIndex = cascade, fadeState = fadeState, protoMaxCascades = protoMaxCascades };
 
                             EnsureProtoCommandList(ref _shdProtoCommands, protoIndex);
@@ -1036,7 +1036,7 @@ namespace Fraxinus.GPUBatcher
                 (_camCmdIndexInProtoList[cmdIdx], _camCmdIndexInProtoList[last]) = (_camCmdIndexInProtoList[last], _camCmdIndexInProtoList[cmdIdx]);
                 // fix indirectArgsBufferOffset for moved command
                 var tmpl = _cameraDrawCommandTemplate[cmdIdx];
-                tmpl.indirectArgsBufferOffset = (uint)(cmdIdx * kIndirectArgsStride);
+                tmpl.indirectArgsBufferOffset = (uint)(cmdIdx * k_indirectArgsStride);
                 _cameraDrawCommandTemplate[cmdIdx] = tmpl;
                 // update swapped command's reverse lookup
                 int swappedProto = _camCmd2Proto[cmdIdx];
@@ -1073,7 +1073,7 @@ namespace Fraxinus.GPUBatcher
                 (_shdCmdRangeIdx[cmdIdx], _shdCmdRangeIdx[last]) = (_shdCmdRangeIdx[last], _shdCmdRangeIdx[cmdIdx]);
                 (_shdCmdIndexInProtoList[cmdIdx], _shdCmdIndexInProtoList[last]) = (_shdCmdIndexInProtoList[last], _shdCmdIndexInProtoList[cmdIdx]);
                 var tmpl = _shadowDrawCommandTemplate[cmdIdx];
-                tmpl.indirectArgsBufferOffset = (uint)(cmdIdx * kIndirectArgsStride);
+                tmpl.indirectArgsBufferOffset = (uint)(cmdIdx * k_indirectArgsStride);
                 _shadowDrawCommandTemplate[cmdIdx] = tmpl;
                 int swappedProto = _shdCmd2Proto[cmdIdx];
                 if (_shdProtoCommands != null && swappedProto < _shdProtoCommands.Length && _shdProtoCommands[swappedProto] != null)
@@ -1213,8 +1213,8 @@ namespace Fraxinus.GPUBatcher
                 int tmplStride = UnsafeUtility.SizeOf<BatchDrawCommandIndirect>();
                 UnsafeUtility.MemMove((byte*)templates.GetUnsafePtr() + (rangeEnd + growth) * tmplStride,
                     (byte*)templates.GetUnsafePtr() + rangeEnd * tmplStride, shiftCount * tmplStride);
-                UnsafeUtility.MemMove((byte*)args.GetUnsafePtr() + (rangeEnd + growth) * kIndirectArgsStride,
-                    (byte*)args.GetUnsafePtr() + rangeEnd * kIndirectArgsStride, shiftCount * kIndirectArgsStride);
+                UnsafeUtility.MemMove((byte*)args.GetUnsafePtr() + (rangeEnd + growth) * k_indirectArgsStride,
+                    (byte*)args.GetUnsafePtr() + rangeEnd * k_indirectArgsStride, shiftCount * k_indirectArgsStride);
 
                 // shadow filter info
                 if (!isCamera && _shadowCommandFilterInfo.IsCreated)
@@ -1233,7 +1233,7 @@ namespace Fraxinus.GPUBatcher
                 for (int i = rangeEnd + growth; i < rangeEnd + growth + shiftCount; i++)
                 {
                     var t = templates[i];
-                    t.indirectArgsBufferOffset = (uint)(i * kIndirectArgsStride);
+                    t.indirectArgsBufferOffset = (uint)(i * k_indirectArgsStride);
                     templates[i] = t;
                 }
 
@@ -1260,10 +1260,10 @@ namespace Fraxinus.GPUBatcher
         {
             if (!_rangesDirty) return;
 
-            _maxVisibleInstances = math.max(1, _camVisAlloc.HighWaterMark);
-            _shadowMaxVisibleInstances = math.max(1, _shdVisAlloc.HighWaterMark);
-            _totalCameraBuckets = _camBucketAlloc.HighWaterMark;
-            _totalShadowBuckets = _shdBucketAlloc.HighWaterMark;
+            _maxVisibleInstances = math.max(1, _camVisAlloc.highWaterMark);
+            _shadowMaxVisibleInstances = math.max(1, _shdVisAlloc.highWaterMark);
+            _totalCameraBuckets = _camBucketAlloc.highWaterMark;
+            _totalShadowBuckets = _shdBucketAlloc.highWaterMark;
             // zero-instance protos allocate buckets without growing the templates
             EnsureBucketCapacity(ref _buckets, _totalCameraBuckets);
             EnsureBucketCapacity(ref _shadowBuckets, _totalShadowBuckets);
@@ -1351,7 +1351,7 @@ namespace Fraxinus.GPUBatcher
         private void IncFullRebuild()
         {
 #if DEBUG
-            using var _cb = s_MarkerCreateBatches.Auto();
+            using var _cb = s_markerCreateBatches.Auto();
 #endif
             RemoveAllBatchIds();
             ClearBatchSlots();
@@ -1540,9 +1540,6 @@ namespace Fraxinus.GPUBatcher
                 var seg = ranges[order[r]];
                 template[r] = new BatchDrawRange
                 {
-#if UNITY_6000_0_OR_NEWER
-                    drawCommandsType = BatchDrawCommandType.Indirect,
-#endif
                     drawCommandsBegin = (uint)seg.begin,
                     drawCommandsCount = (uint)seg.count,
                     filterSettings = new BatchFilterSettings
@@ -1706,7 +1703,7 @@ namespace Fraxinus.GPUBatcher
                     }
                     _protoBoundsCenter[p] = bounds.center;
                     _protoBoundsRadius[p] = bounds.extents.magnitude;
-                    _protoLodReferenceSize[p] = proto.LodReferenceSize;
+                    _protoLodReferenceSize[p] = proto.lodReferenceSize;
                 }
                 else
                 {
@@ -1741,7 +1738,7 @@ namespace Fraxinus.GPUBatcher
         private NativeArray<GPUSignatureData> _gpuSignatureScratch;
 
         // partial signature upload staging
-        private const int kSigStagingCapacity = 64;
+        private const int k_sigStagingCapacity = 64;
         private readonly HashSet<int> _dirtySignatureProtos = new();
         private bool _allSignaturesDirty;
         private NativeArray<GPUSignatureData> _sigStagingData;
@@ -1792,14 +1789,14 @@ namespace Fraxinus.GPUBatcher
             // ensure staging arrays exist
             if (!_sigStagingData.IsCreated)
             {
-                _sigStagingData = new NativeArray<GPUSignatureData>(kSigStagingCapacity, Allocator.Persistent);
-                _sigStagingIndices = new NativeArray<int>(kSigStagingCapacity, Allocator.Persistent);
+                _sigStagingData = new NativeArray<GPUSignatureData>(k_sigStagingCapacity, Allocator.Persistent);
+                _sigStagingIndices = new NativeArray<int>(k_sigStagingCapacity, Allocator.Persistent);
             }
             if (_sigStagingGpuBuffer == null)
             {
-                _sigStagingGpuBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, kSigStagingCapacity, UnsafeUtility.SizeOf<GPUSignatureData>());
+                _sigStagingGpuBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, k_sigStagingCapacity, UnsafeUtility.SizeOf<GPUSignatureData>());
                 _sigStagingGpuBuffer.name = "FraxinusGPUBatcher_SigStaging";
-                _sigStagingIndexGpuBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, kSigStagingCapacity, sizeof(int));
+                _sigStagingIndexGpuBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, k_sigStagingCapacity, sizeof(int));
                 _sigStagingIndexGpuBuffer.name = "FraxinusGPUBatcher_SigStagingIdx";
             }
 
@@ -1812,7 +1809,7 @@ namespace Fraxinus.GPUBatcher
                 _sigStagingData[cursor] = _gpuSignatureScratch[p];
                 _sigStagingIndices[cursor] = p;
                 cursor++;
-                if (cursor >= kSigStagingCapacity)
+                if (cursor >= k_sigStagingCapacity)
                 {
                     FlushSignatureStaging(cursor);
                     cursor = 0;
@@ -1827,14 +1824,14 @@ namespace Fraxinus.GPUBatcher
 
         private void FlushSignatureStaging(int count)
         {
-            if (_scatterWriteSignaturesKernel < 0 || uploadShader == null || count <= 0) return;
+            if (_scatterWriteSignaturesKernel < 0 || _uploadShader == null || count <= 0) return;
             _sigStagingGpuBuffer.SetData(_sigStagingData, 0, 0, count);
             _sigStagingIndexGpuBuffer.SetData(_sigStagingIndices, 0, 0, count);
-            uploadShader.SetBuffer(_scatterWriteSignaturesKernel, "_SigStagingSrc", _sigStagingGpuBuffer);
-            uploadShader.SetBuffer(_scatterWriteSignaturesKernel, "_SigStagingIndices", _sigStagingIndexGpuBuffer);
-            uploadShader.SetBuffer(_scatterWriteSignaturesKernel, "_SigScatterDst", _gpuSignatureBuffer);
-            uploadShader.SetInt("_SigScatterCount", count);
-            DispatchSafe(uploadShader, _scatterWriteSignaturesKernel, (count + 63) / 64);
+            _uploadShader.SetBuffer(_scatterWriteSignaturesKernel, "_SigStagingSrc", _sigStagingGpuBuffer);
+            _uploadShader.SetBuffer(_scatterWriteSignaturesKernel, "_SigStagingIndices", _sigStagingIndexGpuBuffer);
+            _uploadShader.SetBuffer(_scatterWriteSignaturesKernel, "_SigScatterDst", _gpuSignatureBuffer);
+            _uploadShader.SetInt("_SigScatterCount", count);
+            DispatchSafe(_uploadShader, _scatterWriteSignaturesKernel, (count + 63) / 64);
         }
 
         private GPUSignatureData PackSignatureData(int p)
@@ -1855,7 +1852,7 @@ namespace Fraxinus.GPUBatcher
                 float inv = 1f / groupLodBias; // larger bias -> smaller thresholds -> finer LOD held longer
                 s0 *= inv; s1 *= inv;
             }
-            int lodCount = proto.LODCount;
+            int lodCount = proto.lodCount;
             int densityMode = !proto.enableDistanceDensity ? 0 : (int)proto.distanceDensityMode + 1;
             int minShadowLOD = math.clamp(proto.minShadowLOD, 0, lodCount - 1);
             int maxShadowCascade = math.clamp(_prototypeMaxShadowCascade[p], 1, 4);
@@ -1890,9 +1887,9 @@ namespace Fraxinus.GPUBatcher
                 flags1 = GPUSignatureData.PackFlags1(
                     _perProtoShadowCrossfadeCascades != null && p < _perProtoShadowCrossfadeCascades.Length ? _perProtoShadowCrossfadeCascades[p] : 0,
                     _perProtoShadowLodStride != null && p < _perProtoShadowLodStride.Length ? math.max(1, _perProtoShadowLodStride[p]) : 1),
-                densMinFrac_fadeDur = GPUSignatureData.PackScaledUNORM16(proto.densityMinFraction, 1f, fadeDuration, 10f),
-                densParam1_densParam2 = GPUSignatureData.PackHalf2(dp1, dp2),
-                fadeWidth_pad = GPUSignatureData.PackHalf2(proto.densityFadeWidth, groupDensity),
+                densMinFracFadeDur = GPUSignatureData.PackScaledUNORM16(proto.densityMinFraction, 1f, fadeDuration, 10f),
+                densParam1DensParam2 = GPUSignatureData.PackHalf2(dp1, dp2),
+                fadeWidthPad = GPUSignatureData.PackHalf2(proto.densityFadeWidth, groupDensity),
                 cameraBucketOffset = (uint)(_cameraBucketOffsets != null && p < _cameraBucketOffsets.Length ? _cameraBucketOffsets[p] : 0),
                 shadowBucketOffset = (uint)(_shadowBucketOffsets != null && p < _shadowBucketOffsets.Length ? _shadowBucketOffsets[p] : 0),
                 flipBucketOffset = (uint)(_protoFlipBucketOffsets != null && p < _protoFlipBucketOffsets.Length ? _protoFlipBucketOffsets[p] : 0),

@@ -10,6 +10,12 @@ using UnityEditor;
 using UnityEditor.ProjectWindowCallback;
 #endif
 
+#if UNITY_6000_0_OR_NEWER
+using RenderingCategories = UnityEngine.Categorization;
+#else
+using RenderingCategories = UnityEngine.Rendering.Categorization;
+#endif
+
 namespace FraxinusEngine.Rendering.Ultra
 {
     /// <summary>
@@ -80,8 +86,8 @@ namespace FraxinusEngine.Rendering.Ultra
         /// </summary>
         [Serializable]
         [SupportedOnRenderPipeline(typeof(UltraRenderPipelineAsset))]
-        [UnityEngine.Rendering.Categorization.CategoryInfo(Name = "R: Default PostProcess Shaders", Order = 1000)]
-        [UnityEngine.Rendering.Categorization.ElementInfo(Order = 0), HideInInspector]
+        [RenderingCategories.CategoryInfo(Name = "R: Default PostProcess Shaders", Order = 1000)]
+        [RenderingCategories.ElementInfo(Order = 0), HideInInspector]
         public sealed class ShaderResources : IRenderPipelineResources
         {
             /// <summary>
@@ -243,8 +249,8 @@ namespace FraxinusEngine.Rendering.Ultra
         /// </summary>
         [Serializable]
         [SupportedOnRenderPipeline(typeof(UltraRenderPipelineAsset))]
-        [UnityEngine.Rendering.Categorization.CategoryInfo(Name = "R: Default PostProcess Textures", Order = 1000)]
-        [UnityEngine.Rendering.Categorization.ElementInfo(Order = 0), HideInInspector]
+        [RenderingCategories.CategoryInfo(Name = "R: Default PostProcess Textures", Order = 1000)]
+        [RenderingCategories.ElementInfo(Order = 0), HideInInspector]
         public sealed class TextureResources : IRenderPipelineResources
         {
             /// <summary>

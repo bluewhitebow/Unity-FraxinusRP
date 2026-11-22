@@ -254,7 +254,7 @@ namespace Fraxinus.GPUBatcher
             // overrides (material swaps etc.) are ignored and all instances share the clean prototype
             var source = (!_detectPrefabOverrides && prefab != null) ? prefab : go;
 
-            var sig = Registration.ExtractRenderSignature(source);
+            var sig = registration.ExtractRenderSignature(source);
             if (sig?.asset == null) return null;
 
             var a = sig.asset;
@@ -273,7 +273,7 @@ namespace Fraxinus.GPUBatcher
             {
                 sourcePrefab = prefab,
                 lods = new BakedLod[n],
-                lodReferenceSize = a.LodReferenceSize,
+                lodReferenceSize = a.lodReferenceSize,
                 fadeMode = a.fadeMode,
                 percentageFadeMask = a.percentageFadeMask,
                 motionVectorMode = sig.motionVectorMode,

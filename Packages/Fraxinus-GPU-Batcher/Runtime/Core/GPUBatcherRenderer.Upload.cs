@@ -22,20 +22,20 @@ namespace Fraxinus.GPUBatcher
         #region Upload Fields
 
         // staging capacities - fixed size, flush on full, never resize
-        private const int kChunkStagingCapacity = 256; // diag: 2
-        private const int kPoolRefStagingCapacity = 4096; // diag: 8
-        private const int kInstanceStagingCapacity = 65536; // diag: 256
-        private const int kTRSPatchStagingCapacity = 8192; // diag: 128
-        private const int kColorStagingCapacity = 1024; // diag: 128
-        private const int kSigOverrideStagingCapacity = 512; // diag: 32
+        private const int k_chunkStagingCapacity = 256; // diag: 2
+        private const int k_poolRefStagingCapacity = 4096; // diag: 8
+        private const int k_instanceStagingCapacity = 65536; // diag: 256
+        private const int k_trsPatchStagingCapacity = 8192; // diag: 128
+        private const int k_colorStagingCapacity = 1024; // diag: 128
+        private const int k_sigOverrideStagingCapacity = 512; // diag: 32
 
 
         // mid-frame overflow flush counters (reset each frame in FlushStagedUploads)
-        public int StatInstanceOverflowFlushes { get; private set; }
-        public int StatPoolRefOverflowFlushes { get; private set; }
-        public int StatTRSPatchOverflowFlushes { get; private set; }
-        public int StatChunkOverflowFlushes { get; private set; }
-        public int StatColorOverflowFlushes { get; private set; }
+        public int statInstanceOverflowFlushes { get; private set; }
+        public int statPoolRefOverflowFlushes { get; private set; }
+        public int statTRSPatchOverflowFlushes { get; private set; }
+        public int statChunkOverflowFlushes { get; private set; }
+        public int statColorOverflowFlushes { get; private set; }
 
         // staged GPU uploads: CPU array -> single SetData -> GPU copy -> live buffer
         private NativeArray<GPUStagedInstanceData> _stagingCpuArray; // CPU-side accumulator
@@ -123,9 +123,9 @@ namespace Fraxinus.GPUBatcher
             public bool isClear; // true = clear, false = upload
             public bool isOverflow; // true = dispatched during overflow flush
         }
-        public readonly List<DebugUploadRecord> DebugUploadHistory = new();
-        public bool DebugResizedThisFrame { get; private set; }
-        public int DebugTRSPatchesDispatchedPreDiag { get; private set; }
+        public readonly List<DebugUploadRecord> debugUploadHistory = new();
+        public bool debugResizedThisFrame { get; private set; }
+        public int debugTRSPatchesDispatchedPreDiag { get; private set; }
 
 #endif
 
@@ -145,7 +145,7 @@ namespace Fraxinus.GPUBatcher
         private bool _resizeDeferred;
 
         // one-shot event, cleared after invocation
-        public event Action OnDeferredWritesCompleted;
+        public event Action onDeferredWritesCompleted;
 
         // per-instance color staging (only allocated when _perInstanceColorEnabled)
         [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
@@ -183,57 +183,57 @@ namespace Fraxinus.GPUBatcher
         private bool _anyPrototypeBoundary;  // true if any prototype has hit a cycle boundary (sticky until all views consume)
 
         // upload shader property IDs
-        private static readonly int _ID_CopySrc = Shader.PropertyToID("_CopySrc");
-        private static readonly int _ID_CopyDst = Shader.PropertyToID("_CopyDst");
-        private static readonly int _ID_CopySrcOffsetBytes = Shader.PropertyToID("_CopySrcOffsetBytes");
-        private static readonly int _ID_CopyDstOffsetBytes = Shader.PropertyToID("_CopyDstOffsetBytes");
-        private static readonly int _ID_CopyCountUint4 = Shader.PropertyToID("_CopyCountUint4");
-        private static readonly int _ID_CopyTailUints = Shader.PropertyToID("_CopyTailUints");
-        private static readonly int _ID_TRSTotalSlots = Shader.PropertyToID("_TRSTotalSlots");
-        private static readonly int _ID_TRSPrevMMode = Shader.PropertyToID("_TRSPrevMMode");
-        private static readonly int _ID_TRSBatchCount = Shader.PropertyToID("_TRSBatchCount");
-        private static readonly int _ID_UploadSrcOffset = Shader.PropertyToID("_UploadSrcOffset");
-        private static readonly int _ID_UploadDstOffset = Shader.PropertyToID("_UploadDstOffset");
-        private static readonly int _ID_UploadCount = Shader.PropertyToID("_UploadCount");
-        private static readonly int _ID_UploadInstanceDst = Shader.PropertyToID("_UploadInstanceDst");
-        private static readonly int _ID_UploadIntSrc = Shader.PropertyToID("_UploadIntSrc");
-        private static readonly int _ID_UploadIntDst = Shader.PropertyToID("_UploadIntDst");
-        private static readonly int _ID_ClearInstanceDst = Shader.PropertyToID("_ClearInstanceDst");
-        private static readonly int _ID_InitFadeDst = Shader.PropertyToID("_InitFadeDst");
-        private static readonly int _ID_InitFadeDstOffset = Shader.PropertyToID("_InitFadeDstOffset");
-        private static readonly int _ID_InitFadeCount = Shader.PropertyToID("_InitFadeCount");
-        private static readonly int _ID_CopyChunkSrc = Shader.PropertyToID("_CopyChunkSrc");
-        private static readonly int _ID_CopyChunkDst = Shader.PropertyToID("_CopyChunkDst");
-        private static readonly int _ID_CopyFadeSrc = Shader.PropertyToID("_CopyFadeSrc");
-        private static readonly int _ID_CopyFadeDst = Shader.PropertyToID("_CopyFadeDst");
-        private static readonly int _ID_ChunkStagingSrc = Shader.PropertyToID("_ChunkStagingSrc");
-        private static readonly int _ID_ChunkStagingIndices = Shader.PropertyToID("_ChunkStagingIndices");
-        private static readonly int _ID_ChunkScatterDst = Shader.PropertyToID("_ChunkScatterDst");
-        private static readonly int _ID_ChunkScatterCount = Shader.PropertyToID("_ChunkScatterCount");
-        private static readonly int _ID_SettleSlotIndices = Shader.PropertyToID("_SettleSlotIndices");
-        private static readonly int _ID_SettleCount = Shader.PropertyToID("_SettleCount");
-        private static readonly int _ID_SettlePrevMBaseBytes = Shader.PropertyToID("_SettlePrevMBaseBytes");
-        private static readonly int _ID_BatchCmds = Shader.PropertyToID("_BatchCmds");
-        private static readonly int _ID_BatchCmdCount = Shader.PropertyToID("_BatchCmdCount");
-        private static readonly int _ID_TRSPatchSrc = Shader.PropertyToID("_TRSPatchSrc");
-        private static readonly int _ID_TRSPatchCount = Shader.PropertyToID("_TRSPatchCount");
-        private static readonly int _ID_SigOverrideSrc = Shader.PropertyToID("_SigOverrideSrc");
-        private static readonly int _ID_SigOverrideCount = Shader.PropertyToID("_SigOverrideCount");
+        private static readonly int s_idCopySrc = Shader.PropertyToID("_CopySrc");
+        private static readonly int s_idCopyDst = Shader.PropertyToID("_CopyDst");
+        private static readonly int s_idCopySrcOffsetBytes = Shader.PropertyToID("_CopySrcOffsetBytes");
+        private static readonly int s_idCopyDstOffsetBytes = Shader.PropertyToID("_CopyDstOffsetBytes");
+        private static readonly int s_idCopyCountUint4 = Shader.PropertyToID("_CopyCountUint4");
+        private static readonly int s_idCopyTailUints = Shader.PropertyToID("_CopyTailUints");
+        private static readonly int s_idTrsTotalSlots = Shader.PropertyToID("_TRSTotalSlots");
+        private static readonly int s_idTrsPrevMMode = Shader.PropertyToID("_TRSPrevMMode");
+        private static readonly int s_idTrsBatchCount = Shader.PropertyToID("_TRSBatchCount");
+        private static readonly int s_idUploadSrcOffset = Shader.PropertyToID("_UploadSrcOffset");
+        private static readonly int s_idUploadDstOffset = Shader.PropertyToID("_UploadDstOffset");
+        private static readonly int s_idUploadCount = Shader.PropertyToID("_UploadCount");
+        private static readonly int s_idUploadInstanceDst = Shader.PropertyToID("_UploadInstanceDst");
+        private static readonly int s_idUploadIntSrc = Shader.PropertyToID("_UploadIntSrc");
+        private static readonly int s_idUploadIntDst = Shader.PropertyToID("_UploadIntDst");
+        private static readonly int s_idClearInstanceDst = Shader.PropertyToID("_ClearInstanceDst");
+        private static readonly int s_idInitFadeDst = Shader.PropertyToID("_InitFadeDst");
+        private static readonly int s_idInitFadeDstOffset = Shader.PropertyToID("_InitFadeDstOffset");
+        private static readonly int s_idInitFadeCount = Shader.PropertyToID("_InitFadeCount");
+        private static readonly int s_idCopyChunkSrc = Shader.PropertyToID("_CopyChunkSrc");
+        private static readonly int s_idCopyChunkDst = Shader.PropertyToID("_CopyChunkDst");
+        private static readonly int s_idCopyFadeSrc = Shader.PropertyToID("_CopyFadeSrc");
+        private static readonly int s_idCopyFadeDst = Shader.PropertyToID("_CopyFadeDst");
+        private static readonly int s_idChunkStagingSrc = Shader.PropertyToID("_ChunkStagingSrc");
+        private static readonly int s_idChunkStagingIndices = Shader.PropertyToID("_ChunkStagingIndices");
+        private static readonly int s_idChunkScatterDst = Shader.PropertyToID("_ChunkScatterDst");
+        private static readonly int s_idChunkScatterCount = Shader.PropertyToID("_ChunkScatterCount");
+        private static readonly int s_idSettleSlotIndices = Shader.PropertyToID("_SettleSlotIndices");
+        private static readonly int s_idSettleCount = Shader.PropertyToID("_SettleCount");
+        private static readonly int s_idSettlePrevMBaseBytes = Shader.PropertyToID("_SettlePrevMBaseBytes");
+        private static readonly int s_idBatchCmds = Shader.PropertyToID("_BatchCmds");
+        private static readonly int s_idBatchCmdCount = Shader.PropertyToID("_BatchCmdCount");
+        private static readonly int s_idTrsPatchSrc = Shader.PropertyToID("_TRSPatchSrc");
+        private static readonly int s_idTrsPatchCount = Shader.PropertyToID("_TRSPatchCount");
+        private static readonly int s_idSigOverrideSrc = Shader.PropertyToID("_SigOverrideSrc");
+        private static readonly int s_idSigOverrideCount = Shader.PropertyToID("_SigOverrideCount");
 
         // split buffer property IDs
-        private static readonly int _ID_UploadStagedSrc = Shader.PropertyToID("_UploadStagedSrc");
-        private static readonly int _ID_UploadRotScaleDst = Shader.PropertyToID("_UploadRotScaleDst");
-        private static readonly int _ID_ClearRotScaleDst = Shader.PropertyToID("_ClearRotScaleDst");
-        private static readonly int _ID_InstanceRotScale = Shader.PropertyToID("_InstanceRotScale");
-        private static readonly int _ID_InstancesRW = Shader.PropertyToID("_InstancesRW");
-        private static readonly int _ID_CopyInstanceSrc = Shader.PropertyToID("_CopyInstanceSrc");
-        private static readonly int _ID_CopyInstanceDst = Shader.PropertyToID("_CopyInstanceDst");
-        private static readonly int _ID_CopyRotScaleSrc = Shader.PropertyToID("_CopyRotScaleSrc");
-        private static readonly int _ID_CopyRotScaleDst = Shader.PropertyToID("_CopyRotScaleDst");
+        private static readonly int s_idUploadStagedSrc = Shader.PropertyToID("_UploadStagedSrc");
+        private static readonly int s_idUploadRotScaleDst = Shader.PropertyToID("_UploadRotScaleDst");
+        private static readonly int s_idClearRotScaleDst = Shader.PropertyToID("_ClearRotScaleDst");
+        private static readonly int s_idInstanceRotScale = Shader.PropertyToID("_InstanceRotScale");
+        private static readonly int s_idInstancesRW = Shader.PropertyToID("_InstancesRW");
+        private static readonly int s_idCopyInstanceSrc = Shader.PropertyToID("_CopyInstanceSrc");
+        private static readonly int s_idCopyInstanceDst = Shader.PropertyToID("_CopyInstanceDst");
+        private static readonly int s_idCopyRotScaleSrc = Shader.PropertyToID("_CopyRotScaleSrc");
+        private static readonly int s_idCopyRotScaleDst = Shader.PropertyToID("_CopyRotScaleDst");
 
-        private static readonly int _ID_ShiftOffset = Shader.PropertyToID("_ShiftOffset");
-        private static readonly int _ID_ShiftCount = Shader.PropertyToID("_ShiftCount");
-        private static readonly int _ID_ShiftTotalSlots = Shader.PropertyToID("_ShiftTotalSlots");
+        private static readonly int s_idShiftOffset = Shader.PropertyToID("_ShiftOffset");
+        private static readonly int s_idShiftCount = Shader.PropertyToID("_ShiftCount");
+        private static readonly int s_idShiftTotalSlots = Shader.PropertyToID("_ShiftTotalSlots");
 
         #endregion
 
@@ -262,7 +262,7 @@ namespace Fraxinus.GPUBatcher
                                           GraphicsBuffer dst, int dstOffsetBytes,
                                           int sizeBytes)
         {
-            if (_copyBufferRegionKernel < 0 || uploadShader == null || sizeBytes <= 0)
+            if (_copyBufferRegionKernel < 0 || _uploadShader == null || sizeBytes <= 0)
                 return;
 
             int countUint4 = sizeBytes / 16;
@@ -271,27 +271,27 @@ namespace Fraxinus.GPUBatcher
             int totalThreads = countUint4 + tailUints;
             if (totalThreads <= 0) return;
 
-            uploadShader.SetBuffer(_copyBufferRegionKernel, _ID_CopySrc, src);
-            uploadShader.SetBuffer(_copyBufferRegionKernel, _ID_CopyDst, dst);
-            uploadShader.SetInt(_ID_CopySrcOffsetBytes, srcOffsetBytes);
-            uploadShader.SetInt(_ID_CopyDstOffsetBytes, dstOffsetBytes);
-            uploadShader.SetInt(_ID_CopyCountUint4, countUint4);
-            uploadShader.SetInt(_ID_CopyTailUints, tailUints);
+            _uploadShader.SetBuffer(_copyBufferRegionKernel, s_idCopySrc, src);
+            _uploadShader.SetBuffer(_copyBufferRegionKernel, s_idCopyDst, dst);
+            _uploadShader.SetInt(s_idCopySrcOffsetBytes, srcOffsetBytes);
+            _uploadShader.SetInt(s_idCopyDstOffsetBytes, dstOffsetBytes);
+            _uploadShader.SetInt(s_idCopyCountUint4, countUint4);
+            _uploadShader.SetInt(s_idCopyTailUints, tailUints);
 
-            DispatchSafe(uploadShader, _copyBufferRegionKernel, (totalThreads + 255) / 256);
+            DispatchSafe(_uploadShader, _copyBufferRegionKernel, (totalThreads + 255) / 256);
         }
 
         // _TRSPrevMMode: how the matrix kernel updates PrevM. snapshotting is NOT done here - the settle kernel solely owns PrevM
-        const int kPrevMPreserve = 0; // compute O2W, leave PrevM untouched (moved slot - PrevM already snapshotted at patch time)
-        const int kPrevMInit = 1;     // PrevM = new O2W (new instance -> zero motion this frame)
+        const int k_prevMPreserve = 0; // compute O2W, leave PrevM untouched (moved slot - PrevM already snapshotted at patch time)
+        const int k_prevMInit = 1;     // PrevM = new O2W (new instance -> zero motion this frame)
 
         // batched matrix compute (prevMMode-driven) for scattered slot indices; returns false if it could not dispatch
         private bool GPUComputeMatricesFromTRSBatched(NativeArray<int> slots, int count, int prevMMode)
         {
 #if DEBUG
-            using var _gm = s_MarkerGPUComputeMatrices.Auto();
+            using var _gm = s_markerGPUComputeMatrices.Auto();
 #endif
-            if (_computeMatricesBatchedKernel < 0 || uploadShader == null || count <= 0
+            if (_computeMatricesBatchedKernel < 0 || _uploadShader == null || count <= 0
                 || _instanceBuffer == null || _instanceRotScaleBuffer == null
                 || _gpuSignatureBuffer == null || _matrixBuffer == null)
                 return false;
@@ -306,17 +306,17 @@ namespace Fraxinus.GPUBatcher
             }
             _settleIndexBuffer.SetData(slots, 0, 0, count);
 
-            int totalInstanceSlots = _poolCapacity * kPoolSize;
-            uploadShader.SetBuffer(_computeMatricesBatchedKernel, _ID_InstancesRW, _instanceBuffer);
-            uploadShader.SetBuffer(_computeMatricesBatchedKernel, _ID_InstanceRotScale, _instanceRotScaleBuffer);
-            uploadShader.SetBuffer(_computeMatricesBatchedKernel, _ID_Signatures, _gpuSignatureBuffer);
-            uploadShader.SetBuffer(_computeMatricesBatchedKernel, _ID_CopyDst, _matrixBuffer);
-            uploadShader.SetBuffer(_computeMatricesBatchedKernel, _ID_SettleSlotIndices, _settleIndexBuffer);
-            uploadShader.SetInt(_ID_TRSBatchCount, count);
-            uploadShader.SetInt(_ID_TRSTotalSlots, totalInstanceSlots);
-            uploadShader.SetInt(_ID_TRSPrevMMode, prevMMode);
+            int totalInstanceSlots = _poolCapacity * k_poolSize;
+            _uploadShader.SetBuffer(_computeMatricesBatchedKernel, s_idInstancesRW, _instanceBuffer);
+            _uploadShader.SetBuffer(_computeMatricesBatchedKernel, s_idInstanceRotScale, _instanceRotScaleBuffer);
+            _uploadShader.SetBuffer(_computeMatricesBatchedKernel, s_idSignatures, _gpuSignatureBuffer);
+            _uploadShader.SetBuffer(_computeMatricesBatchedKernel, s_idCopyDst, _matrixBuffer);
+            _uploadShader.SetBuffer(_computeMatricesBatchedKernel, s_idSettleSlotIndices, _settleIndexBuffer);
+            _uploadShader.SetInt(s_idTrsBatchCount, count);
+            _uploadShader.SetInt(s_idTrsTotalSlots, totalInstanceSlots);
+            _uploadShader.SetInt(s_idTrsPrevMMode, prevMMode);
 
-            DispatchSafe(uploadShader, _computeMatricesBatchedKernel, (count + 255) / 256);
+            DispatchSafe(_uploadShader, _computeMatricesBatchedKernel, (count + 255) / 256);
             return true;
         }
 
@@ -324,132 +324,132 @@ namespace Fraxinus.GPUBatcher
         private void DispatchTypedCopy(int kernel, int srcBufId, GraphicsBuffer src,
             int dstBufId, GraphicsBuffer dst, int srcOffset, int dstOffset, int count)
         {
-            if (kernel < 0 || uploadShader == null || count <= 0) return;
-            uploadShader.SetBuffer(kernel, srcBufId, src);
-            uploadShader.SetBuffer(kernel, dstBufId, dst);
-            uploadShader.SetInt(_ID_UploadSrcOffset, srcOffset);
-            uploadShader.SetInt(_ID_UploadDstOffset, dstOffset);
-            uploadShader.SetInt(_ID_UploadCount, count);
-            DispatchSafe(uploadShader, kernel, (count + 255) / 256);
+            if (kernel < 0 || _uploadShader == null || count <= 0) return;
+            _uploadShader.SetBuffer(kernel, srcBufId, src);
+            _uploadShader.SetBuffer(kernel, dstBufId, dst);
+            _uploadShader.SetInt(s_idUploadSrcOffset, srcOffset);
+            _uploadShader.SetInt(s_idUploadDstOffset, dstOffset);
+            _uploadShader.SetInt(s_idUploadCount, count);
+            DispatchSafe(_uploadShader, kernel, (count + 255) / 256);
         }
 
         private void DispatchTypedInit(int kernel, int dstBufId, GraphicsBuffer dst,
             int offsetId, int offset, int countId, int count)
         {
-            if (kernel < 0 || uploadShader == null || count <= 0) return;
-            uploadShader.SetBuffer(kernel, dstBufId, dst);
-            uploadShader.SetInt(offsetId, offset);
-            uploadShader.SetInt(countId, count);
-            DispatchSafe(uploadShader, kernel, (count + 255) / 256);
+            if (kernel < 0 || _uploadShader == null || count <= 0) return;
+            _uploadShader.SetBuffer(kernel, dstBufId, dst);
+            _uploadShader.SetInt(offsetId, offset);
+            _uploadShader.SetInt(countId, count);
+            DispatchSafe(_uploadShader, kernel, (count + 255) / 256);
         }
 
         // copy 20B InstanceInput between buffers
         private void GPUCopyInstanceBuffer(GraphicsBuffer src, int srcOffset, GraphicsBuffer dst, int dstOffset, int count)
-            => DispatchTypedCopy(_copyInstanceBufferKernel, _ID_CopyInstanceSrc, src, _ID_CopyInstanceDst, dst, srcOffset, dstOffset, count);
+            => DispatchTypedCopy(_copyInstanceBufferKernel, s_idCopyInstanceSrc, src, s_idCopyInstanceDst, dst, srcOffset, dstOffset, count);
 
         // copy 28B InstanceRotationScale between buffers
         private void GPUCopyRotScaleBuffer(GraphicsBuffer src, int srcOffset, GraphicsBuffer dst, int dstOffset, int count)
-            => DispatchTypedCopy(_copyRotScaleBufferKernel, _ID_CopyRotScaleSrc, src, _ID_CopyRotScaleDst, dst, srcOffset, dstOffset, count);
+            => DispatchTypedCopy(_copyRotScaleBufferKernel, s_idCopyRotScaleSrc, src, s_idCopyRotScaleDst, dst, srcOffset, dstOffset, count);
 
         private void GPUCopyChunkRegion(GraphicsBuffer src, GraphicsBuffer dst, int count)
-            => DispatchTypedCopy(_copyChunkRegionKernel, _ID_CopyChunkSrc, src, _ID_CopyChunkDst, dst, 0, 0, count);
+            => DispatchTypedCopy(_copyChunkRegionKernel, s_idCopyChunkSrc, src, s_idCopyChunkDst, dst, 0, 0, count);
 
         private void GPUCopyFadeStateRegion(GraphicsBuffer src, GraphicsBuffer dst, int count)
-            => DispatchTypedCopy(_copyFadeStateRegionKernel, _ID_CopyFadeSrc, src, _ID_CopyFadeDst, dst, 0, 0, count);
+            => DispatchTypedCopy(_copyFadeStateRegionKernel, s_idCopyFadeSrc, src, s_idCopyFadeDst, dst, 0, 0, count);
 
         private void GPUInitFadeStateTyped(GraphicsBuffer dst, int dstOffset, int count)
-            => DispatchTypedInit(_initFadeStateTypedKernel, _ID_InitFadeDst, dst, _ID_InitFadeDstOffset, dstOffset, _ID_InitFadeCount, count);
+            => DispatchTypedInit(_initFadeStateTypedKernel, s_idInitFadeDst, dst, s_idInitFadeDstOffset, dstOffset, s_idInitFadeCount, count);
 
         private void GPUBatchInitFadeStates(GraphicsBuffer cmdBuffer, int cmdCount, GraphicsBuffer fadeDst)
         {
-            if (_batchInitFadeStatesKernel < 0 || uploadShader == null || cmdCount <= 0) return;
-            uploadShader.SetBuffer(_batchInitFadeStatesKernel, _ID_BatchCmds, cmdBuffer);
-            uploadShader.SetBuffer(_batchInitFadeStatesKernel, _ID_InitFadeDst, fadeDst);
-            uploadShader.SetInt(_ID_BatchCmdCount, cmdCount);
-            DispatchSafe(uploadShader, _batchInitFadeStatesKernel, cmdCount);
+            if (_batchInitFadeStatesKernel < 0 || _uploadShader == null || cmdCount <= 0) return;
+            _uploadShader.SetBuffer(_batchInitFadeStatesKernel, s_idBatchCmds, cmdBuffer);
+            _uploadShader.SetBuffer(_batchInitFadeStatesKernel, s_idInitFadeDst, fadeDst);
+            _uploadShader.SetInt(s_idBatchCmdCount, cmdCount);
+            DispatchSafe(_uploadShader, _batchInitFadeStatesKernel, cmdCount);
         }
 
         private void GPUScatterWriteChunks(GraphicsBuffer stagingSrc, GraphicsBuffer indexBuffer,
             GraphicsBuffer dst, int count)
         {
-            if (_scatterWriteChunksKernel < 0 || uploadShader == null || count <= 0)
+            if (_scatterWriteChunksKernel < 0 || _uploadShader == null || count <= 0)
                 return;
 
-            uploadShader.SetBuffer(_scatterWriteChunksKernel, _ID_ChunkStagingSrc, stagingSrc);
-            uploadShader.SetBuffer(_scatterWriteChunksKernel, _ID_ChunkStagingIndices, indexBuffer);
-            uploadShader.SetBuffer(_scatterWriteChunksKernel, _ID_ChunkScatterDst, dst);
-            uploadShader.SetInt(_ID_ChunkScatterCount, count);
+            _uploadShader.SetBuffer(_scatterWriteChunksKernel, s_idChunkStagingSrc, stagingSrc);
+            _uploadShader.SetBuffer(_scatterWriteChunksKernel, s_idChunkStagingIndices, indexBuffer);
+            _uploadShader.SetBuffer(_scatterWriteChunksKernel, s_idChunkScatterDst, dst);
+            _uploadShader.SetInt(s_idChunkScatterCount, count);
 
-            DispatchSafe(uploadShader, _scatterWriteChunksKernel, (count + 255) / 256);
+            DispatchSafe(_uploadShader, _scatterWriteChunksKernel, (count + 255) / 256);
         }
 
         private void GPUBatchUploadInstances(GraphicsBuffer cmdBuffer, int cmdCount,
             GraphicsBuffer stagedSrc, GraphicsBuffer instanceDst)
         {
-            if (_batchUploadInstancesKernel < 0 || uploadShader == null || cmdCount <= 0) return;
-            uploadShader.SetBuffer(_batchUploadInstancesKernel, _ID_BatchCmds, cmdBuffer);
-            uploadShader.SetBuffer(_batchUploadInstancesKernel, _ID_UploadStagedSrc, stagedSrc);
-            uploadShader.SetBuffer(_batchUploadInstancesKernel, _ID_UploadInstanceDst, instanceDst);
-            uploadShader.SetBuffer(_batchUploadInstancesKernel, _ID_UploadRotScaleDst, _instanceRotScaleBuffer);
-            uploadShader.SetInt(_ID_BatchCmdCount, cmdCount);
-            DispatchSafe(uploadShader, _batchUploadInstancesKernel, cmdCount);
+            if (_batchUploadInstancesKernel < 0 || _uploadShader == null || cmdCount <= 0) return;
+            _uploadShader.SetBuffer(_batchUploadInstancesKernel, s_idBatchCmds, cmdBuffer);
+            _uploadShader.SetBuffer(_batchUploadInstancesKernel, s_idUploadStagedSrc, stagedSrc);
+            _uploadShader.SetBuffer(_batchUploadInstancesKernel, s_idUploadInstanceDst, instanceDst);
+            _uploadShader.SetBuffer(_batchUploadInstancesKernel, s_idUploadRotScaleDst, _instanceRotScaleBuffer);
+            _uploadShader.SetInt(s_idBatchCmdCount, cmdCount);
+            DispatchSafe(_uploadShader, _batchUploadInstancesKernel, cmdCount);
         }
 
         private void GPUTRSPatchInstances(GraphicsBuffer patchSrc, int patchCount, GraphicsBuffer instanceDst)
         {
-            if (_trsPatchInstancesKernel < 0 || uploadShader == null || patchCount <= 0) return;
-            uploadShader.SetBuffer(_trsPatchInstancesKernel, _ID_TRSPatchSrc, patchSrc);
-            uploadShader.SetBuffer(_trsPatchInstancesKernel, _ID_UploadInstanceDst, instanceDst);
-            uploadShader.SetBuffer(_trsPatchInstancesKernel, _ID_UploadRotScaleDst, _instanceRotScaleBuffer);
-            uploadShader.SetBuffer(_trsPatchInstancesKernel, _ID_CopyDst, _matrixBuffer); // OTW position recovery
-            uploadShader.SetInt(_ID_TRSPatchCount, patchCount);
-            DispatchSafe(uploadShader, _trsPatchInstancesKernel, (patchCount + 255) / 256);
+            if (_trsPatchInstancesKernel < 0 || _uploadShader == null || patchCount <= 0) return;
+            _uploadShader.SetBuffer(_trsPatchInstancesKernel, s_idTrsPatchSrc, patchSrc);
+            _uploadShader.SetBuffer(_trsPatchInstancesKernel, s_idUploadInstanceDst, instanceDst);
+            _uploadShader.SetBuffer(_trsPatchInstancesKernel, s_idUploadRotScaleDst, _instanceRotScaleBuffer);
+            _uploadShader.SetBuffer(_trsPatchInstancesKernel, s_idCopyDst, _matrixBuffer); // OTW position recovery
+            _uploadShader.SetInt(s_idTrsPatchCount, patchCount);
+            DispatchSafe(_uploadShader, _trsPatchInstancesKernel, (patchCount + 255) / 256);
         }
 
         private void GPUBatchComputeMatrices(GraphicsBuffer cmdBuffer, int cmdCount,
             GraphicsBuffer instanceBuffer, GraphicsBuffer matrixBuffer, int totalSlots, int prevMMode)
         {
-            if (_batchComputeMatricesKernel < 0 || uploadShader == null || cmdCount <= 0) return;
+            if (_batchComputeMatricesKernel < 0 || _uploadShader == null || cmdCount <= 0) return;
             if (_gpuSignatureBuffer == null || _instanceRotScaleBuffer == null || instanceBuffer == null || matrixBuffer == null) return;
-            uploadShader.SetBuffer(_batchComputeMatricesKernel, _ID_BatchCmds, cmdBuffer);
-            uploadShader.SetBuffer(_batchComputeMatricesKernel, _ID_InstancesRW, instanceBuffer);
-            uploadShader.SetBuffer(_batchComputeMatricesKernel, _ID_InstanceRotScale, _instanceRotScaleBuffer);
-            uploadShader.SetBuffer(_batchComputeMatricesKernel, _ID_Signatures, _gpuSignatureBuffer);
-            uploadShader.SetBuffer(_batchComputeMatricesKernel, _ID_CopyDst, matrixBuffer);
-            uploadShader.SetInt(_ID_BatchCmdCount, cmdCount);
-            uploadShader.SetInt(_ID_TRSTotalSlots, totalSlots);
-            uploadShader.SetInt(_ID_TRSPrevMMode, prevMMode);
-            uploadShader.SetInt(_ID_ColorEnabled, _perInstanceColorEnabled ? 1 : 0);
+            _uploadShader.SetBuffer(_batchComputeMatricesKernel, s_idBatchCmds, cmdBuffer);
+            _uploadShader.SetBuffer(_batchComputeMatricesKernel, s_idInstancesRW, instanceBuffer);
+            _uploadShader.SetBuffer(_batchComputeMatricesKernel, s_idInstanceRotScale, _instanceRotScaleBuffer);
+            _uploadShader.SetBuffer(_batchComputeMatricesKernel, s_idSignatures, _gpuSignatureBuffer);
+            _uploadShader.SetBuffer(_batchComputeMatricesKernel, s_idCopyDst, matrixBuffer);
+            _uploadShader.SetInt(s_idBatchCmdCount, cmdCount);
+            _uploadShader.SetInt(s_idTrsTotalSlots, totalSlots);
+            _uploadShader.SetInt(s_idTrsPrevMMode, prevMMode);
+            _uploadShader.SetInt(s_idColorEnabled, _perInstanceColorEnabled ? 1 : 0);
             if (_perInstanceColorEnabled)
-                uploadShader.SetInt(_ID_ColorRegionOffsetUint, _colorRegionByteOffset / 4);
-            DispatchSafe(uploadShader, _batchComputeMatricesKernel, cmdCount);
+                _uploadShader.SetInt(s_idColorRegionOffsetUint, _colorRegionByteOffset / 4);
+            DispatchSafe(_uploadShader, _batchComputeMatricesKernel, cmdCount);
         }
 
         private void GPUBatchClearInstances(GraphicsBuffer cmdBuffer, int cmdCount, GraphicsBuffer dst)
         {
-            if (_batchClearInstancesKernel < 0 || uploadShader == null || cmdCount <= 0) return;
-            uploadShader.SetBuffer(_batchClearInstancesKernel, _ID_BatchCmds, cmdBuffer);
-            uploadShader.SetBuffer(_batchClearInstancesKernel, _ID_ClearInstanceDst, dst);
-            uploadShader.SetBuffer(_batchClearInstancesKernel, _ID_ClearRotScaleDst, _instanceRotScaleBuffer);
-            uploadShader.SetInt(_ID_BatchCmdCount, cmdCount);
-            DispatchSafe(uploadShader, _batchClearInstancesKernel, cmdCount);
+            if (_batchClearInstancesKernel < 0 || _uploadShader == null || cmdCount <= 0) return;
+            _uploadShader.SetBuffer(_batchClearInstancesKernel, s_idBatchCmds, cmdBuffer);
+            _uploadShader.SetBuffer(_batchClearInstancesKernel, s_idClearInstanceDst, dst);
+            _uploadShader.SetBuffer(_batchClearInstancesKernel, s_idClearRotScaleDst, _instanceRotScaleBuffer);
+            _uploadShader.SetInt(s_idBatchCmdCount, cmdCount);
+            DispatchSafe(_uploadShader, _batchClearInstancesKernel, cmdCount);
         }
 
         private void GPUBatchUploadInts(GraphicsBuffer cmdBuffer, int cmdCount,
             GraphicsBuffer src, GraphicsBuffer dst)
         {
-            if (_batchUploadIntsKernel < 0 || uploadShader == null || cmdCount <= 0) return;
-            uploadShader.SetBuffer(_batchUploadIntsKernel, _ID_BatchCmds, cmdBuffer);
-            uploadShader.SetBuffer(_batchUploadIntsKernel, _ID_UploadIntSrc, src);
-            uploadShader.SetBuffer(_batchUploadIntsKernel, _ID_UploadIntDst, dst);
-            uploadShader.SetInt(_ID_BatchCmdCount, cmdCount);
-            DispatchSafe(uploadShader, _batchUploadIntsKernel, cmdCount);
+            if (_batchUploadIntsKernel < 0 || _uploadShader == null || cmdCount <= 0) return;
+            _uploadShader.SetBuffer(_batchUploadIntsKernel, s_idBatchCmds, cmdBuffer);
+            _uploadShader.SetBuffer(_batchUploadIntsKernel, s_idUploadIntSrc, src);
+            _uploadShader.SetBuffer(_batchUploadIntsKernel, s_idUploadIntDst, dst);
+            _uploadShader.SetInt(s_idBatchCmdCount, cmdCount);
+            DispatchSafe(_uploadShader, _batchUploadIntsKernel, cmdCount);
         }
 
         // copies O2W -> PrevM for the given slots (the sole writer of PrevM: at first-move and at stop-move)
         private void GPUSettleMotionVectors(NativeArray<int> slots, int count)
         {
-            if (_settleMotionVectorsKernel < 0 || uploadShader == null || count <= 0)
+            if (_settleMotionVectorsKernel < 0 || _uploadShader == null || count <= 0)
                 return;
 
             // grow-on-demand
@@ -462,13 +462,13 @@ namespace Fraxinus.GPUBatcher
             }
             _settleIndexBuffer.SetData(slots, 0, 0, count);
 
-            int totalSlots = _poolCapacity * kPoolSize;
-            uploadShader.SetBuffer(_settleMotionVectorsKernel, _ID_CopyDst, _matrixBuffer);
-            uploadShader.SetBuffer(_settleMotionVectorsKernel, _ID_SettleSlotIndices, _settleIndexBuffer);
-            uploadShader.SetInt(_ID_SettleCount, count);
-            uploadShader.SetInt(_ID_SettlePrevMBaseBytes, totalSlots * 2 * kSizeOfPackedMatrix);
+            int totalSlots = _poolCapacity * k_poolSize;
+            _uploadShader.SetBuffer(_settleMotionVectorsKernel, s_idCopyDst, _matrixBuffer);
+            _uploadShader.SetBuffer(_settleMotionVectorsKernel, s_idSettleSlotIndices, _settleIndexBuffer);
+            _uploadShader.SetInt(s_idSettleCount, count);
+            _uploadShader.SetInt(s_idSettlePrevMBaseBytes, totalSlots * 2 * k_sizeOfPackedMatrix);
 
-            DispatchSafe(uploadShader, _settleMotionVectorsKernel, (count + 255) / 256);
+            DispatchSafe(_uploadShader, _settleMotionVectorsKernel, (count + 255) / 256);
         }
 
         // dispatch upload shader with profiler markers
@@ -477,7 +477,7 @@ namespace Fraxinus.GPUBatcher
 #if DEBUG
             cmd.BeginSample(name);
 #endif
-            DispatchSafe(cmd, uploadShader, kernel, groupsX);
+            DispatchSafe(cmd, _uploadShader, kernel, groupsX);
 #if DEBUG
             cmd.EndSample(name);
 #endif
@@ -513,7 +513,7 @@ namespace Fraxinus.GPUBatcher
             int liveOffset, int count)
         {
             if (count <= 0 || !_stagingCpuArray.IsCreated) return;
-            _poolStagedFrame[liveOffset / kPoolSize] = _renderCycleCounter;
+            _poolStagedFrame[liveOffset / k_poolSize] = _renderCycleCounter;
 
             int remaining = count;
             int srcOffset = 0;
@@ -525,7 +525,7 @@ namespace Fraxinus.GPUBatcher
                 // staging buffer full - flush and reset
                 if (available <= 0)
                 {
-                    StatInstanceOverflowFlushes++;
+                    statInstanceOverflowFlushes++;
 
                     // clears must run before uploads - freed+reallocated slots need zeroing
                     FlushPendingClears();
@@ -577,21 +577,21 @@ namespace Fraxinus.GPUBatcher
         {
             if (count <= 0) return;
 
-            int stampSlots = _poolCapacity * kPoolSize;
+            int stampSlots = _poolCapacity * k_poolSize;
             for (int i = 0; i < count; i++)
             {
                 int slot = slotIndices[i];
                 if ((uint)slot < (uint)stampSlots)
                 {
-                    _poolStagedFrame[slot / kPoolSize] = _renderCycleCounter;
-                    _poolRmwStagedFrame[slot / kPoolSize] = _renderCycleCounter;
+                    _poolStagedFrame[slot / k_poolSize] = _renderCycleCounter;
+                    _poolRmwStagedFrame[slot / k_poolSize] = _renderCycleCounter;
                 }
             }
 
             // process flip winding / ForcePositiveScale for entries with scale flag
             if (!skipFlipProcessing)
             {
-                int totalSlots = _poolCapacity * kPoolSize;
+                int totalSlots = _poolCapacity * k_poolSize;
                 for (int i = 0; i < count; i++)
                 {
                     var e = entries[i];
@@ -614,7 +614,7 @@ namespace Fraxinus.GPUBatcher
                 // staging buffer full - flush and reset
                 if (available <= 0)
                 {
-                    StatTRSPatchOverflowFlushes++;
+                    statTRSPatchOverflowFlushes++;
                     FlushInstanceUploads();
                     FlushTRSPatchUploads();
                     available = _trsPatchStagingCapacity;
@@ -638,14 +638,14 @@ namespace Fraxinus.GPUBatcher
         {
             if (count <= 0 || !_perInstanceColorEnabled) return;
 
-            int stampSlots = _poolCapacity * kPoolSize;
+            int stampSlots = _poolCapacity * k_poolSize;
             for (int i = 0; i < count; i++)
             {
                 int slot = (int)entries[i].slotIndex;
                 if ((uint)slot < (uint)stampSlots)
                 {
-                    _poolStagedFrame[slot / kPoolSize] = _renderCycleCounter;
-                    _poolRmwStagedFrame[slot / kPoolSize] = _renderCycleCounter;
+                    _poolStagedFrame[slot / k_poolSize] = _renderCycleCounter;
+                    _poolRmwStagedFrame[slot / k_poolSize] = _renderCycleCounter;
                 }
             }
 
@@ -654,14 +654,14 @@ namespace Fraxinus.GPUBatcher
 
             while (remaining > 0)
             {
-                int available = kColorStagingCapacity - _colorStagingWriteCursor;
+                int available = k_colorStagingCapacity - _colorStagingWriteCursor;
 
                 if (available <= 0)
                 {
-                    StatColorOverflowFlushes++;
+                    statColorOverflowFlushes++;
                     FlushInstanceUploads(); // matrix compute resets colors - must run first
                     FlushColorUploads();
-                    available = kColorStagingCapacity;
+                    available = k_colorStagingCapacity;
                 }
 
                 int batch = math.min(remaining, available);
@@ -677,12 +677,12 @@ namespace Fraxinus.GPUBatcher
 
         private void StageColorWrite(int globalSlot, uint packedColor)
         {
-            _poolStagedFrame[globalSlot / kPoolSize] = _renderCycleCounter;
-            _poolRmwStagedFrame[globalSlot / kPoolSize] = _renderCycleCounter;
+            _poolStagedFrame[globalSlot / k_poolSize] = _renderCycleCounter;
+            _poolRmwStagedFrame[globalSlot / k_poolSize] = _renderCycleCounter;
 
-            if (_colorStagingWriteCursor >= kColorStagingCapacity)
+            if (_colorStagingWriteCursor >= k_colorStagingCapacity)
             {
-                StatColorOverflowFlushes++;
+                statColorOverflowFlushes++;
                 FlushInstanceUploads(); // matrix compute resets colors - must run first
                 FlushColorUploads();
             }
@@ -696,8 +696,7 @@ namespace Fraxinus.GPUBatcher
         }
 
         /// <summary>Sets per-instance color. No-op if per-instance color is disabled.
-        /// Direct usage of this method is not protected against multiple instance manipulations
-        /// per frame. Read more: https://milk-drinker01.github.io/BRGInstancedRenderer/articles/api/registration-tracker.html</summary>
+        /// Use <see cref="GPUBatcherRegistrationTracker.StageColor(InstanceLink, Color32)"/> to coalesce repeated writes.</summary>
         public void SetInstanceColor(int globalSlotIndex, Color32 color)
         {
             if (!_perInstanceColorEnabled) return;
@@ -716,7 +715,7 @@ namespace Fraxinus.GPUBatcher
 #endif
             public Transform transform; // for CPU frustum culling (Transform.position)
         }
-        internal readonly Dictionary<int, PickingEntry> _pickingEntries = new();
+        internal readonly Dictionary<int, PickingEntry> pickingEntries = new();
 
         /// <summary>Registers a picking entry for scene view click/drag selection. Editor-only.</summary>
 #if UNITY_6000_2_OR_NEWER
@@ -725,7 +724,7 @@ namespace Fraxinus.GPUBatcher
         public void SetEntityId(int globalSlotIndex, int entityId, int protoIndex = -1, Transform transform = null)
 #endif
         {
-            _pickingEntries[globalSlotIndex] = new PickingEntry
+            pickingEntries[globalSlotIndex] = new PickingEntry
             {
                 protoIndex = protoIndex, entityId = entityId, transform = transform
             };
@@ -752,7 +751,7 @@ namespace Fraxinus.GPUBatcher
                 // overflow: flush staged pool refs, reset cursor
                 if (_poolRefStagingWriteCursor >= _poolRefStagingCapacity)
                 {
-                    StatPoolRefOverflowFlushes++;
+                    statPoolRefOverflowFlushes++;
                     FlushPoolRefUploads();
                 }
 
@@ -774,7 +773,7 @@ namespace Fraxinus.GPUBatcher
             FlushSignatureUploads();
 
 #if DEBUG
-            DebugTRSPatchesDispatchedPreDiag += count;
+            debugTRSPatchesDispatchedPreDiag += count;
 #endif
             _trsPatchStagingBuffer.SetData(_trsPatchEntries, 0, 0, count);
             GPUTRSPatchInstances(_trsPatchStagingBuffer, count, _instanceBuffer);
@@ -823,18 +822,18 @@ namespace Fraxinus.GPUBatcher
 
         private void GPUScatterWriteColors(GraphicsBuffer colorSrc, int count)
         {
-            if (_scatterWriteColorsKernel < 0 || uploadShader == null || count <= 0) return;
-            uploadShader.SetBuffer(_scatterWriteColorsKernel, _ID_ColorStagingSrc, colorSrc);
-            uploadShader.SetBuffer(_scatterWriteColorsKernel, _ID_CopyDst, _matrixBuffer);
-            uploadShader.SetInt(_ID_ColorScatterCount, count);
-            uploadShader.SetInt(_ID_ColorRegionOffsetUint, _colorRegionByteOffset / 4);
-            DispatchSafe(uploadShader, _scatterWriteColorsKernel, (count + 255) / 256);
+            if (_scatterWriteColorsKernel < 0 || _uploadShader == null || count <= 0) return;
+            _uploadShader.SetBuffer(_scatterWriteColorsKernel, s_idColorStagingSrc, colorSrc);
+            _uploadShader.SetBuffer(_scatterWriteColorsKernel, s_idCopyDst, _matrixBuffer);
+            _uploadShader.SetInt(s_idColorScatterCount, count);
+            _uploadShader.SetInt(s_idColorRegionOffsetUint, _colorRegionByteOffset / 4);
+            DispatchSafe(_uploadShader, _scatterWriteColorsKernel, (count + 255) / 256);
         }
 
         private void FlushChunkMetadataUploads()
         {
 #if DEBUG
-            using var _cm = s_MarkerFlushChunkMetadata.Auto();
+            using var _cm = s_markerFlushChunkMetadata.Auto();
 #endif
             int count = _chunkStagingWriteCursor;
             if (count <= 0) return;
@@ -851,7 +850,7 @@ namespace Fraxinus.GPUBatcher
         private void FlushPoolRefUploads()
         {
 #if DEBUG
-            using var _pr = s_MarkerFlushPoolRefs.Auto();
+            using var _pr = s_markerFlushPoolRefs.Auto();
 #endif
             if (_stagedPoolRefUploads.Length <= 0) return;
             int cursor = _poolRefStagingWriteCursor;
@@ -905,8 +904,8 @@ namespace Fraxinus.GPUBatcher
             // occupants must not double-consume their positions
             if (_slotNeedsMatrix.IsCreated)
             {
-                int slotBase = poolIdx * kPoolSize;
-                for (int i = 0; i < kPoolSize; i++)
+                int slotBase = poolIdx * k_poolSize;
+                for (int i = 0; i < k_poolSize; i++)
                     _slotNeedsMatrix[slotBase + i] = false;
             }
         }
@@ -987,7 +986,7 @@ namespace Fraxinus.GPUBatcher
         private void CommitDeferredWrites()
         {
 #if DEBUG
-            using var _cd = s_MarkerCommitDeferredWrites.Auto();
+            using var _cd = s_markerCommitDeferredWrites.Auto();
 #endif
             if (!_resizeDeferred || _deferredChunkWrites.Length == 0)
             {
@@ -1003,7 +1002,7 @@ namespace Fraxinus.GPUBatcher
                 var dwp = _deferredChunkWrites[i];
                 if (dwp.chunkId < 0 || !_chunkSlotActive[dwp.chunkId] || _chunkGeneration[dwp.chunkId] != dwp.generation)
                     continue;
-                totalDeferredPools += (int)math.ceil((float)dwp.instanceCount / kPoolSize);
+                totalDeferredPools += (int)math.ceil((float)dwp.instanceCount / k_poolSize);
             }
 
             // check if we have enough free pools
@@ -1038,7 +1037,7 @@ namespace Fraxinus.GPUBatcher
                 if (poolCount == -2)
                 {
                     // secondary resize needed
-                    int poolsNeeded = (int)math.ceil((float)dw.instanceCount / kPoolSize);
+                    int poolsNeeded = (int)math.ceil((float)dw.instanceCount / k_poolSize);
                     int newCap = math.max(_allocatedPoolCount + poolsNeeded, _poolCapacity + _poolCapacity / 2);
                     LogMessageDevelopment($"GPUBatcherRenderer: Secondary resize for chunk {dw.chunkId} ({dw.instanceCount} instances, {poolsNeeded} pools). Resizing to {newCap}");
                     ResizePoolBuffer(newCap);
@@ -1046,7 +1045,7 @@ namespace Fraxinus.GPUBatcher
                 }
                 if (poolCount <= 0)
                 {
-                    int poolsNeeded = (int)math.ceil((float)dw.instanceCount / kPoolSize);
+                    int poolsNeeded = (int)math.ceil((float)dw.instanceCount / k_poolSize);
                     Debug.LogError($"GPUBatcherRenderer: CommitDeferredWrites failed to allocate pools for chunk {dw.chunkId} ({dw.instanceCount} instances, needs {poolsNeeded} pools) - capacity: {_poolCapacity}, allocated: {_allocatedPoolCount}, free: {_freePools.Length}");
                     droppedChunks++;
                     droppedInstances += dw.instanceCount;
@@ -1067,8 +1066,8 @@ namespace Fraxinus.GPUBatcher
             _deferredInstances.Clear();
 
             // fire one-shot event, then clear subscribers
-            OnDeferredWritesCompleted?.Invoke();
-            OnDeferredWritesCompleted = null;
+            onDeferredWritesCompleted?.Invoke();
+            onDeferredWritesCompleted = null;
         }
 
         // flush staged clears to GPU. idempotent - no-op if empty.
@@ -1080,9 +1079,9 @@ namespace Fraxinus.GPUBatcher
             for (int i = 0; i < _stagedClears.Length; i++)
             {
                 var c = _stagedClears[i];
-                DebugUploadHistory.Add(new DebugUploadRecord {
+                debugUploadHistory.Add(new DebugUploadRecord {
                     liveOffset = c.liveOffset, count = c.count,
-                    isClear = true, isOverflow = StatInstanceOverflowFlushes > 0
+                    isClear = true, isOverflow = statInstanceOverflowFlushes > 0
                 });
             }
 #endif
@@ -1099,7 +1098,7 @@ namespace Fraxinus.GPUBatcher
         private void FlushInstanceUploads()
         {
 #if DEBUG
-            using var _fi = s_MarkerFlushInstanceUploads.Auto();
+            using var _fi = s_markerFlushInstanceUploads.Auto();
 #endif
             // sig buffer must exist before matrix compute can run
             FlushSignatureUploads();
@@ -1120,7 +1119,7 @@ namespace Fraxinus.GPUBatcher
                 for (int _du = 0; _du < _stagedUploads.Length; _du++)
                 {
                     var _u = _stagedUploads[_du];
-                    DebugUploadHistory.Add(new DebugUploadRecord { liveOffset = _u.liveOffset, count = _u.count, isClear = false, isOverflow = StatInstanceOverflowFlushes > 0 });
+                    debugUploadHistory.Add(new DebugUploadRecord { liveOffset = _u.liveOffset, count = _u.count, isClear = false, isOverflow = statInstanceOverflowFlushes > 0 });
                 }
 #endif
                 _stagingInstanceBuffer.SetData(_stagingCpuArray, 0, 0, _stagingWriteCursor);
@@ -1157,7 +1156,7 @@ namespace Fraxinus.GPUBatcher
                         _batchCmdBuffer.SetData(_stagedUploads.AsArray(), 0, offset, _stagedUploads.Length);
 
                     GPUBatchComputeMatrices(_batchCmdBuffer, totalMatrixCmds,
-                        _instanceBuffer, _matrixBuffer, _poolCapacity * kPoolSize, kPrevMInit);
+                        _instanceBuffer, _matrixBuffer, _poolCapacity * k_poolSize, k_prevMInit);
 #if UNITY_EDITOR
                     DebugMirrorApplyMatrixInitColorReset(_stagedUploads);
 #endif
@@ -1175,19 +1174,19 @@ namespace Fraxinus.GPUBatcher
         public void FlushStagedUploads()
         {
 #if DEBUG
-            using var _flush = s_MarkerFlushStagedUploads.Auto();
+            using var _flush = s_markerFlushStagedUploads.Auto();
 #endif
             if (!_chunkSystemInitialized) return;
             _cachedNegativeScaleMode = Config.negativeScaleMode;
-            StatInstanceOverflowFlushes = 0;
-            StatPoolRefOverflowFlushes = 0;
-            StatTRSPatchOverflowFlushes = 0;
-            StatChunkOverflowFlushes = 0;
-            StatColorOverflowFlushes = 0;
+            statInstanceOverflowFlushes = 0;
+            statPoolRefOverflowFlushes = 0;
+            statTRSPatchOverflowFlushes = 0;
+            statChunkOverflowFlushes = 0;
+            statColorOverflowFlushes = 0;
 #if DEBUG
-            DebugUploadHistory.Clear();
-            DebugResizedThisFrame = false;
-            DebugTRSPatchesDispatchedPreDiag = 0;
+            debugUploadHistory.Clear();
+            debugResizedThisFrame = false;
+            debugTRSPatchesDispatchedPreDiag = 0;
 #endif
             // resize pools/chunks if needed (replayed writes stage more data)
             CommitDeferredWrites();
@@ -1222,7 +1221,7 @@ namespace Fraxinus.GPUBatcher
                 {
                     if (_viewFadeStates.TryGetValue(_viewFadeStateKeys[i], out var fadeState))
                     {
-                        var buf = fadeState.FadeStateBuffer;
+                        var buf = fadeState.fadeStateBuffer;
                         if (buf != null)
                             GPUBatchInitFadeStates(_batchCmdBuffer, _stagedFadeResets.Length, buf);
                     }
@@ -1247,7 +1246,7 @@ namespace Fraxinus.GPUBatcher
                     if (_slotNeedsMatrix[slot]) _recomputeScratch.Add(slot); // skip slots not re-patched this flush (already consumed)
                 }
                 if (_recomputeScratch.Length > 0
-                    && GPUComputeMatricesFromTRSBatched(_recomputeScratch.AsArray(), _recomputeScratch.Length, kPrevMPreserve))
+                    && GPUComputeMatricesFromTRSBatched(_recomputeScratch.AsArray(), _recomputeScratch.Length, k_prevMPreserve))
                 {
                     for (int i = 0; i < _recomputeScratch.Length; i++)
                         _slotNeedsMatrix[_recomputeScratch[i]] = false;
@@ -1256,7 +1255,7 @@ namespace Fraxinus.GPUBatcher
 
 #if UNITY_EDITOR
             DebugUploadValidationTick();
-            OnPostFlushStagedUploads?.Invoke();
+            onPostFlushStagedUploads?.Invoke();
 #endif
         }
 
@@ -1404,18 +1403,18 @@ namespace Fraxinus.GPUBatcher
         {
             if (!_chunkSystemInitialized) return;
 
-            int totalSlots = _poolCapacity * kPoolSize;
+            int totalSlots = _poolCapacity * k_poolSize;
             if (globalSlotIndex < 0 || globalSlotIndex >= totalSlots) return;
             if (_ptrSlotProtoIndex[globalSlotIndex] < 0) return; // slot not in use
-            _poolStagedFrame[globalSlotIndex / kPoolSize] = _renderCycleCounter;
-            _poolRmwStagedFrame[globalSlotIndex / kPoolSize] = _renderCycleCounter;
+            _poolStagedFrame[globalSlotIndex / k_poolSize] = _renderCycleCounter;
+            _poolRmwStagedFrame[globalSlotIndex / k_poolSize] = _renderCycleCounter;
 
             if ((flags & 4u) != 0)
                 scale = ProcessScaleFlip(globalSlotIndex, scale);
 
             if (_trsPatchWriteCursor >= _trsPatchStagingCapacity)
             {
-                StatTRSPatchOverflowFlushes++;
+                statTRSPatchOverflowFlushes++;
                 FlushInstanceUploads();
                 FlushTRSPatchUploads();
             }
@@ -1436,12 +1435,12 @@ namespace Fraxinus.GPUBatcher
         private void StageSigOverride(int globalSlotIndex, int sigOverride)
         {
             if (!_chunkSystemInitialized) return;
-            int totalSlots = _poolCapacity * kPoolSize;
+            int totalSlots = _poolCapacity * k_poolSize;
             if (globalSlotIndex < 0 || globalSlotIndex >= totalSlots) return;
-            _poolStagedFrame[globalSlotIndex / kPoolSize] = _renderCycleCounter;
-            _poolRmwStagedFrame[globalSlotIndex / kPoolSize] = _renderCycleCounter;
+            _poolStagedFrame[globalSlotIndex / k_poolSize] = _renderCycleCounter;
+            _poolRmwStagedFrame[globalSlotIndex / k_poolSize] = _renderCycleCounter;
 
-            if (_sigOverrideStagingWriteCursor >= kSigOverrideStagingCapacity)
+            if (_sigOverrideStagingWriteCursor >= k_sigOverrideStagingCapacity)
             {
                 FlushInstanceUploads();
                 FlushSigOverrideUploads();
@@ -1469,37 +1468,32 @@ namespace Fraxinus.GPUBatcher
 
         private void GPUScatterWriteSigOverrides(GraphicsBuffer src, int count)
         {
-            if (_scatterWriteSigOverridesKernel < 0 || uploadShader == null || count <= 0) return;
-            uploadShader.SetBuffer(_scatterWriteSigOverridesKernel, _ID_SigOverrideSrc, src);
-            uploadShader.SetBuffer(_scatterWriteSigOverridesKernel, _ID_UploadInstanceDst, _instanceBuffer);
-            uploadShader.SetInt(_ID_SigOverrideCount, count);
-            DispatchSafe(uploadShader, _scatterWriteSigOverridesKernel, (count + 255) / 256);
+            if (_scatterWriteSigOverridesKernel < 0 || _uploadShader == null || count <= 0) return;
+            _uploadShader.SetBuffer(_scatterWriteSigOverridesKernel, s_idSigOverrideSrc, src);
+            _uploadShader.SetBuffer(_scatterWriteSigOverridesKernel, s_idUploadInstanceDst, _instanceBuffer);
+            _uploadShader.SetInt(s_idSigOverrideCount, count);
+            DispatchSafe(_uploadShader, _scatterWriteSigOverridesKernel, (count + 255) / 256);
         }
 
-        /// <summary>Set position only. Direct usage of this method is not protected against multiple
-        /// instance manipulations per frame. Read more: https://milk-drinker01.github.io/BRGInstancedRenderer/articles/api/registration-tracker.html</summary>
+        /// <summary>Sets position directly; use <see cref="GPUBatcherRegistrationTracker"/> to coalesce repeated patches.</summary>
         public void SetInstancePosition(int globalSlotIndex, float3 position)
             => StageTRSPatch(globalSlotIndex, 1u, position, default, default);
 
-        /// <summary>Set rotation only. Direct usage of this method is not protected against multiple
-        /// instance manipulations per frame. Read more: https://milk-drinker01.github.io/BRGInstancedRenderer/articles/api/registration-tracker.html</summary>
+        /// <summary>Sets rotation directly; use <see cref="GPUBatcherRegistrationTracker"/> to coalesce repeated patches.</summary>
         public void SetInstanceRotation(int globalSlotIndex, quaternion rotation)
             => StageTRSPatch(globalSlotIndex, 2u, default, rotation.value, default);
 
-        /// <summary>Set scale only. Direct usage of this method is not protected against multiple
-        /// instance manipulations per frame. Read more: https://milk-drinker01.github.io/BRGInstancedRenderer/articles/api/registration-tracker.html</summary>
+        /// <summary>Sets scale directly; use <see cref="GPUBatcherRegistrationTracker"/> to coalesce repeated patches.</summary>
         public void SetInstanceScale(int globalSlotIndex, float3 scale)
             => StageTRSPatch(globalSlotIndex, 4u, default, default, scale);
 
-        /// <summary>Set position and rotation. Direct usage of this method is not protected against multiple
-        /// instance manipulations per frame. Read more: https://milk-drinker01.github.io/BRGInstancedRenderer/articles/api/registration-tracker.html</summary>
+        /// <summary>Sets position and rotation directly; use <see cref="GPUBatcherRegistrationTracker"/> to coalesce repeated patches.</summary>
         public void MoveAndRotateInstance(int globalSlotIndex, float3 position, quaternion rotation)
             => StageTRSPatch(globalSlotIndex, 3u, position, rotation.value, default);
 
         /// <summary>
         /// Set full TRS. Light probes are not re-sampled - call SampleInstanceLightProbe if needed.
-        /// Direct usage of this method is not protected against multiple instance manipulations per frame.
-        /// Read more: https://milk-drinker01.github.io/BRGInstancedRenderer/articles/api/registration-tracker.html
+        /// Use <see cref="GPUBatcherRegistrationTracker"/> to coalesce repeated patches.
         /// </summary>
         public void MoveInstance(int globalSlotIndex, float3 newPosition, quaternion newRotation, float3 newScale)
             => StageTRSPatch(globalSlotIndex, 7u, newPosition, newRotation.value, newScale);
@@ -1509,7 +1503,7 @@ namespace Fraxinus.GPUBatcher
         {
             if (_lightProbes == null || !_chunkSystemInitialized) return;
 
-            int totalSlots = _poolCapacity * kPoolSize;
+            int totalSlots = _poolCapacity * k_poolSize;
             if (globalSlotIndex < 0 || globalSlotIndex >= totalSlots) return;
 
             int protoIdx = _slotProtoIndex[globalSlotIndex];

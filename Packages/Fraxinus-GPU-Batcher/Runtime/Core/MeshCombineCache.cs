@@ -20,7 +20,7 @@ namespace Fraxinus.GPUBatcher
         // reverse lookup: combined mesh -> cache key
         private readonly Dictionary<Mesh, Entry> _meshToEntry = new();
 
-        public int Count => _cache.Count;
+        public int count => _cache.Count;
 
         public Mesh GetOrCombine(Mesh[] meshes, Matrix4x4[] localMatrices, string debugName = null)
         {
@@ -230,12 +230,12 @@ namespace Fraxinus.GPUBatcher
             copy.SetIndexBufferData(indexData, 0, 0, indexTotalBytes);
             ib.Release();
             copy.subMeshCount = source.subMeshCount;
-            const MeshUpdateFlags kSubMeshFlags = MeshUpdateFlags.DontRecalculateBounds
+            const MeshUpdateFlags k_subMeshFlags = MeshUpdateFlags.DontRecalculateBounds
                 | MeshUpdateFlags.DontValidateIndices
                 | MeshUpdateFlags.DontNotifyMeshUsers
                 | MeshUpdateFlags.DontResetBoneBounds;
             for (int i = 0; i < source.subMeshCount; i++)
-                copy.SetSubMesh(i, source.GetSubMesh(i), kSubMeshFlags);
+                copy.SetSubMesh(i, source.GetSubMesh(i), k_subMeshFlags);
             copy.RecalculateBounds();
             return copy;
         }

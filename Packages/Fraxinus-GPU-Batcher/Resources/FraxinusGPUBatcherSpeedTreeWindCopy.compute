@@ -1,0 +1,16 @@
+#pragma kernel CopyWindSlots
+ByteAddressBuffer _WindCapture;
+StructuredBuffer<uint> _WindSlotSources;
+RWByteAddressBuffer _WindDestination;
+uint _WindSlotCount, _WindDestinationByteOffset;
+[numthreads(64, 1, 1)]
+void CopyWindSlots(uint3 thread : SV_DispatchThreadID)
+{
+    uint slot = thread.x / 32;
+    if (slot >= _WindSlotCount) return;
+    uint parameter = thread.x % 32;
+    uint source = _WindSlotSources[slot];
+    uint4 value = 0;
+    if (source != 0xffffffff) value = _WindCapture.Load4(source * 512 + parameter * 16);
+    _WindDestination.Store4(_WindDestinationByteOffset + slot * 512 + parameter * 16, value);
+}

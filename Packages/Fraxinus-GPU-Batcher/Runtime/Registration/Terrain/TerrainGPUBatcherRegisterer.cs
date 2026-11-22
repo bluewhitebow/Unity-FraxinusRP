@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Fraxinus.GPUBatcher
 {
@@ -14,23 +15,26 @@ namespace Fraxinus.GPUBatcher
     {
         #region shared fields
 
+        [FormerlySerializedAs("disableBuiltInRendering")]
         [Header("Settings")]
         [Tooltip("Disable Unity's built-in tree and detail rendering (sets drawTreesAndFoliage = false).")]
-        [SerializeField] private bool disableBuiltInRendering = true;
+        [SerializeField] private bool _disableBuiltInRendering = true;
 
+        [FormerlySerializedAs("snapCrossfadeOnStart")]
         [Tooltip("Snap animated crossfade to target LOD on initialization. " +
                  "Prevents mass fade-in on scene load. Has no effect if animated crossfade is disabled on the prototypes.")]
-        [SerializeField] private bool snapCrossfadeOnStart = true;
+        [SerializeField] private bool _snapCrossfadeOnStart = true;
 
 #if DEBUG
-        [SerializeField] private bool enableDebugLogging = false;
+        [FormerlySerializedAs("enableDebugLogging")]
+        [SerializeField] private bool _enableDebugLogging = false;
 #endif
 
+        [FormerlySerializedAs("detailChunkSize")]
         [Header("Detail Chunks")]
         [Tooltip("World-space size of detail chunks in meters. Larger chunks = fewer draw calls but coarser culling. Will be snapped to a multiple of Unity's patch size.")]
-        [SerializeField] private float detailChunkSize = 32f;
+        [SerializeField] private float _requestedDetailChunkSize = 32f;
 
-        // shared references
         private Terrain _terrain;
         private TerrainData _terrainData;
 
@@ -38,7 +42,6 @@ namespace Fraxinus.GPUBatcher
 
         #region cache management
 
-        // refresh cached TerrainData property arrays
         private void RefreshTerrainDataCaches()
         {
             if (_terrain == null || _terrain.terrainData == null) return;
@@ -51,7 +54,6 @@ namespace Fraxinus.GPUBatcher
 
         #endregion
 
-        // static set of active registerers
         private static readonly HashSet<TerrainGPUBatcherRegisterer> s_activeRegisterers = new();
 
         // global streaming budget, shared across all terrains per frame
@@ -70,7 +72,7 @@ namespace Fraxinus.GPUBatcher
                 GPUBatcherTerrainDetailOverride.onAnyOverrideChanged += OnAnyDetailOverrideChanged;
 #endif
             _terrain = GetComponent<Terrain>();
-            if (_terrain != null && disableBuiltInRendering && _terrain.drawTreesAndFoliage)
+            if (_terrain != null && _disableBuiltInRendering && _terrain.drawTreesAndFoliage)
                 _terrain.drawTreesAndFoliage = false;
             base.OnEnable(); // triggers Initialize -> OnInitialize, or deferred in editor
         }
@@ -81,11 +83,10 @@ namespace Fraxinus.GPUBatcher
             InitializeTrees();
             InitializeDetails();
 
-            if (snapCrossfadeOnStart)
+            if (_snapCrossfadeOnStart)
                 GPUBatcherSystem.RequestSnapAllViews();
 
 #if UNITY_EDITOR
-            // register for periodic updates in edit mode
             if (!Application.isPlaying)
             {
                 UnityEditor.EditorApplication.update -= EditorUpdate;
@@ -98,7 +99,6 @@ namespace Fraxinus.GPUBatcher
 
         protected override void OnShutdown()
         {
-            // shutdown details first
             ShutdownDetails();
 
             ShutdownTrees();
@@ -113,9 +113,8 @@ namespace Fraxinus.GPUBatcher
             UnityEditor.EditorApplication.update -= EditorUpdate;
             UnityEditor.SceneView.duringSceneGui -= OnSceneGUI;
 #endif
-            base.OnDisable(); // triggers Shutdown -> OnShutdown
-            // restore built-in rendering
-            if (_terrain != null && disableBuiltInRendering && !_terrain.drawTreesAndFoliage
+            base.OnDisable();
+            if (_terrain != null && _disableBuiltInRendering && !_terrain.drawTreesAndFoliage
                 && gameObject.scene.isLoaded)
             {
                 _terrain.drawTreesAndFoliage = true;
@@ -154,7 +153,7 @@ namespace Fraxinus.GPUBatcher
                 for (int i = 0; i < count; i++)
                 {
                     var link = GetInstanceLink(chunkLink, i);
-                    if (link.IsValid) all.Add(link);
+                    if (link.isValid) all.Add(link);
                 }
             }
             return all.Count > 0 ? all.ToArray() : null;

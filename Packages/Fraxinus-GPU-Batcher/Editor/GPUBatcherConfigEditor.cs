@@ -127,7 +127,7 @@ namespace Fraxinus.GPUBatcher.Editor
             PlayerSettings.SetPreloadedAssets(list.ToArray());
 
             // reinitialize the system with the new config
-            var system = GPUBatcherRenderer.Instance;
+            var system = GPUBatcherRenderer.instance;
             if (system != null)
                 system.Reinitialize();
         }
@@ -156,11 +156,11 @@ namespace Fraxinus.GPUBatcher.Editor
                 // gray out retest pass when occlusion is off or render pipeline doesn't support it
                 if (prop.name == "useHZBRetestPass")
                 {
-                    bool compatible = config.UseGPUOcclusionCulling && GPUBatcherConfig.HZBRetestPassCompatible;
+                    bool compatible = config.useGPUOcclusionCulling && GPUBatcherConfig.hzbRetestPassCompatible;
                     EditorGUI.indentLevel++;
                     EditorGUI.BeginDisabledGroup(!compatible);
                     EditorGUILayout.PropertyField(prop, true);
-                    if (config.UseGPUOcclusionCulling && !GPUBatcherConfig.HZBRetestPassCompatible)
+                    if (config.useGPUOcclusionCulling && !GPUBatcherConfig.hzbRetestPassCompatible)
                         EditorGUILayout.LabelField("  Requires URP or HDRP depth prepass patch", EditorStyles.miniLabel);
                     EditorGUI.EndDisabledGroup();
                     EditorGUI.indentLevel--;
@@ -171,7 +171,7 @@ namespace Fraxinus.GPUBatcher.Editor
                 if (prop.name == "hzbPixelExpansion")
                 {
                     EditorGUI.indentLevel++;
-                    EditorGUI.BeginDisabledGroup(!config.UseGPUOcclusionCulling || config.useHZBRetestPass);
+                    EditorGUI.BeginDisabledGroup(!config.useGPUOcclusionCulling || config.useHZBRetestPass);
                     EditorGUILayout.PropertyField(prop, true);
                     EditorGUI.EndDisabledGroup();
                     EditorGUI.indentLevel--;
@@ -182,7 +182,7 @@ namespace Fraxinus.GPUBatcher.Editor
                 if (prop.name == "shadowCasterOcclusion")
                 {
                     EditorGUI.indentLevel++;
-                    EditorGUI.BeginDisabledGroup(!config.UseGPUOcclusionCulling);
+                    EditorGUI.BeginDisabledGroup(!config.useGPUOcclusionCulling);
                     EditorGUILayout.PropertyField(prop, true);
                     EditorGUI.EndDisabledGroup();
                     EditorGUI.indentLevel--;
@@ -216,7 +216,7 @@ namespace Fraxinus.GPUBatcher.Editor
 
                 if (prop.name == "maxPoolRefsPerChunk")
                 {
-                    int maxInstances = config.maxPoolRefsPerChunk * GPUBatcherRenderer.kPoolSize;
+                    int maxInstances = config.maxPoolRefsPerChunk * GPUBatcherRenderer.instancesPerPool;
                     EditorGUILayout.LabelField($"  Max {maxInstances:N0} instances per chunk", EditorStyles.miniLabel);
                 }
 

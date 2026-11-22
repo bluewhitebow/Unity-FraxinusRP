@@ -1,9 +1,8 @@
 // Copyright (c) 2026 Milk_Drinker01. All rights reserved.
 
 using System;
-using Unity.Collections;
-using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 #if UNITY_6000_4_OR_NEWER
 using WindID = UnityEngine.EntityId;
@@ -15,12 +14,11 @@ namespace Fraxinus.GPUBatcher
 {
     public partial class GPUBatcherRenderer
     {
-        // SpeedTree wind state - contiguous layout mirrors GPU: [slot0_cur(16)][slot0_hist(16)][slot1...]
-        private NativeArray<Vector4> _windBuffer;
+        // The capture pass writes [slot0_cur(16)][slot0_hist(16)][slot1...] on the GPU.
         private WindID[] _speedTreeRendererIds; // slot -> renderer instance ID
+        private bool _warnedWindCaptureFailure;
 
-        // called from InitChunkSystem after matrix buffer alloc.
-        // pre-allocates slots densely for all currently-registered SpeedTree protos.
+        // Assign dense wind slots after allocating the matrix buffer.
         private void InitSpeedTreeState()
         {
             int sigCount = _renderSignatures?.Count ?? 0;
@@ -35,10 +33,6 @@ namespace Fraxinus.GPUBatcher
 
             if (needed == 0) return;
 
-            int k = GPUBatcherSpeedTreeWindBridge.kMaxWindParamsCount;
-            int stride = k * 2;
-
-            _windBuffer = new NativeArray<Vector4>(needed * stride, Allocator.Persistent);
             _speedTreeRendererIds = new WindID[needed];
 
             _speedTreeSlotHWM = 0;
@@ -49,17 +43,15 @@ namespace Fraxinus.GPUBatcher
                 int slot = _speedTreeSlotHWM++;
                 _protoSpeedTreeSlotIndex[p] = slot;
                 _speedTreeRendererIds[slot] = sig.speedTreeRendererID;
-                GPUBatcherSpeedTreeWindBridge.ComputeWindParams(
-                    sig.speedTreeRendererID, _windBuffer.GetSubArray(slot * stride, k), history: false);
-                GPUBatcherSpeedTreeWindBridge.ComputeWindParams(
-                    sig.speedTreeRendererID, _windBuffer.GetSubArray(slot * stride + k, k), history: true);
+                GPUBatcherSpeedTreeWindBridge.RetainRenderer(sig.speedTreeRendererID);
             }
         }
 
         private void ShutdownSpeedTreeState()
         {
-            _windBuffer.DisposeIfCreated();
+            GPUBatcherSpeedTreeWindBridge.Dispose();
             _speedTreeRendererIds = null;
+            _warnedWindCaptureFailure = false;
         }
 
         // allocates a stable SpeedTree slot for protoIndex. Reuses freed slots before extending HWM.
@@ -71,9 +63,6 @@ namespace Fraxinus.GPUBatcher
             if (sig == null || sig.speedTreeRendererID == default) return;
 
             EnsureProtoSpeedTreeSlotIndexCapacity(_renderSignatures.Count);
-
-            int k = GPUBatcherSpeedTreeWindBridge.kMaxWindParamsCount;
-            int stride = k * 2;
 
             bool grewHWM;
             int slot;
@@ -92,18 +81,7 @@ namespace Fraxinus.GPUBatcher
 
             if (grewHWM)
             {
-                // grow CPU side arrays
-                var oldBuffer = _windBuffer;
-                int newWindLen = _speedTreeSlotHWM * stride;
-                if (!oldBuffer.IsCreated || oldBuffer.Length < newWindLen)
-                {
-                    _windBuffer = new NativeArray<Vector4>(newWindLen, Allocator.Persistent);
-                    if (oldBuffer.IsCreated)
-                    {
-                        NativeArray<Vector4>.Copy(oldBuffer, 0, _windBuffer, 0, oldBuffer.Length);
-                        oldBuffer.Dispose();
-                    }
-                }
+                // Grow slot IDs and the GPU wind region; no CPU wind upload can overwrite capture.
                 if (_speedTreeRendererIds == null || _speedTreeRendererIds.Length < _speedTreeSlotHWM)
                     Array.Resize(ref _speedTreeRendererIds, _speedTreeSlotHWM);
 
@@ -112,11 +90,11 @@ namespace Fraxinus.GPUBatcher
                 {
                     FlushStagedUploads();
 
-                    int totalInstanceSlots = _poolCapacity * kPoolSize;
+                    int totalInstanceSlots = _poolCapacity * k_poolSize;
                     int matrixElements = totalInstanceSlots * 3 * 12;
-                    int shElements = LightProbesEnabled ? totalInstanceSlots * kSHFloat4sPerInstance * 4 : 0;
+                    int shElements = lightProbesEnabled ? totalInstanceSlots * k_shFloat4sPerInstance * 4 : 0;
                     int colorElements = _perInstanceColorEnabled ? totalInstanceSlots : 0;
-                    int newTotal = matrixElements + shElements + colorElements + _speedTreeSlotHWM * kSpeedTreeParamsPerProto;
+                    int newTotal = matrixElements + shElements + colorElements + _speedTreeSlotHWM * k_speedTreeParamsPerProto;
 
                     if (newTotal > _matrixBuffer.count)
                     {
@@ -135,15 +113,7 @@ namespace Fraxinus.GPUBatcher
 
             _speedTreeRendererIds[slot] = sig.speedTreeRendererID;
 
-            // initial wind data so the first frame's draws don't see stale/zero values
-            if (_windBuffer.IsCreated)
-            {
-                int baseIdx = slot * stride;
-                GPUBatcherSpeedTreeWindBridge.ComputeWindParams(
-                    sig.speedTreeRendererID, _windBuffer.GetSubArray(baseIdx, k), history: false);
-                GPUBatcherSpeedTreeWindBridge.ComputeWindParams(
-                    sig.speedTreeRendererID, _windBuffer.GetSubArray(baseIdx + k, k), history: true);
-            }
+            GPUBatcherSpeedTreeWindBridge.RetainRenderer(sig.speedTreeRendererID);
         }
 
         // releases a SpeedTree slot owned by protoIndex. Idempotent for non-SpeedTree protos.
@@ -162,44 +132,24 @@ namespace Fraxinus.GPUBatcher
                 _speedTreeBatchIDs[slot] = default;
             }
             if (_speedTreeRendererIds != null && slot < _speedTreeRendererIds.Length)
-                _speedTreeRendererIds[slot] = default;
-
-            // zero the slot's wind region so the per-frame upload doesn't ship stale data
-            if (_windBuffer.IsCreated)
             {
-                int k = GPUBatcherSpeedTreeWindBridge.kMaxWindParamsCount;
-                int stride = k * 2;
-                int baseIdx = slot * stride;
-                int end = math.min(baseIdx + stride, _windBuffer.Length);
-                for (int i = baseIdx; i < end; i++) _windBuffer[i] = default;
+                GPUBatcherSpeedTreeWindBridge.ReleaseRenderer(_speedTreeRendererIds[slot]);
+                _speedTreeRendererIds[slot] = default;
             }
 
             _protoSpeedTreeSlotIndex[protoIndex] = -1;
             _freeSpeedTreeSlots.Push(slot);
         }
 
-        private void UpdateSpeedTree()
+        private void CaptureSpeedTreeWind(ScriptableRenderContext context)
         {
-            if (_speedTreeSlotHWM == 0 || !_windBuffer.IsCreated || _matrixBuffer == null) return;
-
-            int k = GPUBatcherSpeedTreeWindBridge.kMaxWindParamsCount;
-            var ids = new NativeArray<WindID>(1, Allocator.Temp);
-            for (int slot = 0; slot < _speedTreeSlotHWM; slot++)
+            if (!_chunkSystemInitialized || _speedTreeSlotHWM == 0 || _speedTreeRendererIds == null || _matrixBuffer == null) return;
+            if (!GPUBatcherSpeedTreeWindBridge.Capture(context, _speedTreeRendererIds, _speedTreeSlotHWM,
+                _matrixBuffer, _speedTreeRegionByteOffset) && !_warnedWindCaptureFailure)
             {
-                if (_speedTreeRendererIds[slot] == default) continue;
-                int baseIdx = slot * k * 2;
-                ids[0] = _speedTreeRendererIds[slot];
-
-                GPUBatcherSpeedTreeWindBridge.ComputeWindParams(
-                    ids, _windBuffer.GetSubArray(baseIdx, k), history: false);
-                GPUBatcherSpeedTreeWindBridge.ComputeWindParams(
-                    ids, _windBuffer.GetSubArray(baseIdx + k, k), history: true);
+                _warnedWindCaptureFailure = true;
+                Debug.LogWarning("Fraxinus GPU Batcher could not capture native SpeedTree wind for one or more source renderers.");
             }
-            ids.Dispose();
-
-            // single upload for entire wind region
-            int vec4Offset = _speedTreeRegionByteOffset / 16;
-            _matrixBuffer.SetData(_windBuffer, 0, vec4Offset, _speedTreeSlotHWM * k * 2);
         }
     }
 }

@@ -4,7 +4,6 @@
 using System;
 using FraxinusEngine.Rendering.Ultra;
 using UnityEngine;
-using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 
@@ -25,7 +24,7 @@ namespace Fraxinus.GPUBatcher.Integration
         static void InitializeEditor()
         {
             Initialize();
-            GPUBatcherConfig.HZBRetestPassCompatible = true;
+            GPUBatcherConfig.hzbRetestPassCompatible = true;
         }
 #endif
 
@@ -48,7 +47,9 @@ namespace Fraxinus.GPUBatcher.Integration
         }
 
         internal static bool SupportsOcclusion(Camera camera) => camera != null && camera.cameraType == CameraType.Game &&
-            !camera.stereoEnabled && SystemInfo.usesReversedZBuffer && SystemInfo.graphicsUVStartsAtTop;
+            // Fraxinus CameraData currently exposes one rendered view/projection.
+            // A stereo atlas cannot be tested against that mono matrix safely.
+            !camera.stereoEnabled;
 
         internal static Type HZBInjectionType(bool retest) => retest ? typeof(GPUBatcherHZBPass) : typeof(GPUBatcherHZBHistoryPass);
 
@@ -84,9 +85,9 @@ namespace Fraxinus.GPUBatcher.Integration
 
         static void OnBeginCameraRendering(ScriptableRenderContext context, Camera camera)
         {
-            if (!GPUBatcherRenderer.HasInstance || !(GraphicsSettings.currentRenderPipeline is UltraRenderPipelineAsset asset)) return;
-            var batcher = GPUBatcherRenderer.Instance;
-            if (batcher == null || !batcher.IsInitialized) return;
+            if (!GPUBatcherRenderer.hasInstance || !(GraphicsSettings.currentRenderPipeline is UltraRenderPipelineAsset asset)) return;
+            var batcher = GPUBatcherRenderer.instance;
+            if (batcher == null || !batcher.isInitialized) return;
             int cameraId = GPUBatcherHelpers.GetViewID(camera);
             var renderer = camera.TryGetComponent(out UltraAdditionalCameraData data) ? data.scriptableRenderer : asset.scriptableRenderer;
             if (!HasMainInjection(renderer, typeof(GPUBatcherCullingPass)))
@@ -94,8 +95,8 @@ namespace Fraxinus.GPUBatcher.Integration
                 batcher.DisableCameraHZB(cameraId);
                 return;
             }
-            bool useHZB = batcher.IsGPUOcclusionEnabled && SupportsOcclusion(camera) &&
-                HasMainInjection(renderer, HZBInjectionType(GPUBatcherConfig.Instance.useHZBRetestPass));
+            bool useHZB = batcher.isGPUOcclusionEnabled && SupportsOcclusion(camera) &&
+                HasMainInjection(renderer, HZBInjectionType(GPUBatcherConfig.instance.useHZBRetestPass));
             if (!useHZB) batcher.DisableCameraHZB(cameraId);
             batcher.EnqueueDeferredCulling(cameraId, useHZB);
         }
@@ -111,13 +112,13 @@ namespace Fraxinus.GPUBatcher.Integration
         public override void Execute(RenderGraph graph, ScriptableRenderContext context, ContextContainer frame)
         {
             var camera = frame.Get<CameraData>();
-            if (frame.GetOrCreate<ContextStateManager>().IsInSubContext() || !GPUBatcherRenderer.HasInstance) return;
-            var batcher = GPUBatcherRenderer.Instance;
+            if (frame.GetOrCreate<ContextStateManager>().IsInSubContext() || !GPUBatcherRenderer.hasInstance) return;
+            var batcher = GPUBatcherRenderer.instance;
             int cameraId = GPUBatcherHelpers.GetViewID(camera.camera);
             if (batcher == null || !batcher.HasPendingCullingForCamera(cameraId)) return;
             // Allocate before importing the history atlas. A render-scale change must
             // not retire an RTHandle already captured by the phase-zero graph pass.
-            if (batcher.IsGPUOcclusionEnabled && batcher.HasPendingHZBForCamera(cameraId))
+            if (batcher.isGPUOcclusionEnabled && batcher.HasPendingHZBForCamera(cameraId))
             {
                 // Fraxinus can adjust overlay aspect and add temporal jitter after
                 // beginCameraRendering; use the matrices that produced this depth.
@@ -127,7 +128,7 @@ namespace Fraxinus.GPUBatcher.Integration
                 batcher.EnsureHZBAtlas(camera.camera, size.x, size.y);
             }
             GPUBatcherRenderGraphPasses.RecordDeferredCullingPass(graph, batcher,
-                "FraxinusGPUBatcher.Culling", cameraId, batcher.IsGPUOcclusionEnabled);
+                "FraxinusGPUBatcher.Culling", cameraId, batcher.isGPUOcclusionEnabled);
         }
         protected override void OnCameraCleanup(CommandBuffer cmd) { }
         protected override void OnDispose() { }
@@ -159,15 +160,15 @@ namespace Fraxinus.GPUBatcher.Integration
         internal static RenderPassInputSummary Prepare(ContextContainer frame, bool retest)
         {
             var camera = frame.Get<CameraData>();
-            if (frame.GetOrCreate<ContextStateManager>().IsInSubContext() || !GPUBatcherRenderer.HasInstance)
+            if (frame.GetOrCreate<ContextStateManager>().IsInSubContext() || !GPUBatcherRenderer.hasInstance)
                 return default;
-            var batcher = GPUBatcherRenderer.Instance;
-            if (batcher == null || GPUBatcherConfig.Instance.useHZBRetestPass != retest) return default;
+            var batcher = GPUBatcherRenderer.instance;
+            if (batcher == null || GPUBatcherConfig.instance.useHZBRetestPass != retest) return default;
             int cameraId = GPUBatcherHelpers.GetViewID(camera.camera);
             if (!GPUBatcherCullingInjector.SupportsOcclusion(camera.camera) ||
                 (camera.cameraTargetDescriptor.dimension != TextureDimension.Tex2D &&
                  camera.cameraTargetDescriptor.dimension != TextureDimension.Tex2DArray) ||
-                !batcher.IsGPUOcclusionEnabled || !batcher.HasPendingCullingForCamera(cameraId) ||
+                !batcher.isGPUOcclusionEnabled || !batcher.HasPendingCullingForCamera(cameraId) ||
                 !GPUBatcherCullingInjector.HasMainInjection(camera.renderer, typeof(GPUBatcherCullingPass)))
             {
                 batcher.DisableCameraHZB(cameraId);
@@ -182,11 +183,11 @@ namespace Fraxinus.GPUBatcher.Integration
         internal static void Record(RenderGraph graph, ContextContainer frame, bool retest)
         {
             var camera = frame.Get<CameraData>();
-            if (frame.GetOrCreate<ContextStateManager>().IsInSubContext() || !frame.Contains<HZBFrameData>() || !GPUBatcherRenderer.HasInstance) return;
+            if (frame.GetOrCreate<ContextStateManager>().IsInSubContext() || !frame.Contains<HZBFrameData>() || !GPUBatcherRenderer.hasInstance) return;
             var prepared = frame.Get<HZBFrameData>();
             if (!prepared.active || prepared.recorded || prepared.retest != retest) return;
-            var batcher = GPUBatcherRenderer.Instance;
-            if (batcher == null || !batcher.IsGPUOcclusionEnabled) return;
+            var batcher = GPUBatcherRenderer.instance;
+            if (batcher == null || !batcher.isGPUOcclusionEnabled) return;
             int cameraId = GPUBatcherHelpers.GetViewID(camera.camera);
             var resources = frame.Get<ResourceData>();
             // Retest consumes the complete prepass. History consumes final opaque
@@ -202,26 +203,12 @@ namespace Fraxinus.GPUBatcher.Integration
             int width = size.x;
             int height = size.y;
             var sourceInfo = graph.GetRenderTargetInfo(depth);
-            bool sourceArray = camera.cameraTargetDescriptor.dimension == TextureDimension.Tex2DArray;
-            if (sourceInfo.msaaSamples > 1)
+            bool sourceArray = graph.GetTextureDesc(depth).dimension == TextureDimension.Tex2DArray;
+            if (sourceInfo.msaaSamples > 1 && sourceInfo.bindMS)
             {
-                // Fraxinus' public MSAA copy uses stereo array keywords for array
-                // sources. A non-stereo array cannot use that resolve path safely.
-                if (sourceArray)
-                {
-                    batcher.DisableCameraHZB(cameraId);
-                    return;
-                }
-                var resolved = graph.CreateTexture(new TextureDesc(camera.cameraTargetDescriptor.width, camera.cameraTargetDescriptor.height)
-                {
-                    format = GraphicsFormat.R32_SFloat,
-                    name = "FraxinusGPUBatcher.ResolvedOpaqueDepth",
-                    filterMode = FilterMode.Point,
-                    useDynamicScale = camera.cameraTargetDescriptor.useDynamicScale
-                });
-                camera.renderer.GetModule<DepthCopyPass>().Render(graph, frame, resolved, depth,
-                    passName: "FraxinusGPUBatcher.ResolveOpaqueDepth");
-                depth = resolved;
+                depth = GPUBatcherRenderGraphPasses.RecordHZBMSAAResolve(graph, batcher, depth,
+                    sourceInfo.width, sourceInfo.height, sourceArray);
+                sourceArray = false; // the selected source slice resolves to a 2D texture
             }
             GPUBatcherRenderGraphPasses.RecordHZBBuildPass(graph, batcher, "FraxinusGPUBatcher.HZBBuild", cameraId, depth, width, height,
                 sourceTextureArray: sourceArray);

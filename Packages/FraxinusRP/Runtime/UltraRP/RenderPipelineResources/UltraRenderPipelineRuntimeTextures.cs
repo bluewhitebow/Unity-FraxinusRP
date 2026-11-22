@@ -1,14 +1,19 @@
 using System;
 using UnityEngine;
 using UnityEngine.Rendering;
-using UnityEngine.Rendering.Categorization;
+
+#if UNITY_6000_0_OR_NEWER
+using RenderingCategories = UnityEngine.Categorization;
+#else
+using RenderingCategories = UnityEngine.Rendering.Categorization;
+#endif
 
 namespace FraxinusEngine.Rendering.Ultra
 {
 
     [Serializable]
     [SupportedOnRenderPipeline(typeof(UltraRenderPipelineAsset))]
-    [CategoryInfo(Name = "R: Runtime Textures", Order = 1000), HideInInspector]
+    [RenderingCategories.CategoryInfo(Name = "R: Runtime Textures", Order = 1000), HideInInspector]
     public class UltraRenderPipelineRuntimeTextures : IRenderPipelineResources
     {
         [SerializeField][HideInInspector] private int _version = 1;

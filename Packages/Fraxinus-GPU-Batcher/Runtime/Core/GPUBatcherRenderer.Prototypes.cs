@@ -37,7 +37,7 @@ namespace Fraxinus.GPUBatcher
         private Stack<int> _freeProtoIndices = new();
         private MeshCombineCache _meshCombineCache = new();
 
-        internal MeshCombineCache MeshCombineCache => _meshCombineCache;
+        internal MeshCombineCache meshCombineCache => _meshCombineCache;
 
         // prototype bounds cache
         private NativeArray<float3> _protoBoundsCenter;
@@ -58,7 +58,7 @@ namespace Fraxinus.GPUBatcher
         }
 #endif
 
-        public int PrototypeCount => _renderSignatures?.Count ?? 0;
+        public int prototypeCount => _renderSignatures?.Count ?? 0;
 
         public bool TryGetPrototypeCullBounds(int globalProtoIndex, out float3 boundsCenter, out float boundsRadius)
         {
@@ -73,7 +73,7 @@ namespace Fraxinus.GPUBatcher
             return false;
         }
 
-        public int ActivePrototypeCount
+        public int activePrototypeCount
         {
             get
             {
@@ -322,7 +322,7 @@ namespace Fraxinus.GPUBatcher
             if (isNewSlot)
             {
                 FinalizeNewProtoSlot(index);
-                LogMessageDevelopment($"GPUBatcherRenderer: Registered prototype {index} ({signature.LODCount} LODs), refcount=1");
+                LogMessageDevelopment($"GPUBatcherRenderer: Registered prototype {index} ({signature.lodCount} LODs), refcount=1");
             }
             return index;
         }
@@ -639,7 +639,7 @@ namespace Fraxinus.GPUBatcher
             poolIndices.Sort();
             _resetFadeRanges.Clear();
             var ranges = _resetFadeRanges;
-            int ps = kPoolSize;
+            int ps = k_poolSize;
             int rangeStart = poolIndices[0] * ps;
             int rangeEnd = rangeStart + ps;
 
@@ -662,7 +662,7 @@ namespace Fraxinus.GPUBatcher
 
             foreach (var kvp in _viewFadeStates)
             {
-                var buf = kvp.Value.FadeStateBuffer;
+                var buf = kvp.Value.fadeStateBuffer;
                 if (buf == null) continue;
 
                 foreach (var (start, count) in ranges)
@@ -703,7 +703,7 @@ namespace Fraxinus.GPUBatcher
         public void RefreshDefaultCrossfadeDuration()
         {
             if (_renderSignatures == null) return;
-            float def = math.clamp(GPUBatcherConfig.Instance.defaultAnimatedCrossfadeDuration, 0f, 10f);
+            float def = math.clamp(GPUBatcherConfig.instance.defaultAnimatedCrossfadeDuration, 0f, 10f);
             for (int i = 0; i < _renderSignatures.Count; i++)
             {
                 var sig = _renderSignatures[i];
@@ -718,7 +718,7 @@ namespace Fraxinus.GPUBatcher
             bool useConfigDefault = extraData == null || !extraData.overrideLodFadeDuration;
             sig.lodFadeDuration = math.clamp(
                 useConfigDefault
-                    ? GPUBatcherConfig.Instance.defaultAnimatedCrossfadeDuration
+                    ? GPUBatcherConfig.instance.defaultAnimatedCrossfadeDuration
                     : extraData.lodFadeDuration,
                 0f, 10f);
 #if UNITY_EDITOR
@@ -729,8 +729,8 @@ namespace Fraxinus.GPUBatcher
             sig.prototypeGroup = extraData.prototypeGroup;
             sig.maxShadowCascade = extraData.maxShadowCascade;
             sig.minShadowLOD = extraData.minShadowLOD;
-            sig.maxShadowDistance = math.max(0f, extraData.EffectiveMaxShadowDistance);
-            sig.maxShadowCrossfadeCascade = extraData.EffectiveMaxShadowCrossfadeCascade; // -99 = use global config
+            sig.maxShadowDistance = math.max(0f, extraData.effectiveMaxShadowDistance);
+            sig.maxShadowCrossfadeCascade = extraData.effectiveMaxShadowCrossfadeCascade; // -99 = use global config
             sig.enableDistanceDensity = extraData.enableDistanceDensity;
             sig.distanceDensityMode = extraData.distanceDensityMode;
             sig.densityStartScreenSize = math.max(0f, extraData.densityStartScreenSize * 0.01f);
@@ -779,17 +779,17 @@ namespace Fraxinus.GPUBatcher
 #if UNITY_6000_2_OR_NEWER
                      && !proto.usesMeshLod
 #endif
-                     && GPUBatcherConfig.Instance.defaultSmallMeshSize > 0f)
+                     && GPUBatcherConfig.instance.defaultSmallMeshSize > 0f)
             {
-                float defaultRatio = GPUBatcherConfig.Instance.defaultSmallMeshSize * 0.01f;
+                float defaultRatio = GPUBatcherConfig.instance.defaultSmallMeshSize * 0.01f;
                 int lastLod = proto.lodScreenSizes.Length - 1;
                 if (proto.lodScreenSizes[lastLod] < defaultRatio)
                     proto.lodScreenSizes[lastLod] = defaultRatio;
 
-                switch (GPUBatcherConfig.Instance.defaultSmallMeshFadeMode)
+                switch (GPUBatcherConfig.instance.defaultSmallMeshFadeMode)
                 {
                     case MinScreenSizeFadeMode.Crossfade:
-                        proto.lodFadeTransitionWidths[lastLod] = GPUBatcherConfig.Instance.defaultSmallMeshFadeWidth;
+                        proto.lodFadeTransitionWidths[lastLod] = GPUBatcherConfig.instance.defaultSmallMeshFadeWidth;
                         proto.fadeMode = LODFadeMode.CrossFade;
                         break;
                     case MinScreenSizeFadeMode.AnimatedCrossfade:
@@ -866,7 +866,7 @@ namespace Fraxinus.GPUBatcher
             {
                 // extract from LODGroup
                 var lods = lodGroup.GetLODs();
-                proto.LodReferenceSize = lodGroup.size;
+                proto.lodReferenceSize = lodGroup.size;
                 proto.fadeMode = lodGroup.fadeMode;
                 sig.animateCrossFading = lodGroup.animateCrossFading;
 
@@ -910,7 +910,7 @@ namespace Fraxinus.GPUBatcher
                 }
 
                 // capture renderer ID for SpeedTree wind
-                if (GPUBatcherConfig.Instance.enableSpeedTreeWind)
+                if (GPUBatcherConfig.instance.enableSpeedTreeWind)
                 {
                     var tree = prefab.GetComponentInChildren<Tree>();
                     bool hasLod0Renderer = lods[0].renderers?.Length > 0 && lods[0].renderers[0] != null;
@@ -967,7 +967,7 @@ namespace Fraxinus.GPUBatcher
                         ? math.clamp(meshLodData.meshLodIndices[i], 0, maxMeshLod) : math.min(i, maxMeshLod);
                 }
 
-                proto.LodReferenceSize = mesh.bounds.size.magnitude;    //matches GRD
+                proto.lodReferenceSize = mesh.bounds.size.magnitude;    //matches GRD
 
                 switch (meshLodData.meshLodFadeMode)
                 {
@@ -999,7 +999,7 @@ namespace Fraxinus.GPUBatcher
                 if (meshFilter.sharedMesh != null)
                 {
                     var s = meshFilter.sharedMesh.bounds.size;
-                    proto.LodReferenceSize = Mathf.Max(s.x, Mathf.Max(s.y, s.z));
+                    proto.lodReferenceSize = Mathf.Max(s.x, Mathf.Max(s.y, s.z));
                 }
             }
 
@@ -1088,7 +1088,7 @@ namespace Fraxinus.GPUBatcher
             sig.renderingLayerMask = firstRenderer.renderingLayerMask;
             ApplyExtraData(sig, extraData);
 
-            proto.LodReferenceSize = lodGroup.size;
+            proto.lodReferenceSize = lodGroup.size;
             proto.fadeMode = lodGroup.fadeMode;
             sig.animateCrossFading = lodGroup.animateCrossFading;
 
@@ -1126,7 +1126,7 @@ namespace Fraxinus.GPUBatcher
             }
 
             // SpeedTree renderer ID (for wind)
-            if (GPUBatcherConfig.Instance.enableSpeedTreeWind)
+            if (GPUBatcherConfig.instance.enableSpeedTreeWind)
             {
                 var tree = lodGroup.GetComponentInChildren<Tree>();
                 bool hasLod0Renderer = lods[0].renderers?.Length > 0 && lods[0].renderers[0] != null;
@@ -1199,7 +1199,7 @@ namespace Fraxinus.GPUBatcher
                         ? math.clamp(meshLodData.meshLodIndices[i], 0, maxMeshLod) : math.min(i, maxMeshLod);
                 }
 
-                proto.LodReferenceSize = mesh.bounds.size.magnitude;
+                proto.lodReferenceSize = mesh.bounds.size.magnitude;
 
                 switch (meshLodData.meshLodFadeMode)
                 {
@@ -1231,7 +1231,7 @@ namespace Fraxinus.GPUBatcher
                 if (filter.sharedMesh != null)
                 {
                     var s = filter.sharedMesh.bounds.size;
-                    proto.LodReferenceSize = Mathf.Max(s.x, Mathf.Max(s.y, s.z));
+                    proto.lodReferenceSize = Mathf.Max(s.x, Mathf.Max(s.y, s.z));
                 }
             }
 
@@ -1274,7 +1274,7 @@ namespace Fraxinus.GPUBatcher
 
             bool needsCombine = false;
             // combining disabled: fall through to first-renderer fast path, ignore offset transforms
-            if (GPUBatcherConfig.Instance.combineMultiMeshLODs)
+            if (GPUBatcherConfig.instance.combineMultiMeshLODs)
             {
                 if (validRenderers.Count > 1)
                 {
@@ -1352,10 +1352,10 @@ namespace Fraxinus.GPUBatcher
 
         static bool IsApproxIdentity(Matrix4x4 m)
         {
-            const float eps = 0.001f;
-            return math.abs(m.m00 - 1f) < eps && math.abs(m.m01) < eps && math.abs(m.m02) < eps && math.abs(m.m03) < eps
-                && math.abs(m.m10) < eps && math.abs(m.m11 - 1f) < eps && math.abs(m.m12) < eps && math.abs(m.m13) < eps
-                && math.abs(m.m20) < eps && math.abs(m.m21) < eps && math.abs(m.m22 - 1f) < eps && math.abs(m.m23) < eps;
+            const float k_eps = 0.001f;
+            return math.abs(m.m00 - 1f) < k_eps && math.abs(m.m01) < k_eps && math.abs(m.m02) < k_eps && math.abs(m.m03) < k_eps
+                && math.abs(m.m10) < k_eps && math.abs(m.m11 - 1f) < k_eps && math.abs(m.m12) < k_eps && math.abs(m.m13) < k_eps
+                && math.abs(m.m20) < k_eps && math.abs(m.m21) < k_eps && math.abs(m.m22 - 1f) < k_eps && math.abs(m.m23) < k_eps;
         }
 
         private void UpdatePrototypeFlag(int slot)
@@ -1455,8 +1455,8 @@ namespace Fraxinus.GPUBatcher
                 {
                     int poolIdx = _chunkPools[poolBaseIdx + p];
                     if (poolIdx < 0) continue;
-                    int slotBase = poolIdx * kPoolSize;
-                    for (int s = 0; s < kPoolSize; s++)
+                    int slotBase = poolIdx * k_poolSize;
+                    for (int s = 0; s < k_poolSize; s++)
                     {
                         int globalSlot = slotBase + s;
                         if (_slotFlipped[globalSlot] && _slotProtoIndex[globalSlot] >= 0)

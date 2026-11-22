@@ -56,10 +56,6 @@ namespace Fraxinus.GPUBatcher
             // layer mask culling
             public uint cullingLayerMask;
 
-            // Umbra occlusion
-            [NativeDisableUnsafePtrRestriction]
-            public IntPtr occlusionBuffer;
-
             public void Execute(int i)
             {
                 int chunkId = activeChunks[i];
@@ -94,13 +90,6 @@ namespace Fraxinus.GPUBatcher
                 if (!AABBInFrustum(aabbMin, aabbMax))
                 {
                     cullResults[i] = false;
-                    return;
-                }
-
-                // Umbra occlusion test (optional)
-                if (occlusionBuffer != IntPtr.Zero)
-                {
-                    cullResults[i] = GPUBatcherOcclusionBridge.OcclusionTestAABB(occlusionBuffer, bounds);
                     return;
                 }
 
@@ -168,27 +157,27 @@ namespace Fraxinus.GPUBatcher
         /// </summary>
         internal sealed class CullingBufferSet : System.IDisposable
         {
-            public GraphicsBuffer DrawBucketBuffer;
-            public GraphicsBuffer VisibilityBuffer;
-            public GraphicsBuffer IndirectArgsBuffer;
-            public GraphicsBuffer VisibleChunksBuffer;
-            public GraphicsBuffer VisibleChunkCountBuffer;
-            public NativeArray<int> CpuVisibleChunkIds; // survives until cmd executes
-            // Package-owned submission data. Unity never takes ownership while native submission is stubbed.
-            public NativeArray<BatchDrawCommandIndirect> CpuDrawCommands;
-            public NativeArray<BatchDrawRange> CpuDrawRanges;
+            public GraphicsBuffer drawBucketBuffer;
+            public GraphicsBuffer visibilityBuffer;
+            public GraphicsBuffer indirectArgsBuffer;
+            public GraphicsBuffer visibleChunksBuffer;
+            public GraphicsBuffer visibleChunkCountBuffer;
+            public NativeArray<int> cpuVisibleChunkIds; // survives until cmd executes
+            // Renderer-owned scratch; native submission copies it into engine-owned allocations.
+            public NativeArray<BatchDrawCommandIndirect> cpuDrawCommands;
+            public NativeArray<BatchDrawRange> cpuDrawRanges;
             public int generation;  // matches _bufferPoolGeneration when valid
 
             public void Dispose()
             {
-                DrawBucketBuffer?.Dispose();
-                VisibilityBuffer?.Dispose();
-                IndirectArgsBuffer?.Dispose();
-                VisibleChunksBuffer?.Dispose();
-                VisibleChunkCountBuffer?.Dispose();
-                CpuVisibleChunkIds.DisposeIfCreated();
-                CpuDrawCommands.DisposeIfCreated();
-                CpuDrawRanges.DisposeIfCreated();
+                drawBucketBuffer?.Dispose();
+                visibilityBuffer?.Dispose();
+                indirectArgsBuffer?.Dispose();
+                visibleChunksBuffer?.Dispose();
+                visibleChunkCountBuffer?.Dispose();
+                cpuVisibleChunkIds.DisposeIfCreated();
+                cpuDrawCommands.DisposeIfCreated();
+                cpuDrawRanges.DisposeIfCreated();
             }
         }
 
@@ -198,7 +187,7 @@ namespace Fraxinus.GPUBatcher
         /// </summary>
         private sealed class ViewFadeState : System.IDisposable
         {
-            public GraphicsBuffer FadeStateBuffer;
+            public GraphicsBuffer fadeStateBuffer;
             public uint lastSeenFrame;
             public uint lastFadeUpdateFrame;
             public bool snapRequested;  // set true to snap on next cull, auto-clears
@@ -208,22 +197,22 @@ namespace Fraxinus.GPUBatcher
 
 
 #if UNITY_EDITOR
-            public float DeltaTime => _calculatedDT;
+            public float deltaTime => _calculatedDT;
             private float _calculatedDT;
-            private double lastTime;
+            private double _lastTime;
             public void CalculateDeltaTime()
             {
                 double now = Time.realtimeSinceStartupAsDouble;
-                _calculatedDT = (float)(now - lastTime);
-                lastTime = now;
+                _calculatedDT = (float)(now - _lastTime);
+                _lastTime = now;
             }
 #else
-            public float DeltaTime => Time.unscaledDeltaTime;
+            public float deltaTime => Time.unscaledDeltaTime;
 #endif
 
             public void Dispose()
             {
-                FadeStateBuffer?.Dispose();
+                fadeStateBuffer?.Dispose();
             }
         }
 
@@ -243,9 +232,9 @@ namespace Fraxinus.GPUBatcher
 
         // pool acquisition is single-threaded: OnPerformCulling callbacks are sequential
 
-        // replaces Time.frameCount, incremented in OnBeginContextRendering
+        // Advances in SystemUpdate independently of Time.frameCount for editor rendering.
         private uint _renderCycleCounter = 1;
-        internal uint RenderCycleCounter => _renderCycleCounter;
+        internal uint renderCycleCounter => _renderCycleCounter;
 
         // bump after modifying bucket/args templates - triggers per-view buffer re-seed via SetData
         private int _bufferPoolGeneration;
@@ -255,9 +244,9 @@ namespace Fraxinus.GPUBatcher
         private readonly List<ViewID> _viewFadeStateKeys = new();  // mirror of _viewFadeStates keys
         private int _trackedTotalFadeStates;  // running total of fade state buffer elements across all views
         private readonly List<ViewID> _staleViewKeys = new();
-        private const int kViewFadeEvictFrames = 3;
+        private const int k_viewFadeEvictFrames = 3;
 
-        private const int kMaxCascades = 6;
+        private const int k_maxCascades = 6;
 
         private int _shadowSplitCapacity = 4;
         private bool _pendingShadowSplitWiden;
@@ -316,65 +305,65 @@ namespace Fraxinus.GPUBatcher
             int chunkCount = math.max(1, _maxChunks);
             int bucketStride = UnsafeUtility.SizeOf<DrawBucket>();
 
-            if (set.DrawBucketBuffer == null || set.DrawBucketBuffer.count != bucketCount)
+            if (set.drawBucketBuffer == null || set.drawBucketBuffer.count != bucketCount)
             {
-                set.DrawBucketBuffer?.Dispose();
-                set.DrawBucketBuffer = new GraphicsBuffer(
+                set.drawBucketBuffer?.Dispose();
+                set.drawBucketBuffer = new GraphicsBuffer(
                     GraphicsBuffer.Target.Structured, bucketCount, bucketStride);
 #if DEBUG
-                set.DrawBucketBuffer.name = $"FraxinusGPUBatcher_{prefix}Buckets";
+                set.drawBucketBuffer.name = $"FraxinusGPUBatcher_{prefix}Buckets";
 #endif
             }
 
-            if (set.VisibilityBuffer == null || set.VisibilityBuffer.count < visCount)
+            if (set.visibilityBuffer == null || set.visibilityBuffer.count < visCount)
             {
-                set.VisibilityBuffer?.Dispose();
-                set.VisibilityBuffer = new GraphicsBuffer(
+                set.visibilityBuffer?.Dispose();
+                set.visibilityBuffer = new GraphicsBuffer(
                     GraphicsBuffer.Target.Raw, visCount, sizeof(uint));
 #if DEBUG
-                set.VisibilityBuffer.name = $"FraxinusGPUBatcher_{prefix}Visibility";
+                set.visibilityBuffer.name = $"FraxinusGPUBatcher_{prefix}Visibility";
 #endif
             }
 
-            if (set.IndirectArgsBuffer == null || set.IndirectArgsBuffer.count != argsCount)
+            if (set.indirectArgsBuffer == null || set.indirectArgsBuffer.count != argsCount)
             {
-                set.IndirectArgsBuffer?.Dispose();
+                set.indirectArgsBuffer?.Dispose();
                 var indirectArgsFlags = GraphicsBuffer.Target.IndirectArguments |
-                    (UseRawIndirectArgs ? GraphicsBuffer.Target.Raw : GraphicsBuffer.Target.Structured);
-                set.IndirectArgsBuffer = new GraphicsBuffer(indirectArgsFlags, argsCount, sizeof(uint));
+                    (useRawIndirectArgs ? GraphicsBuffer.Target.Raw : GraphicsBuffer.Target.Structured);
+                set.indirectArgsBuffer = new GraphicsBuffer(indirectArgsFlags, argsCount, sizeof(uint));
 #if DEBUG
-                set.IndirectArgsBuffer.name = $"FraxinusGPUBatcher_{prefix}IndirectArgs";
+                set.indirectArgsBuffer.name = $"FraxinusGPUBatcher_{prefix}IndirectArgs";
 #endif
             }
 
             // seed static template data (bufferOffset, maxSlots, indexCount, etc.)
             // only runs on batch rebuild / buffer resize, not per-frame
             if (bucketTemplate.IsCreated)
-                set.DrawBucketBuffer.SetData(bucketTemplate, 0, 0, bucketCount);
+                set.drawBucketBuffer.SetData(bucketTemplate, 0, 0, bucketCount);
             if (argsTemplate.IsCreated)
-                set.IndirectArgsBuffer.SetData(argsTemplate, 0, 0, argsCount);
+                set.indirectArgsBuffer.SetData(argsTemplate, 0, 0, argsCount);
 
-            if (set.VisibleChunksBuffer == null || set.VisibleChunksBuffer.count < chunkCount)
+            if (set.visibleChunksBuffer == null || set.visibleChunksBuffer.count < chunkCount)
             {
-                set.VisibleChunksBuffer?.Dispose();
-                set.VisibleChunksBuffer = new GraphicsBuffer(
+                set.visibleChunksBuffer?.Dispose();
+                set.visibleChunksBuffer = new GraphicsBuffer(
                     GraphicsBuffer.Target.Structured, chunkCount, sizeof(uint));
 #if DEBUG
-                set.VisibleChunksBuffer.name = $"FraxinusGPUBatcher_{prefix}VisibleChunks";
+                set.visibleChunksBuffer.name = $"FraxinusGPUBatcher_{prefix}VisibleChunks";
 #endif
-                set.CpuVisibleChunkIds.DisposeIfCreated();
-                set.CpuVisibleChunkIds = new NativeArray<int>(chunkCount, Allocator.Persistent);
+                set.cpuVisibleChunkIds.DisposeIfCreated();
+                set.cpuVisibleChunkIds = new NativeArray<int>(chunkCount, Allocator.Persistent);
             }
 
-            if (set.VisibleChunkCountBuffer == null)
+            if (set.visibleChunkCountBuffer == null)
             {
                 var chunkCountFlags = GraphicsBuffer.Target.IndirectArguments |
-                    (UseRawIndirectArgs ? GraphicsBuffer.Target.Raw : GraphicsBuffer.Target.Structured);
-                set.VisibleChunkCountBuffer = new GraphicsBuffer(chunkCountFlags, 4, sizeof(uint));
+                    (useRawIndirectArgs ? GraphicsBuffer.Target.Raw : GraphicsBuffer.Target.Structured);
+                set.visibleChunkCountBuffer = new GraphicsBuffer(chunkCountFlags, 4, sizeof(uint));
 #if DEBUG
-                set.VisibleChunkCountBuffer.name = $"FraxinusGPUBatcher_{prefix}VisibleChunkCount";
+                set.visibleChunkCountBuffer.name = $"FraxinusGPUBatcher_{prefix}VisibleChunkCount";
 #endif
-                set.VisibleChunkCountBuffer.SetData(kCounterResetData);
+                set.visibleChunkCountBuffer.SetData(s_counterResetData);
             }
 
             set.generation = _bufferPoolGeneration;
@@ -384,14 +373,14 @@ namespace Fraxinus.GPUBatcher
         private ViewFadeState CreateViewFadeState(ViewID viewID)
         {
             var state = new ViewFadeState();
-            int fadeStateCount = math.max(1, _poolCapacity * kPoolSize);
-            state.FadeStateBuffer = new GraphicsBuffer(
+            int fadeStateCount = math.max(1, _poolCapacity * k_poolSize);
+            state.fadeStateBuffer = new GraphicsBuffer(
                 GraphicsBuffer.Target.Structured,
                 fadeStateCount,
                 sizeof(int) * 2  // fadeState: lodPacked (int), fadeProgress (float)
             );
-            state.FadeStateBuffer.name = $"FraxinusGPUBatcher_FadeState_View{viewID}";
-            GPUInitFadeStateTyped(state.FadeStateBuffer, 0, fadeStateCount);
+            state.fadeStateBuffer.name = $"FraxinusGPUBatcher_FadeState_View{viewID}";
+            GPUInitFadeStateTyped(state.fadeStateBuffer, 0, fadeStateCount);
             state.lastSeenFrame = _renderCycleCounter;
             state.lastFadeUpdateFrame = 0;
             state.snapRequested = true;
@@ -500,64 +489,64 @@ namespace Fraxinus.GPUBatcher
         private CommandBuffer _cullingCmd;
 
         // cached shader property IDs
-        private static readonly int _ID_AnimatedPoolCount = Shader.PropertyToID("_AnimatedPoolCount");
-        private static readonly int _ID_AnimatedPools = Shader.PropertyToID("_AnimatedPools");
-        private static readonly int _ID_ArgsToBucket = Shader.PropertyToID("_ArgsToBucket");
-        private static readonly int _ID_BucketCount = Shader.PropertyToID("_BucketCount");
-        private static readonly int _ID_CameraHalfFOV = Shader.PropertyToID("_CameraHalfFOV");
-        private static readonly int _ID_CameraPosition = Shader.PropertyToID("_CameraPosition");
-        private static readonly int _ID_CascadeCount = Shader.PropertyToID("_CascadeCount");
-        private static readonly int _ID_CascadePlaneCounts = Shader.PropertyToID("_CascadePlaneCounts");
-        private static readonly int _ID_CascadePlanes = Shader.PropertyToID("_CascadePlanes");
-        private static readonly int _ID_CascadeSpheres = Shader.PropertyToID("_CascadeSpheres");
-        private static readonly int _ID_CrossFadeWidth = Shader.PropertyToID("_CrossFadeWidth");
-        private static readonly int _ID_CullDistanceSq = Shader.PropertyToID("_CullDistanceSq");
-        private static readonly int _ID_DeltaTime = Shader.PropertyToID("_DeltaTime");
-        private static readonly int _ID_DrawBuckets = Shader.PropertyToID("_DrawBuckets");
-        private static readonly int _ID_DrawCommandCount = Shader.PropertyToID("_DrawCommandCount");
-        private static readonly int _ID_FadeStates = Shader.PropertyToID("_FadeStates");
-        private static readonly int _ID_FrustumPlanes = Shader.PropertyToID("_FrustumPlanes");
-        private static readonly int _ID_IndirectArgs = Shader.PropertyToID("_IndirectArgs");
-        private static readonly int _ID_InitialVisibleCount = Shader.PropertyToID("_InitialVisibleCount");
-        private static readonly int _ID_InstanceMultiplierShift = Shader.PropertyToID("_InstanceMultiplierShift");
-        private static readonly int _ID_Instances = Shader.PropertyToID("_Instances");
-        private static readonly int _ID_LODBias = Shader.PropertyToID("_LODBias");
-        private static readonly int _ID_ScreenRatioScale = Shader.PropertyToID("_ScreenRatioScale");
-        private static readonly int _ID_CpuVisibleChunkIds = Shader.PropertyToID("_CpuVisibleChunkIds");
-        private static readonly int _ID_CpuVisibleChunkCount = Shader.PropertyToID("_CpuVisibleChunkCount");
-        private static readonly int _ID_PoolRefs = Shader.PropertyToID("_PoolRefs");
-        private static readonly int _ID_Signatures = Shader.PropertyToID("_Signatures");
+        private static readonly int s_idAnimatedPoolCount = Shader.PropertyToID("_AnimatedPoolCount");
+        private static readonly int s_idAnimatedPools = Shader.PropertyToID("_AnimatedPools");
+        private static readonly int s_idArgsToBucket = Shader.PropertyToID("_ArgsToBucket");
+        private static readonly int s_idBucketCount = Shader.PropertyToID("_BucketCount");
+        private static readonly int s_idCameraHalfFOV = Shader.PropertyToID("_CameraHalfFOV");
+        private static readonly int s_idCameraPosition = Shader.PropertyToID("_CameraPosition");
+        private static readonly int s_idCascadeCount = Shader.PropertyToID("_CascadeCount");
+        private static readonly int s_idCascadePlaneCounts = Shader.PropertyToID("_CascadePlaneCounts");
+        private static readonly int s_idCascadePlanes = Shader.PropertyToID("_CascadePlanes");
+        private static readonly int s_idCascadeSpheres = Shader.PropertyToID("_CascadeSpheres");
+        private static readonly int s_idCrossFadeWidth = Shader.PropertyToID("_CrossFadeWidth");
+        private static readonly int s_idCullDistanceSq = Shader.PropertyToID("_CullDistanceSq");
+        private static readonly int s_idDeltaTime = Shader.PropertyToID("_DeltaTime");
+        private static readonly int s_idDrawBuckets = Shader.PropertyToID("_DrawBuckets");
+        private static readonly int s_idDrawCommandCount = Shader.PropertyToID("_DrawCommandCount");
+        private static readonly int s_idFadeStates = Shader.PropertyToID("_FadeStates");
+        private static readonly int s_idFrustumPlanes = Shader.PropertyToID("_FrustumPlanes");
+        private static readonly int s_idIndirectArgs = Shader.PropertyToID("_IndirectArgs");
+        private static readonly int s_idInitialVisibleCount = Shader.PropertyToID("_InitialVisibleCount");
+        private static readonly int s_idInstanceMultiplierShift = Shader.PropertyToID("_InstanceMultiplierShift");
+        private static readonly int s_idInstances = Shader.PropertyToID("_Instances");
+        private static readonly int s_idLodBias = Shader.PropertyToID("_LODBias");
+        private static readonly int s_idScreenRatioScale = Shader.PropertyToID("_ScreenRatioScale");
+        private static readonly int s_idCpuVisibleChunkIds = Shader.PropertyToID("_CpuVisibleChunkIds");
+        private static readonly int s_idCpuVisibleChunkCount = Shader.PropertyToID("_CpuVisibleChunkCount");
+        private static readonly int s_idPoolRefs = Shader.PropertyToID("_PoolRefs");
+        private static readonly int s_idSignatures = Shader.PropertyToID("_Signatures");
 
-        private static readonly int _ID_IsOrthographic = Shader.PropertyToID("_IsOrthographic");
-        private static readonly int _ID_OrthoSize = Shader.PropertyToID("_OrthoSize");
-        private static readonly int _ID_ShadowArgsToBucket = Shader.PropertyToID("_ShadowArgsToBucket");
-        private static readonly int _ID_ShadowDrawBuckets = Shader.PropertyToID("_ShadowDrawBuckets");
-        private static readonly int _ID_ShadowDrawCommandCount = Shader.PropertyToID("_ShadowDrawCommandCount");
-        private static readonly int _ID_ShadowIndirectArgs = Shader.PropertyToID("_ShadowIndirectArgs");
-        private static readonly int _ID_ShadowVisibilityBuffer = Shader.PropertyToID("_ShadowVisibilityBuffer");
-        private static readonly int _ID_SkipIntermediateLODs = Shader.PropertyToID("_SkipIntermediateLODs");
-        private static readonly int _ID_SnapFadeStates = Shader.PropertyToID("_SnapFadeStates");
-        private static readonly int _ID_AnimatedCrossfadeMode = Shader.PropertyToID("_AnimatedCrossfadeMode");
-        private static readonly int _ID_ProtoCrossfadeStates = Shader.PropertyToID("_ProtoCrossfadeStates");
-        private static readonly int _ID_Chunks = Shader.PropertyToID("_Chunks");
-        private static readonly int _ID_VisibilityBuffer = Shader.PropertyToID("_VisibilityBuffer");
-        private static readonly int _ID_VisibleChunkCount = Shader.PropertyToID("_VisibleChunkCount");
-        private static readonly int _ID_VisibleChunks = Shader.PropertyToID("_VisibleChunks");
-        private static readonly int _ID_VisibleShadowChunkCount = Shader.PropertyToID("_VisibleShadowChunkCount");
-        private static readonly int _ID_VisibleShadowChunks = Shader.PropertyToID("_VisibleShadowChunks");
-        private static readonly int _ID_ShadowChunkIds = Shader.PropertyToID("_ShadowChunkIds");
-        private static readonly int _ID_ShadowChunkCount = Shader.PropertyToID("_ShadowChunkCount");
-        private static readonly int _ID_CullingLayerMask = Shader.PropertyToID("_CullingLayerMask");
-        private static readonly int _ID_CounterBuffer = Shader.PropertyToID("_CounterBuffer");
+        private static readonly int s_idIsOrthographic = Shader.PropertyToID("_IsOrthographic");
+        private static readonly int s_idOrthoSize = Shader.PropertyToID("_OrthoSize");
+        private static readonly int s_idShadowArgsToBucket = Shader.PropertyToID("_ShadowArgsToBucket");
+        private static readonly int s_idShadowDrawBuckets = Shader.PropertyToID("_ShadowDrawBuckets");
+        private static readonly int s_idShadowDrawCommandCount = Shader.PropertyToID("_ShadowDrawCommandCount");
+        private static readonly int s_idShadowIndirectArgs = Shader.PropertyToID("_ShadowIndirectArgs");
+        private static readonly int s_idShadowVisibilityBuffer = Shader.PropertyToID("_ShadowVisibilityBuffer");
+        private static readonly int s_idSkipIntermediateLODs = Shader.PropertyToID("_SkipIntermediateLODs");
+        private static readonly int s_idSnapFadeStates = Shader.PropertyToID("_SnapFadeStates");
+        private static readonly int s_idAnimatedCrossfadeMode = Shader.PropertyToID("_AnimatedCrossfadeMode");
+        private static readonly int s_idProtoCrossfadeStates = Shader.PropertyToID("_ProtoCrossfadeStates");
+        private static readonly int s_idChunks = Shader.PropertyToID("_Chunks");
+        private static readonly int s_idVisibilityBuffer = Shader.PropertyToID("_VisibilityBuffer");
+        private static readonly int s_idVisibleChunkCount = Shader.PropertyToID("_VisibleChunkCount");
+        private static readonly int s_idVisibleChunks = Shader.PropertyToID("_VisibleChunks");
+        private static readonly int s_idVisibleShadowChunkCount = Shader.PropertyToID("_VisibleShadowChunkCount");
+        private static readonly int s_idVisibleShadowChunks = Shader.PropertyToID("_VisibleShadowChunks");
+        private static readonly int s_idShadowChunkIds = Shader.PropertyToID("_ShadowChunkIds");
+        private static readonly int s_idShadowChunkCount = Shader.PropertyToID("_ShadowChunkCount");
+        private static readonly int s_idCullingLayerMask = Shader.PropertyToID("_CullingLayerMask");
+        private static readonly int s_idCounterBuffer = Shader.PropertyToID("_CounterBuffer");
         // light-space cascade culling (ReceiverSphereCuller port)
-        private static readonly int _ID_WorldToLightRotation = Shader.PropertyToID("_WorldToLightRotation");
-        private static readonly int _ID_CascadeBlendFactors = Shader.PropertyToID("_CascadeBlendFactors");
-        private static readonly int _ID_ApplyCascadeLimits = Shader.PropertyToID("_ApplyCascadeLimits");
-        private static readonly int _ID_LightFacingPlanes = Shader.PropertyToID("_LightFacingPlanes");
-        private static readonly int _ID_LightFacingPlaneCount = Shader.PropertyToID("_LightFacingPlaneCount");
+        private static readonly int s_idWorldToLightRotation = Shader.PropertyToID("_WorldToLightRotation");
+        private static readonly int s_idCascadeBlendFactors = Shader.PropertyToID("_CascadeBlendFactors");
+        private static readonly int s_idApplyCascadeLimits = Shader.PropertyToID("_ApplyCascadeLimits");
+        private static readonly int s_idLightFacingPlanes = Shader.PropertyToID("_LightFacingPlanes");
+        private static readonly int s_idLightFacingPlaneCount = Shader.PropertyToID("_LightFacingPlaneCount");
         // perspective receiver cull planes (spot/point shadow tightening)
-        private static readonly int _ID_ReceiverCullPlanes = Shader.PropertyToID("_ReceiverCullPlanes");
-        private static readonly int _ID_ReceiverCullPlaneCount = Shader.PropertyToID("_ReceiverCullPlaneCount");
+        private static readonly int s_idReceiverCullPlanes = Shader.PropertyToID("_ReceiverCullPlanes");
+        private static readonly int s_idReceiverCullPlaneCount = Shader.PropertyToID("_ReceiverCullPlaneCount");
 
         // cached values
         private Vector4[] _cachedFrustumPlanes = new Vector4[6];
@@ -741,25 +730,25 @@ namespace Fraxinus.GPUBatcher
         private readonly Dictionary<ViewID, CameraRenderData> _cameraRenderData = new();
 
         // shadow cascade data (uploaded per-light)
-        private Vector4[] _cascadePlanes = new Vector4[kMaxCascades * 6];
+        private Vector4[] _cascadePlanes = new Vector4[k_maxCascades * 6];
         private int[] _cascadePlaneCounts = new int[8]; // int4[2] on GPU
-        private Vector4[] _cascadeSpheres = new Vector4[kMaxCascades];
+        private Vector4[] _cascadeSpheres = new Vector4[k_maxCascades];
 
         // light-space cascade culling data
-        private const int kMaxLightFacingPlanes = 6;
-        private float[] _cascadeBlendFactorValues = new float[kMaxCascades];
+        private const int k_maxLightFacingPlanes = 6;
+        private float[] _cascadeBlendFactorValues = new float[k_maxCascades];
         private Vector4[] _cascadeBlendFactorUpload = new Vector4[2];
-        private Vector4[] _lightFacingPlanes = new Vector4[kMaxLightFacingPlanes];
+        private Vector4[] _lightFacingPlanes = new Vector4[k_maxLightFacingPlanes];
 
         // perspective receiver cull planes (light-facing + silhouette, spot/point only)
-        private const int kMaxReceiverCullPlanes = 18; // 6 light-facing + 12 silhouette max
-        private Vector4[] _receiverCullPlanes = new Vector4[kMaxReceiverCullPlanes];
+        private const int k_maxReceiverCullPlanes = 18; // 6 light-facing + 12 silhouette max
+        private Vector4[] _receiverCullPlanes = new Vector4[k_maxReceiverCullPlanes];
 
         // compute shader thread group sizes
-        private const int kThreadsInstances = 256;
-        private const int kThreadsChunks = 64;
-        private const int kThreadsFinalize = 64;
-        private const int kThreadsReset = 64;
+        private const int k_threadsInstances = 256;
+        private const int k_threadsChunks = 64;
+        private const int k_threadsFinalize = 64;
+        private const int k_threadsReset = 64;
 
         /// <summary>
         /// Per-split culling state - one per OnPerformCulling call for a given camera.
@@ -772,6 +761,8 @@ namespace Fraxinus.GPUBatcher
             public bool chunkCullJobScheduled;
             public JobHandle chunkCullJobHandle;
             public int cpuVisibleChunkCount; // stored for Phase 1 re-dispatch
+            public GPUBatcherOcclusionBridge.CameraState bakedOcclusion;
+            public uint bakedOcclusionGeneration;
         }
 
         /// <summary>
@@ -865,23 +856,20 @@ namespace Fraxinus.GPUBatcher
         // per-camera deferred contexts keyed by camera instance ID
         private readonly Dictionary<ViewID, CameraCullingContext> _deferredContexts = new();
         private readonly Stack<Vector4[]> _planeArrayPool = new();
-        internal bool HasPendingDeferredCulling => _deferredContexts.Count > 0;
+        internal bool hasPendingDeferredCulling => _deferredContexts.Count > 0;
 
         // active camera - set when storing/retrieving from dict
         private CameraCullingContext _currentCullingContext;
         // last deferred camera ID
         private ViewID _lastDeferredCameraId;
-        internal ViewID LastDeferredCameraId => _lastDeferredCameraId;
+        internal ViewID lastDeferredCameraId => _lastDeferredCameraId;
 
         // expose buffer refs for render graph import
-        internal CullingBufferSet PendingCullingBufferSet =>
+        internal CullingBufferSet pendingCullingBufferSet =>
             _currentCullingContext?.splits != null && _currentCullingContext.splits.Count > 0 ? _currentCullingContext.splits[0].viewSet : null;
 
-        // callback invoked after CacheCameraCullingContext stores a deferred context.
-        // URP injector subscribes to enqueue render passes at the right time (during
-        // context.Cull, inside RenderSingleCameraInternal) instead of beginCameraRendering
-        // (which is vulnerable to nested Camera.Render clearing the pass queue).
-        internal static Action<ViewID> OnDeferredCullingCached;
+        // Invoked during native culling after the camera's deferred context is stored.
+        internal static Action<ViewID> onDeferredCullingCached;
 
         #endregion
 
@@ -890,44 +878,44 @@ namespace Fraxinus.GPUBatcher
         // bind shared read-only buffers to kernels using granular dirty flags
         private void BindSharedBuffers()
         {
-            if (cullingShader == null || !_chunkSystemInitialized || _gpuSignatureBuffer == null) return;
+            if (_cullingShader == null || !_chunkSystemInitialized || _gpuSignatureBuffer == null) return;
             if (_dirtyBufferBindings == BufferBindingFlags.None) return;  // nothing to bind
 
             // bind ChunkBuffer
             if ((_dirtyBufferBindings & BufferBindingFlags.ChunkBuffer) != 0 && _chunkBuffer != null)
             {
                 if (_cullChunksKernel >= 0)
-                    cullingShader.SetBuffer(_cullChunksKernel, _ID_Chunks, _chunkBuffer);
+                    _cullingShader.SetBuffer(_cullChunksKernel, s_idChunks, _chunkBuffer);
                 if (_cullInstancesKernel >= 0)
-                    cullingShader.SetBuffer(_cullInstancesKernel, _ID_Chunks, _chunkBuffer);
+                    _cullingShader.SetBuffer(_cullInstancesKernel, s_idChunks, _chunkBuffer);
                 if (_cullChunksShadowKernel >= 0)
-                    cullingShader.SetBuffer(_cullChunksShadowKernel, _ID_Chunks, _chunkBuffer);
+                    _cullingShader.SetBuffer(_cullChunksShadowKernel, s_idChunks, _chunkBuffer);
                 if (_cullInstancesShadowKernel >= 0)
-                    cullingShader.SetBuffer(_cullInstancesShadowKernel, _ID_Chunks, _chunkBuffer);
+                    _cullingShader.SetBuffer(_cullInstancesShadowKernel, s_idChunks, _chunkBuffer);
             }
 
             // bind PoolRefs
             if ((_dirtyBufferBindings & BufferBindingFlags.PoolRefs) != 0 && _poolRefBuffer != null)
             {
                 if (_cullInstancesKernel >= 0)
-                    cullingShader.SetBuffer(_cullInstancesKernel, _ID_PoolRefs, _poolRefBuffer);
+                    _cullingShader.SetBuffer(_cullInstancesKernel, s_idPoolRefs, _poolRefBuffer);
                 if (_cullInstancesShadowKernel >= 0)
-                    cullingShader.SetBuffer(_cullInstancesShadowKernel, _ID_PoolRefs, _poolRefBuffer);
+                    _cullingShader.SetBuffer(_cullInstancesShadowKernel, s_idPoolRefs, _poolRefBuffer);
             }
 
             // bind Instances + InstanceRotScale
             if ((_dirtyBufferBindings & BufferBindingFlags.Instances) != 0 && _instanceBuffer != null)
             {
                 if (_cullInstancesKernel >= 0)
-                    cullingShader.SetBuffer(_cullInstancesKernel, _ID_Instances, _instanceBuffer);
+                    _cullingShader.SetBuffer(_cullInstancesKernel, s_idInstances, _instanceBuffer);
                 if (_cullInstancesShadowKernel >= 0)
-                    cullingShader.SetBuffer(_cullInstancesShadowKernel, _ID_Instances, _instanceBuffer);
-                if (uploadShader != null)
+                    _cullingShader.SetBuffer(_cullInstancesShadowKernel, s_idInstances, _instanceBuffer);
+                if (_uploadShader != null)
                 {
                     if (_updateFadeStatesPerInstanceKernel >= 0)
-                        uploadShader.SetBuffer(_updateFadeStatesPerInstanceKernel, _ID_Instances, _instanceBuffer);
+                        _uploadShader.SetBuffer(_updateFadeStatesPerInstanceKernel, s_idInstances, _instanceBuffer);
                     if (_updateFadeStatesPerPrototypeKernel >= 0)
-                        uploadShader.SetBuffer(_updateFadeStatesPerPrototypeKernel, _ID_Instances, _instanceBuffer);
+                        _uploadShader.SetBuffer(_updateFadeStatesPerPrototypeKernel, s_idInstances, _instanceBuffer);
                 }
             }
 
@@ -935,15 +923,15 @@ namespace Fraxinus.GPUBatcher
             if ((_dirtyBufferBindings & BufferBindingFlags.Signatures) != 0 && _gpuSignatureBuffer != null)
             {
                 if (_cullInstancesKernel >= 0)
-                    cullingShader.SetBuffer(_cullInstancesKernel, _ID_Signatures, _gpuSignatureBuffer);
+                    _cullingShader.SetBuffer(_cullInstancesKernel, s_idSignatures, _gpuSignatureBuffer);
                 if (_cullInstancesShadowKernel >= 0)
-                    cullingShader.SetBuffer(_cullInstancesShadowKernel, _ID_Signatures, _gpuSignatureBuffer);
-                if (uploadShader != null)
+                    _cullingShader.SetBuffer(_cullInstancesShadowKernel, s_idSignatures, _gpuSignatureBuffer);
+                if (_uploadShader != null)
                 {
                     if (_updateFadeStatesPerInstanceKernel >= 0)
-                        uploadShader.SetBuffer(_updateFadeStatesPerInstanceKernel, _ID_Signatures, _gpuSignatureBuffer);
+                        _uploadShader.SetBuffer(_updateFadeStatesPerInstanceKernel, s_idSignatures, _gpuSignatureBuffer);
                     if (_updateFadeStatesPerPrototypeKernel >= 0)
-                        uploadShader.SetBuffer(_updateFadeStatesPerPrototypeKernel, _ID_Signatures, _gpuSignatureBuffer);
+                        _uploadShader.SetBuffer(_updateFadeStatesPerPrototypeKernel, s_idSignatures, _gpuSignatureBuffer);
                 }
             }
 
@@ -951,18 +939,18 @@ namespace Fraxinus.GPUBatcher
             if ((_dirtyBufferBindings & BufferBindingFlags.ArgsToBucket) != 0)
             {
                 if (_finalizeDrawArgsKernel >= 0 && _argsToBucketBuffer != null)
-                    cullingShader.SetBuffer(_finalizeDrawArgsKernel, _ID_ArgsToBucket, _argsToBucketBuffer);
+                    _cullingShader.SetBuffer(_finalizeDrawArgsKernel, s_idArgsToBucket, _argsToBucketBuffer);
                 if (_finalizeShadowDrawArgsKernel >= 0 && _shadowArgsToBucketBuffer != null)
-                    cullingShader.SetBuffer(_finalizeShadowDrawArgsKernel, _ID_ShadowArgsToBucket, _shadowArgsToBucketBuffer);
+                    _cullingShader.SetBuffer(_finalizeShadowDrawArgsKernel, s_idShadowArgsToBucket, _shadowArgsToBucketBuffer);
             }
 
             // bind ProtoCrossfadeStates
             if ((_dirtyBufferBindings & BufferBindingFlags.ProtoCrossfade) != 0 && _protoCrossfadeBuffer != null)
             {
                 if (_cullInstancesKernel >= 0)
-                    cullingShader.SetBuffer(_cullInstancesKernel, _ID_ProtoCrossfadeStates, _protoCrossfadeBuffer);
+                    _cullingShader.SetBuffer(_cullInstancesKernel, s_idProtoCrossfadeStates, _protoCrossfadeBuffer);
                 if (_cullInstancesShadowKernel >= 0)
-                    cullingShader.SetBuffer(_cullInstancesShadowKernel, _ID_ProtoCrossfadeStates, _protoCrossfadeBuffer);
+                    _cullingShader.SetBuffer(_cullInstancesShadowKernel, s_idProtoCrossfadeStates, _protoCrossfadeBuffer);
             }
 
             _dirtyBufferBindings = BufferBindingFlags.None;
@@ -974,7 +962,7 @@ namespace Fraxinus.GPUBatcher
 #if DEBUG
             cmd.BeginSample(name);
 #endif
-            DispatchSafe(cmd, cullingShader, kernel, groupsX);
+            DispatchSafe(cmd, _cullingShader, kernel, groupsX);
 #if DEBUG
             cmd.EndSample(name);
 #endif
@@ -986,7 +974,7 @@ namespace Fraxinus.GPUBatcher
 #if DEBUG
             cmd.BeginSample(name);
 #endif
-            cmd.DispatchCompute(cullingShader, kernel, argsBuffer, 0);
+            cmd.DispatchCompute(_cullingShader, kernel, argsBuffer, 0);
 #if DEBUG
             cmd.EndSample(name);
 #endif
@@ -997,21 +985,22 @@ namespace Fraxinus.GPUBatcher
         {
             cmdCount = math.max(1, cmdCount);
             rangeCount = math.max(1, rangeCount);
-            if (!viewSet.CpuDrawCommands.IsCreated || viewSet.CpuDrawCommands.Length < cmdCount)
+            if (!viewSet.cpuDrawCommands.IsCreated || viewSet.cpuDrawCommands.Length < cmdCount)
             {
-                viewSet.CpuDrawCommands.DisposeIfCreated();
-                viewSet.CpuDrawCommands = new NativeArray<BatchDrawCommandIndirect>(cmdCount, Allocator.Persistent);
+                viewSet.cpuDrawCommands.DisposeIfCreated();
+                viewSet.cpuDrawCommands = new NativeArray<BatchDrawCommandIndirect>(cmdCount, Allocator.Persistent);
             }
-            if (!viewSet.CpuDrawRanges.IsCreated || viewSet.CpuDrawRanges.Length < rangeCount)
+            if (!viewSet.cpuDrawRanges.IsCreated || viewSet.cpuDrawRanges.Length < rangeCount)
             {
-                viewSet.CpuDrawRanges.DisposeIfCreated();
-                viewSet.CpuDrawRanges = new NativeArray<BatchDrawRange>(rangeCount, Allocator.Persistent);
+                viewSet.cpuDrawRanges.DisposeIfCreated();
+                viewSet.cpuDrawRanges = new NativeArray<BatchDrawRange>(rangeCount, Allocator.Persistent);
             }
         }
 
         /// <summary>
         /// Deferred path: extract all needed values from BatchCullingContext (ref struct),
-        /// schedule Umbra occlusion job, and copy template buffers. Returns job handle to Unity.
+        /// schedule frustum/distance chunk jobs, and copy template buffers. Returns job handle to Unity.
+        /// Native baked occlusion is applied after the same camera Cull completes.
         /// Compute dispatches happen later in ExecuteDeferredCulling, which calls .Complete() explicitly.
         /// </summary>
         private JobHandle CacheCameraCullingContext(in BatchCullingContext cullingContext, CullingBufferSet viewSet, ViewID cameraId, in CameraRenderData camData)
@@ -1101,7 +1090,7 @@ namespace Fraxinus.GPUBatcher
                 // evaluate fade state mutations
                 _currentCullingContext.shouldDispatchFade = false;
                 _currentCullingContext.shouldSnap = false;
-                if (_currentCullingContext.fadeState?.FadeStateBuffer != null && _anyPrototypeUsesAnimatedCrossfade && !Config.debugDisableCrossfade)
+                if (_currentCullingContext.fadeState?.fadeStateBuffer != null && _anyPrototypeUsesAnimatedCrossfade && !Config.debugDisableCrossfade)
                 {
                     bool isPerProtoMode = Config.animatedCrossfadeMode == AnimatedCrossfadeMode.PerPrototype;
                     int activeKernel = isPerProtoMode
@@ -1161,7 +1150,14 @@ namespace Fraxinus.GPUBatcher
             // per-split setup (every call)
 
             var visSlot = AcquireVisibilitySlot();
-            var split = new DeferredCullContext { viewSet = viewSet, visibilitySlot = visSlot };
+            var bakedOcclusion = GetBakedOcclusion(cameraId);
+            var split = new DeferredCullContext
+            {
+                viewSet = viewSet,
+                visibilitySlot = visSlot,
+                bakedOcclusion = bakedOcclusion,
+                bakedOcclusionGeneration = bakedOcclusion?.generation ?? 0,
+            };
 
             // schedule CPU chunk cull job - each split has its own visibility arrays
             JobHandle chunkCullJobHandle = default;
@@ -1177,14 +1173,6 @@ namespace Fraxinus.GPUBatcher
             if (!_currentCullingContext.usesFrozenData)
 #endif
             {
-                IntPtr occBuffer = Config.useBakedOcclusionCulling
-                    ? GPUBatcherOcclusionBridge.GetOcclusionBuffer(cullingContext)
-                    : IntPtr.Zero;
-#if DEBUG
-                if (Config.enableDebugLogging)
-                    Debug.Log($"[Fraxinus GPU Batcher] occlusionBuffer: 0x{occBuffer.ToInt64():X}, cc.occlusionBuffer: 0x{GPUBatcherOcclusionBridge.GetOcclusionBuffer(cullingContext).ToInt64():X}, useBaked: {Config.useBakedOcclusionCulling}");
-#endif
-
                 chunkCullJobHandle = new ChunkCullJob
                 {
                     activeChunks = _activeChunks,
@@ -1192,7 +1180,6 @@ namespace Fraxinus.GPUBatcher
                     chunks = _chunks,
                     chunkLayerMask = _chunkLayerMask,
                     cullResults = visSlot.cullResults,
-                    occlusionBuffer = occBuffer,
                     cameraPosition = _currentCullingContext.cameraPosition,
                     cullingLayerMask = (uint)cullingContext.cullingLayerMask,
                     plane0 = _cachedFrustumPlanes[0],
@@ -1208,7 +1195,7 @@ namespace Fraxinus.GPUBatcher
                     cullResults = visSlot.cullResults,
                     activeChunks = _activeChunks,
                     activeChunkCount = _allocatedCount,
-                    visibleChunkIds = viewSet.CpuVisibleChunkIds,
+                    visibleChunkIds = viewSet.cpuVisibleChunkIds,
                     visibleCount = visSlot.visibleCount,
                 }.Schedule(chunkCullJobHandle);
 
@@ -1221,16 +1208,14 @@ namespace Fraxinus.GPUBatcher
             _lastDeferredCameraId = cameraId;
 
             if (isFirstSplit)
-                OnDeferredCullingCached?.Invoke(cameraId);
+                onDeferredCullingCached?.Invoke(cameraId);
 
             return chunkCullJobHandle;
         }
 
         /// <summary>
-        /// Deferred path: record all GPU culling dispatches on a CommandBuffer from the render pass.
-        /// Called from GPUBatcherCullingPass (URP) or GPUBatcherCullingPassHDRP (HDRP). Completes chunk cull job explicitly.
-        /// When GPU occlusion is disabled, this is the single pass at BeforeRenderingOpaques.
-        /// When GPU occlusion is enabled, this serves as Pass 0 (BeforeRenderingPrePasses).
+        /// Completes CPU chunk jobs and records camera GPU culling before depth/shadow rendering.
+        /// History mode tests the previous HZB; retest mode first runs without occlusion.
         /// </summary>
         internal void ExecuteDeferredCulling(CommandBuffer cmd, ViewID cameraId, bool skipHZBTextureBinding = false)
         {
@@ -1243,7 +1228,7 @@ namespace Fraxinus.GPUBatcher
             _currentCullingContext = cam;
             System.Array.Copy(_currentCullingContext.frustumPlanes, _cachedFrustumPlanes, 6);
 
-            if (cullingShader == null || !_gpuCullingReady)
+            if (_cullingShader == null || !_gpuCullingReady)
             {
                 ReleaseSplitVisibilitySlots();
                 ReleaseCameraCullingContext(_currentCullingContext);
@@ -1261,7 +1246,7 @@ namespace Fraxinus.GPUBatcher
                 return;
             }
 
-            bool hzbActive = _currentCullingContext.useHZB && IsGPUOcclusionEnabled;
+            bool hzbActive = _currentCullingContext.useHZB && isGPUOcclusionEnabled;
 
             BindCameraCullingUniforms(cmd, cam);
 
@@ -1274,7 +1259,7 @@ namespace Fraxinus.GPUBatcher
 
                 if (hzbTestable)
                 {
-                    cmd.EnableKeyword(cullingShader, _hzbEnabledKeyword);
+                    cmd.EnableKeyword(_cullingShader, _hzbEnabledKeyword);
 
                     float cameraMotionPixels = 0f;
                     if (hzbState.topMipHeight > 0)
@@ -1302,30 +1287,30 @@ namespace Fraxinus.GPUBatcher
                         }
                     }
 
-                    cmd.SetComputeFloatParam(cullingShader, _ID_HZBPixelExpansion, hzbPixelExpansion);
-                    cmd.SetComputeFloatParam(cullingShader, _ID_HZBTranslationScale, hzbTranslationScale);
-                    cmd.SetComputeMatrixParam(cullingShader, _ID_ViewProjMatrix, hzbState.prevViewProjMatrix);
-                    cmd.SetComputeVectorParam(cullingShader, _ID_FacingDirWorldSpace, hzbState.prevFacingDir);
-                    cmd.SetComputeVectorParam(cullingShader, _ID_RadialDirWorldSpace, hzbState.prevRadialDir);
-                    cmd.SetComputeVectorParam(cullingShader, _ID_HZBCameraPosition, hzbState.prevCameraPosition);
+                    cmd.SetComputeFloatParam(_cullingShader, s_idHzbPixelExpansion, hzbPixelExpansion);
+                    cmd.SetComputeFloatParam(_cullingShader, s_idHzbTranslationScale, hzbTranslationScale);
+                    cmd.SetComputeMatrixParam(_cullingShader, s_idViewProjMatrix, hzbState.prevViewProjMatrix);
+                    cmd.SetComputeVectorParam(_cullingShader, s_idFacingDirWorldSpace, hzbState.prevFacingDir);
+                    cmd.SetComputeVectorParam(_cullingShader, s_idRadialDirWorldSpace, hzbState.prevRadialDir);
+                    cmd.SetComputeVectorParam(_cullingShader, s_idHzbCameraPosition, hzbState.prevCameraPosition);
                     if (!skipHZBTextureBinding)
                     {
-                        cmd.SetComputeTextureParam(cullingShader, _cullChunksKernel, _ID_HZBTexture, hzbState.hzbAtlas);
-                        cmd.SetComputeTextureParam(cullingShader, _cullInstancesKernel, _ID_HZBTexture, hzbState.hzbAtlas);
+                        cmd.SetComputeTextureParam(_cullingShader, _cullChunksKernel, s_idHzbTexture, hzbState.hzbAtlas);
+                        cmd.SetComputeTextureParam(_cullingShader, _cullInstancesKernel, s_idHzbTexture, hzbState.hzbAtlas);
                     }
-                    BindHZBAtlasUniforms(cmd, cullingShader, hzbState);
+                    BindHZBAtlasUniforms(cmd, _cullingShader, hzbState);
                 }
                 else
                 {
-                    cmd.DisableKeyword(cullingShader, _hzbEnabledKeyword);
+                    cmd.DisableKeyword(_cullingShader, _hzbEnabledKeyword);
                 }
             }
             else
             {
-                cmd.DisableKeyword(cullingShader, _hzbEnabledKeyword);
+                cmd.DisableKeyword(_cullingShader, _hzbEnabledKeyword);
             }
 
-            var fadeBuffer = _currentCullingContext.fadeState?.FadeStateBuffer;
+            var fadeBuffer = _currentCullingContext.fadeState?.fadeStateBuffer;
             if (fadeBuffer == null)
             {
                 ReleaseSplitVisibilitySlots();
@@ -1334,40 +1319,40 @@ namespace Fraxinus.GPUBatcher
             }
 
             // fade state dispatch (once per camera, not per split)
-            if (_currentCullingContext.shouldDispatchFade && uploadShader != null)
+            if (_currentCullingContext.shouldDispatchFade && _uploadShader != null)
             {
                 bool isPerProtoMode = Config.animatedCrossfadeMode == AnimatedCrossfadeMode.PerPrototype;
                 int activeKernel = isPerProtoMode
                     ? _updateFadeStatesPerPrototypeKernel
                     : _updateFadeStatesPerInstanceKernel;
 
-                cmd.SetComputeVectorParam(uploadShader, _ID_CameraPosition, _currentCullingContext.cameraPosition);
-                cmd.SetComputeFloatParam(uploadShader, _ID_CameraHalfFOV, _currentCullingContext.cameraHalfFOV);
-                cmd.SetComputeFloatParam(uploadShader, _ID_LODBias, _currentCullingContext.lodBias);
-                cmd.SetComputeFloatParam(uploadShader, _ID_ScreenRatioScale, _currentCullingContext.screenRatioScale);
-                cmd.SetComputeFloatParam(uploadShader, _ID_CrossFadeWidth, Config.debugDisableCrossfade ? 0f : 1f);
-                cmd.SetComputeFloatParam(uploadShader, _ID_DeltaTime, _currentCullingContext.fadeState.DeltaTime * _crossfadeTimeScale);
-                cmd.SetComputeIntParam(uploadShader, _ID_SkipIntermediateLODs, Config.skipIntermediateLODs ? 1 : 0);
-                cmd.SetComputeIntParam(uploadShader, _ID_AnimatedCrossfadeMode, (int)Config.animatedCrossfadeMode);
-                cmd.SetComputeIntParam(uploadShader, _ID_IsOrthographic, _currentCullingContext.isOrthographic ? 1 : 0);
-                cmd.SetComputeFloatParam(uploadShader, _ID_OrthoSize, _currentCullingContext.orthoSize);
+                cmd.SetComputeVectorParam(_uploadShader, s_idCameraPosition, _currentCullingContext.cameraPosition);
+                cmd.SetComputeFloatParam(_uploadShader, s_idCameraHalfFOV, _currentCullingContext.cameraHalfFOV);
+                cmd.SetComputeFloatParam(_uploadShader, s_idLodBias, _currentCullingContext.lodBias);
+                cmd.SetComputeFloatParam(_uploadShader, s_idScreenRatioScale, _currentCullingContext.screenRatioScale);
+                cmd.SetComputeFloatParam(_uploadShader, s_idCrossFadeWidth, Config.debugDisableCrossfade ? 0f : 1f);
+                cmd.SetComputeFloatParam(_uploadShader, s_idDeltaTime, _currentCullingContext.fadeState.deltaTime * _crossfadeTimeScale);
+                cmd.SetComputeIntParam(_uploadShader, s_idSkipIntermediateLODs, Config.skipIntermediateLODs ? 1 : 0);
+                cmd.SetComputeIntParam(_uploadShader, s_idAnimatedCrossfadeMode, (int)Config.animatedCrossfadeMode);
+                cmd.SetComputeIntParam(_uploadShader, s_idIsOrthographic, _currentCullingContext.isOrthographic ? 1 : 0);
+                cmd.SetComputeFloatParam(_uploadShader, s_idOrthoSize, _currentCullingContext.orthoSize);
 
                 int animatedPoolCount = _animatedCrossfadePools.Length;
                 if (animatedPoolCount > 0 && _animatedPoolsBuffer != null)
                 {
-                    cmd.SetComputeIntParam(uploadShader, _ID_AnimatedPoolCount, animatedPoolCount);
-                    cmd.SetComputeIntParam(uploadShader, _ID_SnapFadeStates, _currentCullingContext.shouldSnap ? 1 : 0);
-                    cmd.SetComputeBufferParam(uploadShader, activeKernel, _ID_FadeStates, fadeBuffer);
-                    cmd.SetComputeBufferParam(uploadShader, activeKernel, _ID_AnimatedPools, _animatedPoolsBuffer);
+                    cmd.SetComputeIntParam(_uploadShader, s_idAnimatedPoolCount, animatedPoolCount);
+                    cmd.SetComputeIntParam(_uploadShader, s_idSnapFadeStates, _currentCullingContext.shouldSnap ? 1 : 0);
+                    cmd.SetComputeBufferParam(_uploadShader, activeKernel, s_idFadeStates, fadeBuffer);
+                    cmd.SetComputeBufferParam(_uploadShader, activeKernel, s_idAnimatedPools, _animatedPoolsBuffer);
                     if (isPerProtoMode && _protoCrossfadeBuffer != null)
-                        cmd.SetComputeBufferParam(uploadShader, activeKernel, _ID_ProtoCrossfadeStates, _protoCrossfadeBuffer);
-                    int animatedSlots = animatedPoolCount * kPoolSize;
-                    int fadeGroups = (int)math.ceil(animatedSlots / (float)kThreadsInstances);
+                        cmd.SetComputeBufferParam(_uploadShader, activeKernel, s_idProtoCrossfadeStates, _protoCrossfadeBuffer);
+                    int animatedSlots = animatedPoolCount * k_poolSize;
+                    int fadeGroups = (int)math.ceil(animatedSlots / (float)k_threadsInstances);
 #if DEBUG
                     string fadeName = isPerProtoMode ? "FraxinusGPUBatcher.UpdateFadeStatesProto" : "FraxinusGPUBatcher.UpdateFadeStatesInst";
                     cmd.BeginSample(fadeName);
 #endif
-                    DispatchSafe(cmd, uploadShader, activeKernel, fadeGroups);
+                    DispatchSafe(cmd, _uploadShader, activeKernel, fadeGroups);
 #if DEBUG
                     cmd.EndSample(fadeName);
 #endif
@@ -1386,7 +1371,7 @@ namespace Fraxinus.GPUBatcher
                 // The job owns the visibility slot until completion, including a skipped split.
                 if (split.chunkCullJobScheduled)
                     split.chunkCullJobHandle.Complete();
-                if (viewSet == null || viewSet.DrawBucketBuffer == null || viewSet.VisibilityBuffer == null)
+                if (viewSet == null || viewSet.drawBucketBuffer == null || viewSet.visibilityBuffer == null)
                 {
                     ReleaseVisibilitySlot(visSlot);
                     continue;
@@ -1396,33 +1381,43 @@ namespace Fraxinus.GPUBatcher
                 if (!split.chunkCullJobScheduled)
                 {
                     for (int a = 0; a < _allocatedCount; a++)
-                        viewSet.CpuVisibleChunkIds[a] = _activeChunks[a];
+                        viewSet.cpuVisibleChunkIds[a] = _activeChunks[a];
                     visSlot.visibleCount[0] = _allocatedCount;
 #if DEBUG
-                    StatOcclusionPass = _allocatedCount;
-                    StatOcclusionFail = 0;
+                    statOcclusionPass = _allocatedCount;
+                    statOcclusionFail = 0;
 #endif
                 }
 #if DEBUG
                 else
                 {
                     int visCount = visSlot.visibleCount[0];
-                    StatOcclusionPass = visCount;
-                    StatOcclusionFail = _allocatedCount - visCount;
+                    statOcclusionPass = visCount;
+                    statOcclusionFail = _allocatedCount - visCount;
                 }
 #endif
 
                 int cpuVisCount = visSlot.visibleCount[0];
+                // CullingGroup publishes native baked occlusion after Cull returns.
+                // Filter camera chunks here; shadow culling keeps its own visibility.
+                if (split.chunkCullJobScheduled)
+                {
+                    cpuVisCount = FilterBakedOcclusion(split, cpuVisCount);
+#if DEBUG
+                    statOcclusionPass = cpuVisCount;
+                    statOcclusionFail = _allocatedCount - cpuVisCount;
+#endif
+                }
 
                 if (skipCullChunks)
                 {
-                    if (cpuVisCount > 0 && viewSet.VisibleChunksBuffer != null)
-                        cmd.SetBufferData(viewSet.VisibleChunksBuffer, viewSet.CpuVisibleChunkIds, 0, 0, cpuVisCount);
+                    if (cpuVisCount > 0 && viewSet.visibleChunksBuffer != null)
+                        cmd.SetBufferData(viewSet.visibleChunksBuffer, viewSet.cpuVisibleChunkIds, 0, 0, cpuVisCount);
                 }
                 else
                 {
                     if (cpuVisCount > 0 && _cpuVisibleChunkIdsBuffer != null)
-                        cmd.SetBufferData(_cpuVisibleChunkIdsBuffer, viewSet.CpuVisibleChunkIds, 0, 0, cpuVisCount);
+                        cmd.SetBufferData(_cpuVisibleChunkIdsBuffer, viewSet.cpuVisibleChunkIds, 0, 0, cpuVisCount);
                 }
 
                 // store cpuVisibleChunkCount for Phase 1 re-dispatch (first split only)
@@ -1435,8 +1430,8 @@ namespace Fraxinus.GPUBatcher
                 ReleaseVisibilitySlot(visSlot);
 
                 // reset buckets, args, counters
-                DispatchResetCullingState(cmd, viewSet.DrawBucketBuffer, viewSet.IndirectArgsBuffer,
-                    viewSet.VisibleChunkCountBuffer,
+                DispatchResetCullingState(cmd, viewSet.drawBucketBuffer, viewSet.indirectArgsBuffer,
+                    viewSet.visibleChunkCountBuffer,
                     _bucketCount, _drawCommandCount,
                     skipCullChunks ? cpuVisCount : 0);
 
@@ -1445,25 +1440,25 @@ namespace Fraxinus.GPUBatcher
                     continue;
 
                 // bind per-split output buffers
-                cmd.SetComputeBufferParam(cullingShader, _cullInstancesKernel, _ID_DrawBuckets, viewSet.DrawBucketBuffer);
-                cmd.SetComputeBufferParam(cullingShader, _cullInstancesKernel, _ID_VisibilityBuffer, viewSet.VisibilityBuffer);
-                cmd.SetComputeBufferParam(cullingShader, _cullInstancesKernel, _ID_VisibleChunks, viewSet.VisibleChunksBuffer);
-                cmd.SetComputeBufferParam(cullingShader, _cullInstancesKernel, _ID_FadeStates, fadeBuffer);
-                cmd.SetComputeBufferParam(cullingShader, _finalizeDrawArgsKernel, _ID_DrawBuckets, viewSet.DrawBucketBuffer);
-                cmd.SetComputeBufferParam(cullingShader, _finalizeDrawArgsKernel, _ID_IndirectArgs, viewSet.IndirectArgsBuffer);
+                cmd.SetComputeBufferParam(_cullingShader, _cullInstancesKernel, s_idDrawBuckets, viewSet.drawBucketBuffer);
+                cmd.SetComputeBufferParam(_cullingShader, _cullInstancesKernel, s_idVisibilityBuffer, viewSet.visibilityBuffer);
+                cmd.SetComputeBufferParam(_cullingShader, _cullInstancesKernel, s_idVisibleChunks, viewSet.visibleChunksBuffer);
+                cmd.SetComputeBufferParam(_cullingShader, _cullInstancesKernel, s_idFadeStates, fadeBuffer);
+                cmd.SetComputeBufferParam(_cullingShader, _finalizeDrawArgsKernel, s_idDrawBuckets, viewSet.drawBucketBuffer);
+                cmd.SetComputeBufferParam(_cullingShader, _finalizeDrawArgsKernel, s_idIndirectArgs, viewSet.indirectArgsBuffer);
 
                 if (!skipCullChunks)
                 {
-                    cmd.SetComputeBufferParam(cullingShader, _cullChunksKernel, _ID_VisibleChunks, viewSet.VisibleChunksBuffer);
-                    cmd.SetComputeBufferParam(cullingShader, _cullChunksKernel, _ID_VisibleChunkCount, viewSet.VisibleChunkCountBuffer);
-                    cmd.SetComputeBufferParam(cullingShader, _cullChunksKernel, _ID_CpuVisibleChunkIds, _cpuVisibleChunkIdsBuffer);
-                    cmd.SetComputeIntParam(cullingShader, _ID_CpuVisibleChunkCount, cpuVisCount);
+                    cmd.SetComputeBufferParam(_cullingShader, _cullChunksKernel, s_idVisibleChunks, viewSet.visibleChunksBuffer);
+                    cmd.SetComputeBufferParam(_cullingShader, _cullChunksKernel, s_idVisibleChunkCount, viewSet.visibleChunkCountBuffer);
+                    cmd.SetComputeBufferParam(_cullingShader, _cullChunksKernel, s_idCpuVisibleChunkIds, _cpuVisibleChunkIdsBuffer);
+                    cmd.SetComputeIntParam(_cullingShader, s_idCpuVisibleChunkCount, cpuVisCount);
 
                     CmdDispatchCull(cmd, "FraxinusGPUBatcher.CullChunks", _cullChunksKernel,
-                        (int)math.ceil(cpuVisCount / (float)kThreadsChunks));
+                        (int)math.ceil(cpuVisCount / (float)k_threadsChunks));
                 }
 
-                CmdDispatchCullIndirect(cmd, "FraxinusGPUBatcher.CullInstances", _cullInstancesKernel, viewSet.VisibleChunkCountBuffer);
+                CmdDispatchCullIndirect(cmd, "FraxinusGPUBatcher.CullInstances", _cullInstancesKernel, viewSet.visibleChunkCountBuffer);
 
                 DispatchFinalizeDrawArgs(cmd, viewSet);
 
@@ -1489,11 +1484,8 @@ namespace Fraxinus.GPUBatcher
         }
 
         /// <summary>
-        /// Phase 1 (single-pass mode): re-dispatch full culling with current-frame HZB.
-        /// Phase0 ran with HZB_ENABLED off (frustum+LOD only). After depth prepass + HZB build,
-        /// this re-culls with HZB_ENABLED on (current-frame HZB) so opaques render only
-        /// truly visible instances. ZTest Equal works because depth prepass had everything.
-        /// Called from GPUBatcherRenderGraphPasses.RecordHZBCullPass after HZB build.
+        /// Re-culls the first split against the current-frame HZB after the full depth prepass.
+        /// Depth priming remains valid because phase zero included every candidate in that prepass.
         /// </summary>
         internal void ExecuteDeferredCullingPhase1(CommandBuffer cmd, ViewID cameraId,
             bool skipHZBTextureBinding = false)
@@ -1501,7 +1493,7 @@ namespace Fraxinus.GPUBatcher
             if (!_hzbRetestContexts.Remove(cameraId, out var retainedContext)) return;
             try
             {
-                if (cullingShader == null || !_gpuCullingReady)
+                if (_cullingShader == null || !_gpuCullingReady)
                     return;
 
                 if (!Config.useHZBRetestPass) return;
@@ -1514,7 +1506,7 @@ namespace Fraxinus.GPUBatcher
                 if (hzbState == null || !hzbState.hzbValid || hzbState.hzbAtlas == null)
                     return;
 
-                var fadeBuffer = retainedContext.fadeState?.FadeStateBuffer;
+                var fadeBuffer = retainedContext.fadeState?.fadeStateBuffer;
                 if (fadeBuffer == null)
                     return;
 
@@ -1523,47 +1515,47 @@ namespace Fraxinus.GPUBatcher
 
                 // Phase 0 may have processed several splits. Restore this split's outputs
                 // instead of inheriting whichever split last bound the compute shader.
-                cmd.SetComputeBufferParam(cullingShader, _cullChunksKernel, _ID_VisibleChunks, viewSet.VisibleChunksBuffer);
-                cmd.SetComputeBufferParam(cullingShader, _cullChunksKernel, _ID_VisibleChunkCount, viewSet.VisibleChunkCountBuffer);
-                cmd.SetComputeBufferParam(cullingShader, _cullInstancesKernel, _ID_DrawBuckets, viewSet.DrawBucketBuffer);
-                cmd.SetComputeBufferParam(cullingShader, _cullInstancesKernel, _ID_VisibilityBuffer, viewSet.VisibilityBuffer);
-                cmd.SetComputeBufferParam(cullingShader, _cullInstancesKernel, _ID_VisibleChunks, viewSet.VisibleChunksBuffer);
-                cmd.SetComputeBufferParam(cullingShader, _cullInstancesKernel, _ID_FadeStates, fadeBuffer);
+                cmd.SetComputeBufferParam(_cullingShader, _cullChunksKernel, s_idVisibleChunks, viewSet.visibleChunksBuffer);
+                cmd.SetComputeBufferParam(_cullingShader, _cullChunksKernel, s_idVisibleChunkCount, viewSet.visibleChunkCountBuffer);
+                cmd.SetComputeBufferParam(_cullingShader, _cullInstancesKernel, s_idDrawBuckets, viewSet.drawBucketBuffer);
+                cmd.SetComputeBufferParam(_cullingShader, _cullInstancesKernel, s_idVisibilityBuffer, viewSet.visibilityBuffer);
+                cmd.SetComputeBufferParam(_cullingShader, _cullInstancesKernel, s_idVisibleChunks, viewSet.visibleChunksBuffer);
+                cmd.SetComputeBufferParam(_cullingShader, _cullInstancesKernel, s_idFadeStates, fadeBuffer);
 
                 // reset draw bucket counts, indirect args, and counters
-                DispatchResetCullingState(cmd, viewSet.DrawBucketBuffer, viewSet.IndirectArgsBuffer,
-                    viewSet.VisibleChunkCountBuffer,
+                DispatchResetCullingState(cmd, viewSet.drawBucketBuffer, viewSet.indirectArgsBuffer,
+                    viewSet.visibleChunkCountBuffer,
                     _bucketCount, _drawCommandCount);
 
                 // enable HZB keyword for Phase1 + bind current-frame HZB
-                cmd.EnableKeyword(cullingShader, _hzbEnabledKeyword);
-                cmd.SetComputeFloatParam(cullingShader, _ID_HZBPixelExpansion, 0f); // current frame, no temporal mismatch
-                cmd.SetComputeFloatParam(cullingShader, _ID_HZBTranslationScale, 0f);
-                cmd.SetComputeMatrixParam(cullingShader, _ID_ViewProjMatrix, retainedContext.viewProjMatrix);
-                cmd.SetComputeVectorParam(cullingShader, _ID_FacingDirWorldSpace, retainedContext.facingDir);
-                cmd.SetComputeVectorParam(cullingShader, _ID_RadialDirWorldSpace, retainedContext.radialDir);
-                cmd.SetComputeVectorParam(cullingShader, _ID_HZBCameraPosition, retainedContext.hzbCameraPosition);
+                cmd.EnableKeyword(_cullingShader, _hzbEnabledKeyword);
+                cmd.SetComputeFloatParam(_cullingShader, s_idHzbPixelExpansion, 0f); // current frame, no temporal mismatch
+                cmd.SetComputeFloatParam(_cullingShader, s_idHzbTranslationScale, 0f);
+                cmd.SetComputeMatrixParam(_cullingShader, s_idViewProjMatrix, retainedContext.viewProjMatrix);
+                cmd.SetComputeVectorParam(_cullingShader, s_idFacingDirWorldSpace, retainedContext.facingDir);
+                cmd.SetComputeVectorParam(_cullingShader, s_idRadialDirWorldSpace, retainedContext.radialDir);
+                cmd.SetComputeVectorParam(_cullingShader, s_idHzbCameraPosition, retainedContext.hzbCameraPosition);
 
                 if (!skipHZBTextureBinding)
                 {
-                    cmd.SetComputeTextureParam(cullingShader, _cullChunksKernel, _ID_HZBTexture, hzbState.hzbAtlas);
-                    cmd.SetComputeTextureParam(cullingShader, _cullInstancesKernel, _ID_HZBTexture, hzbState.hzbAtlas);
+                    cmd.SetComputeTextureParam(_cullingShader, _cullChunksKernel, s_idHzbTexture, hzbState.hzbAtlas);
+                    cmd.SetComputeTextureParam(_cullingShader, _cullInstancesKernel, s_idHzbTexture, hzbState.hzbAtlas);
                 }
-                BindHZBAtlasUniforms(cmd, cullingShader, hzbState);
+                BindHZBAtlasUniforms(cmd, _cullingShader, hzbState);
 
                 // re-bind compacted CPU-visible chunk input (different CommandBuffer from Phase 0).
                 int cpuVisCount = retainedContext.splits[0].cpuVisibleChunkCount;
                 if (cpuVisCount > 0 && _cpuVisibleChunkIdsBuffer != null)
-                    cmd.SetBufferData(_cpuVisibleChunkIdsBuffer, viewSet.CpuVisibleChunkIds, 0, 0, cpuVisCount);
-                cmd.SetComputeBufferParam(cullingShader, _cullChunksKernel, _ID_CpuVisibleChunkIds, _cpuVisibleChunkIdsBuffer);
-                cmd.SetComputeIntParam(cullingShader, _ID_CpuVisibleChunkCount, cpuVisCount);
+                    cmd.SetBufferData(_cpuVisibleChunkIdsBuffer, viewSet.cpuVisibleChunkIds, 0, 0, cpuVisCount);
+                cmd.SetComputeBufferParam(_cullingShader, _cullChunksKernel, s_idCpuVisibleChunkIds, _cpuVisibleChunkIdsBuffer);
+                cmd.SetComputeIntParam(_cullingShader, s_idCpuVisibleChunkCount, cpuVisCount);
 
                 // re-dispatch: CullChunks -> CullInstances -> FinalizeDrawArgs
 #if DEBUG
                 cmd.BeginSample("FraxinusGPUBatcher.CullChunks_Phase1");
 #endif
-                DispatchSafe(cmd, cullingShader, _cullChunksKernel,
-                    (int)math.ceil(cpuVisCount / (float)kThreadsChunks));
+                DispatchSafe(cmd, _cullingShader, _cullChunksKernel,
+                    (int)math.ceil(cpuVisCount / (float)k_threadsChunks));
 #if DEBUG
                 cmd.EndSample("FraxinusGPUBatcher.CullChunks_Phase1");
 #endif
@@ -1571,7 +1563,7 @@ namespace Fraxinus.GPUBatcher
 #if DEBUG
                 cmd.BeginSample("FraxinusGPUBatcher.CullInstances_Phase1");
 #endif
-                cmd.DispatchCompute(cullingShader, _cullInstancesKernel, viewSet.VisibleChunkCountBuffer, 0u);
+                cmd.DispatchCompute(_cullingShader, _cullInstancesKernel, viewSet.visibleChunkCountBuffer, 0u);
 #if DEBUG
                 cmd.EndSample("FraxinusGPUBatcher.CullInstances_Phase1");
 #endif
@@ -1609,16 +1601,16 @@ namespace Fraxinus.GPUBatcher
 
         private void BindCameraCullingUniforms(CommandBuffer cmd, CameraCullingContext camera)
         {
-            cmd.SetComputeVectorArrayParam(cullingShader, _ID_FrustumPlanes, camera.frustumPlanes);
-            cmd.SetComputeFloatParam(cullingShader, _ID_LODBias, camera.lodBias);
-            cmd.SetComputeFloatParam(cullingShader, _ID_ScreenRatioScale, camera.screenRatioScale);
-            cmd.SetComputeFloatParam(cullingShader, _ID_CrossFadeWidth, Config.debugDisableCrossfade ? 0f : 1f);
-            cmd.SetComputeIntParam(cullingShader, _ID_IsOrthographic, camera.isOrthographic ? 1 : 0);
-            cmd.SetComputeFloatParam(cullingShader, _ID_OrthoSize, camera.orthoSize);
-            cmd.SetComputeIntParam(cullingShader, _ID_AnimatedCrossfadeMode, (int)Config.animatedCrossfadeMode);
-            cmd.SetComputeVectorParam(cullingShader, _ID_CameraPosition, camera.cameraPosition);
-            cmd.SetComputeFloatParam(cullingShader, _ID_CameraHalfFOV, camera.cameraHalfFOV);
-            cmd.SetComputeIntParam(cullingShader, _ID_BucketCount, _bucketCount);
+            cmd.SetComputeVectorArrayParam(_cullingShader, s_idFrustumPlanes, camera.frustumPlanes);
+            cmd.SetComputeFloatParam(_cullingShader, s_idLodBias, camera.lodBias);
+            cmd.SetComputeFloatParam(_cullingShader, s_idScreenRatioScale, camera.screenRatioScale);
+            cmd.SetComputeFloatParam(_cullingShader, s_idCrossFadeWidth, Config.debugDisableCrossfade ? 0f : 1f);
+            cmd.SetComputeIntParam(_cullingShader, s_idIsOrthographic, camera.isOrthographic ? 1 : 0);
+            cmd.SetComputeFloatParam(_cullingShader, s_idOrthoSize, camera.orthoSize);
+            cmd.SetComputeIntParam(_cullingShader, s_idAnimatedCrossfadeMode, (int)Config.animatedCrossfadeMode);
+            cmd.SetComputeVectorParam(_cullingShader, s_idCameraPosition, camera.cameraPosition);
+            cmd.SetComputeFloatParam(_cullingShader, s_idCameraHalfFOV, camera.cameraHalfFOV);
+            cmd.SetComputeIntParam(_cullingShader, s_idBucketCount, _bucketCount);
         }
 
         /// <summary>
@@ -1632,14 +1624,14 @@ namespace Fraxinus.GPUBatcher
             int initialVisibleCount = 0)
         {
             int k = _resetCullingStateKernel;
-            cmd.SetComputeBufferParam(cullingShader, k, _ID_DrawBuckets, bucketBuffer);
-            cmd.SetComputeBufferParam(cullingShader, k, _ID_IndirectArgs, argsBuffer);
-            cmd.SetComputeBufferParam(cullingShader, k, _ID_CounterBuffer, counterBuffer);
-            cmd.SetComputeIntParam(cullingShader, _ID_BucketCount, bucketCount);
-            cmd.SetComputeIntParam(cullingShader, _ID_DrawCommandCount, drawCommandCount);
-            cmd.SetComputeIntParam(cullingShader, _ID_InitialVisibleCount, initialVisibleCount);
+            cmd.SetComputeBufferParam(_cullingShader, k, s_idDrawBuckets, bucketBuffer);
+            cmd.SetComputeBufferParam(_cullingShader, k, s_idIndirectArgs, argsBuffer);
+            cmd.SetComputeBufferParam(_cullingShader, k, s_idCounterBuffer, counterBuffer);
+            cmd.SetComputeIntParam(_cullingShader, s_idBucketCount, bucketCount);
+            cmd.SetComputeIntParam(_cullingShader, s_idDrawCommandCount, drawCommandCount);
+            cmd.SetComputeIntParam(_cullingShader, s_idInitialVisibleCount, initialVisibleCount);
 
-            int groups = (int)math.ceil(math.max(bucketCount, drawCommandCount) / (float)kThreadsReset);
+            int groups = (int)math.ceil(math.max(bucketCount, drawCommandCount) / (float)k_threadsReset);
             groups = math.max(groups, 1);
 
             CmdDispatchCull(cmd, "FraxinusGPUBatcher.ResetCullingState", k, groups);
@@ -1650,20 +1642,20 @@ namespace Fraxinus.GPUBatcher
         /// </summary>
         private void DispatchFinalizeDrawArgs(CommandBuffer cmd, CullingBufferSet viewSet)
         {
-            cmd.SetComputeBufferParam(cullingShader, _finalizeDrawArgsKernel, _ID_DrawBuckets, viewSet.DrawBucketBuffer);
-            cmd.SetComputeBufferParam(cullingShader, _finalizeDrawArgsKernel, _ID_IndirectArgs, viewSet.IndirectArgsBuffer);
+            cmd.SetComputeBufferParam(_cullingShader, _finalizeDrawArgsKernel, s_idDrawBuckets, viewSet.drawBucketBuffer);
+            cmd.SetComputeBufferParam(_cullingShader, _finalizeDrawArgsKernel, s_idIndirectArgs, viewSet.indirectArgsBuffer);
 
             int totalCameraCmds = _drawCommandCount;
-            cmd.SetComputeIntParam(cullingShader, _ID_DrawCommandCount, totalCameraCmds);
+            cmd.SetComputeIntParam(_cullingShader, s_idDrawCommandCount, totalCameraCmds);
 #if ENABLE_VR_MODULE
             int instanceMultiplierShift = (UnityEngine.XR.XRSettings.enabled && !SystemInfo.supportsMultiview) ? 1 : 0;
-            cmd.SetComputeIntParam(cullingShader, _ID_InstanceMultiplierShift, instanceMultiplierShift);
+            cmd.SetComputeIntParam(_cullingShader, s_idInstanceMultiplierShift, instanceMultiplierShift);
 #endif
 #if DEBUG
             cmd.BeginSample("FraxinusGPUBatcher.FinalizeDrawArgs");
 #endif
-            DispatchSafe(cmd, cullingShader, _finalizeDrawArgsKernel,
-                (int)math.ceil(totalCameraCmds / (float)kThreadsFinalize));
+            DispatchSafe(cmd, _cullingShader, _finalizeDrawArgsKernel,
+                (int)math.ceil(totalCameraCmds / (float)k_threadsFinalize));
 #if DEBUG
             cmd.EndSample("FraxinusGPUBatcher.FinalizeDrawArgs");
 #endif
@@ -1673,9 +1665,9 @@ namespace Fraxinus.GPUBatcher
         private bool RunShadowCulling(BatchCullingContext cullingContext, CullingBufferSet shadowSet)
         {
 #if DEBUG
-            using var _sc = s_MarkerShadowCulling.Auto();
+            using var _sc = s_markerShadowCulling.Auto();
 #endif
-            if (cullingShader == null || !_gpuCullingReady)
+            if (_cullingShader == null || !_gpuCullingReady)
                 return false;
 
             // ensure shared buffers are bound (shadow culling can fire before camera dispatch on first frame)
@@ -1715,7 +1707,7 @@ namespace Fraxinus.GPUBatcher
                 _cascadeBlendFactorValues[0] = 0f;
 
                 // zero out unused cascade plane counts and spheres
-                for (int c = 1; c < kMaxCascades; c++)
+                for (int c = 1; c < k_maxCascades; c++)
                 {
                     _cascadePlaneCounts[c] = 0;
                     _cascadeSpheres[c] = Vector4.zero;
@@ -1757,7 +1749,7 @@ namespace Fraxinus.GPUBatcher
                 }
 
                 // zero out unused cascade plane counts and spheres
-                for (int c = cascadeCount; c < kMaxCascades; c++)
+                for (int c = cascadeCount; c < k_maxCascades; c++)
                 {
                     _cascadePlaneCounts[c] = 0;
                     _cascadeSpheres[c] = Vector4.zero;
@@ -1778,7 +1770,7 @@ namespace Fraxinus.GPUBatcher
                     float3 lightDir = -ltw.c2.xyz; // negative Z axis of light = light direction
                     int receiverPlaneCount = cullingContext.receiverPlaneCount;
                     int receiverPlaneOffset = cullingContext.receiverPlaneOffset;
-                    for (int i = 0; i < receiverPlaneCount && lfPlaneCount < kMaxLightFacingPlanes; i++)
+                    for (int i = 0; i < receiverPlaneCount && lfPlaneCount < k_maxLightFacingPlanes; i++)
                     {
                         var plane = cullingContext.cullingPlanes[receiverPlaneOffset + i];
                         if (Vector3.Dot(plane.normal, (Vector3)lightDir) >= 0f)
@@ -1805,7 +1797,7 @@ namespace Fraxinus.GPUBatcher
                         {
                             planeSignBits |= (1 << i);
                         }
-                        else if (receiverCullPlaneCount < kMaxReceiverCullPlanes)
+                        else if (receiverCullPlaneCount < k_maxReceiverCullPlanes)
                         {
                             _receiverCullPlanes[receiverCullPlaneCount++] = new Vector4(
                                 plane.normal.x, plane.normal.y, plane.normal.z, plane.distance);
@@ -1838,7 +1830,7 @@ namespace Fraxinus.GPUBatcher
                                 float dist = -math.dot(m, lightDir);
 
                                 float len = math.length(normal);
-                                if (len > 1e-6f && receiverCullPlaneCount < kMaxReceiverCullPlanes)
+                                if (len > 1e-6f && receiverCullPlaneCount < k_maxReceiverCullPlanes)
                                 {
                                     float invLen = 1f / len;
                                     _receiverCullPlanes[receiverCullPlaneCount++] = new Vector4(
@@ -1871,7 +1863,7 @@ namespace Fraxinus.GPUBatcher
                         {
                             planeSignBits |= (1 << i);
                         }
-                        else if (receiverCullPlaneCount < kMaxReceiverCullPlanes)
+                        else if (receiverCullPlaneCount < k_maxReceiverCullPlanes)
                         {
                             _receiverCullPlanes[receiverCullPlaneCount++] = new Vector4(
                                 plane.normal.x, plane.normal.y, plane.normal.z, plane.distance);
@@ -1906,7 +1898,7 @@ namespace Fraxinus.GPUBatcher
                                 float dist = -math.dot(m, lightPos);
 
                                 float len = math.length(normal);
-                                if (len > 1e-6f && receiverCullPlaneCount < kMaxReceiverCullPlanes)
+                                if (len > 1e-6f && receiverCullPlaneCount < k_maxReceiverCullPlanes)
                                 {
                                     float invLen = 1f / len;
                                     _receiverCullPlanes[receiverCullPlaneCount++] = new Vector4(
@@ -1933,9 +1925,9 @@ namespace Fraxinus.GPUBatcher
             // shadow chunk culling
 
             if (_chunkSystemInitialized && _allocatedCount > 0 && _cullChunksShadowKernel >= 0 &&
-                shadowSet.DrawBucketBuffer != null && shadowSet.VisibilityBuffer != null)
+                shadowSet.drawBucketBuffer != null && shadowSet.visibilityBuffer != null)
             {
-                GraphicsBuffer shadowFade = _currentCullingContext?.fadeState?.FadeStateBuffer;
+                GraphicsBuffer shadowFade = _currentCullingContext?.fadeState?.fadeStateBuffer;
                 if (shadowFade == null || !shadowFade.IsValid()) return false;
 
                 if (_shadowActiveCount == 0 && !_shadowChunksRebuiltThisFrame) return false;
@@ -1945,7 +1937,7 @@ namespace Fraxinus.GPUBatcher
 
                 // dispatch pending fade state update before shadow culling - shadows run synchronously
                 // but the deferred camera path hasn't executed yet, so _FadeStates are stale
-                if (_currentCullingContext.shouldDispatchFade && uploadShader != null)
+                if (_currentCullingContext.shouldDispatchFade && _uploadShader != null)
                 {
                     bool isPerProtoMode = Config.animatedCrossfadeMode == AnimatedCrossfadeMode.PerPrototype;
                     int activeKernel = isPerProtoMode
@@ -1954,27 +1946,27 @@ namespace Fraxinus.GPUBatcher
 
                     if (activeKernel >= 0)
                     {
-                        _cullingCmd.SetComputeVectorParam(uploadShader, _ID_CameraPosition, _currentCullingContext.cameraPosition);
-                        _cullingCmd.SetComputeFloatParam(uploadShader, _ID_CameraHalfFOV, _currentCullingContext.cameraHalfFOV);
-                        _cullingCmd.SetComputeFloatParam(uploadShader, _ID_ScreenRatioScale, _currentCullingContext.screenRatioScale);
-                        _cullingCmd.SetComputeFloatParam(uploadShader, _ID_LODBias, _currentCullingContext.lodBias);
-                        _cullingCmd.SetComputeFloatParam(uploadShader, _ID_DeltaTime, _currentCullingContext.fadeState.DeltaTime * _crossfadeTimeScale);
-                        _cullingCmd.SetComputeIntParam(uploadShader, _ID_SkipIntermediateLODs, Config.skipIntermediateLODs ? 1 : 0);
-                        _cullingCmd.SetComputeIntParam(uploadShader, _ID_AnimatedCrossfadeMode, (int)Config.animatedCrossfadeMode);
-                        _cullingCmd.SetComputeIntParam(uploadShader, _ID_IsOrthographic, _currentCullingContext.isOrthographic ? 1 : 0);
-                        _cullingCmd.SetComputeFloatParam(uploadShader, _ID_OrthoSize, _currentCullingContext.orthoSize);
+                        _cullingCmd.SetComputeVectorParam(_uploadShader, s_idCameraPosition, _currentCullingContext.cameraPosition);
+                        _cullingCmd.SetComputeFloatParam(_uploadShader, s_idCameraHalfFOV, _currentCullingContext.cameraHalfFOV);
+                        _cullingCmd.SetComputeFloatParam(_uploadShader, s_idScreenRatioScale, _currentCullingContext.screenRatioScale);
+                        _cullingCmd.SetComputeFloatParam(_uploadShader, s_idLodBias, _currentCullingContext.lodBias);
+                        _cullingCmd.SetComputeFloatParam(_uploadShader, s_idDeltaTime, _currentCullingContext.fadeState.deltaTime * _crossfadeTimeScale);
+                        _cullingCmd.SetComputeIntParam(_uploadShader, s_idSkipIntermediateLODs, Config.skipIntermediateLODs ? 1 : 0);
+                        _cullingCmd.SetComputeIntParam(_uploadShader, s_idAnimatedCrossfadeMode, (int)Config.animatedCrossfadeMode);
+                        _cullingCmd.SetComputeIntParam(_uploadShader, s_idIsOrthographic, _currentCullingContext.isOrthographic ? 1 : 0);
+                        _cullingCmd.SetComputeFloatParam(_uploadShader, s_idOrthoSize, _currentCullingContext.orthoSize);
 
                         int animatedPoolCount = _animatedCrossfadePools.Length;
                         if (animatedPoolCount > 0 && _animatedPoolsBuffer != null)
                         {
-                            _cullingCmd.SetComputeIntParam(uploadShader, _ID_AnimatedPoolCount, animatedPoolCount);
-                            _cullingCmd.SetComputeIntParam(uploadShader, _ID_SnapFadeStates, _currentCullingContext.shouldSnap ? 1 : 0);
-                            _cullingCmd.SetComputeBufferParam(uploadShader, activeKernel, _ID_FadeStates, _currentCullingContext.fadeState.FadeStateBuffer);
-                            _cullingCmd.SetComputeBufferParam(uploadShader, activeKernel, _ID_AnimatedPools, _animatedPoolsBuffer);
+                            _cullingCmd.SetComputeIntParam(_uploadShader, s_idAnimatedPoolCount, animatedPoolCount);
+                            _cullingCmd.SetComputeIntParam(_uploadShader, s_idSnapFadeStates, _currentCullingContext.shouldSnap ? 1 : 0);
+                            _cullingCmd.SetComputeBufferParam(_uploadShader, activeKernel, s_idFadeStates, _currentCullingContext.fadeState.fadeStateBuffer);
+                            _cullingCmd.SetComputeBufferParam(_uploadShader, activeKernel, s_idAnimatedPools, _animatedPoolsBuffer);
                             if (isPerProtoMode && _protoCrossfadeBuffer != null)
-                                _cullingCmd.SetComputeBufferParam(uploadShader, activeKernel, _ID_ProtoCrossfadeStates, _protoCrossfadeBuffer);
-                            int animatedSlots = animatedPoolCount * kPoolSize;
-                            int fadeGroups = (int)math.ceil(animatedSlots / (float)kThreadsInstances);
+                                _cullingCmd.SetComputeBufferParam(_uploadShader, activeKernel, s_idProtoCrossfadeStates, _protoCrossfadeBuffer);
+                            int animatedSlots = animatedPoolCount * k_poolSize;
+                            int fadeGroups = (int)math.ceil(animatedSlots / (float)k_threadsInstances);
                             CmdDispatchUpload(_cullingCmd, isPerProtoMode ? "FraxinusGPUBatcher.UpdateFadeStatesProto" : "FraxinusGPUBatcher.UpdateFadeStatesInst",
                                 activeKernel, fadeGroups);
                         }
@@ -1984,11 +1976,11 @@ namespace Fraxinus.GPUBatcher
                 }
 
                 // common shadow uniforms
-                _cullingCmd.SetComputeIntParam(cullingShader, _ID_CascadeCount, cascadeCount);
-                _cullingCmd.SetComputeIntParam(cullingShader, _ID_ApplyCascadeLimits, isOrthoLight ? 1 : 0);
+                _cullingCmd.SetComputeIntParam(_cullingShader, s_idCascadeCount, cascadeCount);
+                _cullingCmd.SetComputeIntParam(_cullingShader, s_idApplyCascadeLimits, isOrthoLight ? 1 : 0);
 
                 // shadow caster occlusion vs the owning camera's prev-frame HZB (directional only)
-                var shadowHzbState = (Config.shadowCasterOcclusion && isOrthoLight && IsGPUOcclusionEnabled &&
+                var shadowHzbState = (Config.shadowCasterOcclusion && isOrthoLight && isGPUOcclusionEnabled &&
                     _currentCullingContext != null && _currentCullingContext.useHZB)
                     ? _currentCullingContext.hzbState : null;
                 bool shadowHZBTestable = shadowHzbState != null && shadowHzbState.hzbValid &&
@@ -1999,7 +1991,7 @@ namespace Fraxinus.GPUBatcher
 #endif
                 if (shadowHZBTestable)
                 {
-                    _cullingCmd.EnableKeyword(cullingShader, _hzbEnabledKeyword);
+                    _cullingCmd.EnableKeyword(_cullingShader, _hzbEnabledKeyword);
 
                     float cameraMotionPixels = 0f;
                     if (shadowHzbState.topMipHeight > 0)
@@ -2019,23 +2011,23 @@ namespace Fraxinus.GPUBatcher
                     if (posDelta > 0.001f && _currentCullingContext.cameraHalfFOV > 0f)
                         hzbTranslationScale = posDelta * shadowHzbState.topMipHeight / (2f * _currentCullingContext.cameraHalfFOV);
 
-                    _cullingCmd.SetComputeFloatParam(cullingShader, _ID_HZBPixelExpansion, Config.hzbPixelExpansion + cameraMotionPixels);
-                    _cullingCmd.SetComputeFloatParam(cullingShader, _ID_HZBTranslationScale, hzbTranslationScale);
-                    _cullingCmd.SetComputeMatrixParam(cullingShader, _ID_ViewProjMatrix, shadowHzbState.prevViewProjMatrix);
-                    _cullingCmd.SetComputeVectorParam(cullingShader, _ID_FacingDirWorldSpace, shadowHzbState.prevFacingDir);
-                    _cullingCmd.SetComputeVectorParam(cullingShader, _ID_RadialDirWorldSpace, shadowHzbState.prevRadialDir);
-                    _cullingCmd.SetComputeVectorParam(cullingShader, _ID_HZBCameraPosition, shadowHzbState.prevCameraPosition);
-                    _cullingCmd.SetComputeTextureParam(cullingShader, _cullChunksShadowKernel, _ID_HZBTexture, shadowHzbState.hzbAtlas);
-                    _cullingCmd.SetComputeTextureParam(cullingShader, _cullInstancesShadowKernel, _ID_HZBTexture, shadowHzbState.hzbAtlas);
-                    BindHZBAtlasUniforms(_cullingCmd, cullingShader, shadowHzbState);
+                    _cullingCmd.SetComputeFloatParam(_cullingShader, s_idHzbPixelExpansion, Config.hzbPixelExpansion + cameraMotionPixels);
+                    _cullingCmd.SetComputeFloatParam(_cullingShader, s_idHzbTranslationScale, hzbTranslationScale);
+                    _cullingCmd.SetComputeMatrixParam(_cullingShader, s_idViewProjMatrix, shadowHzbState.prevViewProjMatrix);
+                    _cullingCmd.SetComputeVectorParam(_cullingShader, s_idFacingDirWorldSpace, shadowHzbState.prevFacingDir);
+                    _cullingCmd.SetComputeVectorParam(_cullingShader, s_idRadialDirWorldSpace, shadowHzbState.prevRadialDir);
+                    _cullingCmd.SetComputeVectorParam(_cullingShader, s_idHzbCameraPosition, shadowHzbState.prevCameraPosition);
+                    _cullingCmd.SetComputeTextureParam(_cullingShader, _cullChunksShadowKernel, s_idHzbTexture, shadowHzbState.hzbAtlas);
+                    _cullingCmd.SetComputeTextureParam(_cullingShader, _cullInstancesShadowKernel, s_idHzbTexture, shadowHzbState.hzbAtlas);
+                    BindHZBAtlasUniforms(_cullingCmd, _cullingShader, shadowHzbState);
                 }
                 else
                 {
-                    _cullingCmd.DisableKeyword(cullingShader, _hzbEnabledKeyword);
+                    _cullingCmd.DisableKeyword(_cullingShader, _hzbEnabledKeyword);
                 }
-                _cullingCmd.SetComputeIntParams(cullingShader, _ID_CascadePlaneCounts, _cascadePlaneCounts);
-                _cullingCmd.SetComputeVectorArrayParam(cullingShader, _ID_CascadePlanes, _cascadePlanes);
-                _cullingCmd.SetComputeVectorArrayParam(cullingShader, _ID_CascadeSpheres, _cascadeSpheres);
+                _cullingCmd.SetComputeIntParams(_cullingShader, s_idCascadePlaneCounts, _cascadePlaneCounts);
+                _cullingCmd.SetComputeVectorArrayParam(_cullingShader, s_idCascadePlanes, _cascadePlanes);
+                _cullingCmd.SetComputeVectorArrayParam(_cullingShader, s_idCascadeSpheres, _cascadeSpheres);
 
                 // light-space cascade culling uniforms (ReceiverSphereCuller port)
                 // Unity Matrix4x4 column-major maps 1:1 to HLSL
@@ -2043,19 +2035,19 @@ namespace Fraxinus.GPUBatcher
                 wlrMat.SetColumn(0, new Vector4(worldToLightRotation.c0.x, worldToLightRotation.c0.y, worldToLightRotation.c0.z, 0));
                 wlrMat.SetColumn(1, new Vector4(worldToLightRotation.c1.x, worldToLightRotation.c1.y, worldToLightRotation.c1.z, 0));
                 wlrMat.SetColumn(2, new Vector4(worldToLightRotation.c2.x, worldToLightRotation.c2.y, worldToLightRotation.c2.z, 0));
-                _cullingCmd.SetComputeMatrixParam(cullingShader, _ID_WorldToLightRotation, wlrMat);
+                _cullingCmd.SetComputeMatrixParam(_cullingShader, s_idWorldToLightRotation, wlrMat);
                 _cascadeBlendFactorUpload[0] = new Vector4(
                     _cascadeBlendFactorValues[0], _cascadeBlendFactorValues[1],
                     _cascadeBlendFactorValues[2], _cascadeBlendFactorValues[3]);
                 _cascadeBlendFactorUpload[1] = new Vector4(
                     _cascadeBlendFactorValues[4], _cascadeBlendFactorValues[5], 0f, 0f);
-                _cullingCmd.SetComputeVectorArrayParam(cullingShader, _ID_CascadeBlendFactors, _cascadeBlendFactorUpload);
-                _cullingCmd.SetComputeVectorArrayParam(cullingShader, _ID_LightFacingPlanes, _lightFacingPlanes);
-                _cullingCmd.SetComputeIntParam(cullingShader, _ID_LightFacingPlaneCount, lfPlaneCount);
+                _cullingCmd.SetComputeVectorArrayParam(_cullingShader, s_idCascadeBlendFactors, _cascadeBlendFactorUpload);
+                _cullingCmd.SetComputeVectorArrayParam(_cullingShader, s_idLightFacingPlanes, _lightFacingPlanes);
+                _cullingCmd.SetComputeIntParam(_cullingShader, s_idLightFacingPlaneCount, lfPlaneCount);
 
                 // perspective receiver cull planes (spot/point shadow tightening)
-                _cullingCmd.SetComputeVectorArrayParam(cullingShader, _ID_ReceiverCullPlanes, _receiverCullPlanes);
-                _cullingCmd.SetComputeIntParam(cullingShader, _ID_ReceiverCullPlaneCount, receiverCullPlaneCount);
+                _cullingCmd.SetComputeVectorArrayParam(_cullingShader, s_idReceiverCullPlanes, _receiverCullPlanes);
+                _cullingCmd.SetComputeIntParam(_cullingShader, s_idReceiverCullPlaneCount, receiverCullPlaneCount);
 
                 float shadowLodBiasValue = QualitySettings.lodBias * shadowLodBias;
                 float shadowScreenRatioScale;
@@ -2064,41 +2056,41 @@ namespace Fraxinus.GPUBatcher
                 else
                     shadowScreenRatioScale = shadowCameraHalfFOV > 0f ? shadowLodBiasValue / (2f * shadowCameraHalfFOV) : 0f;
 
-                _cullingCmd.SetComputeVectorParam(cullingShader, _ID_CameraPosition, shadowCameraPosition);
-                _cullingCmd.SetComputeFloatParam(cullingShader, _ID_CameraHalfFOV, shadowCameraHalfFOV);
-                _cullingCmd.SetComputeFloatParam(cullingShader, _ID_LODBias, shadowLodBiasValue);
-                _cullingCmd.SetComputeFloatParam(cullingShader, _ID_ScreenRatioScale, shadowScreenRatioScale);
-                _cullingCmd.SetComputeFloatParam(cullingShader, _ID_CrossFadeWidth, Config.debugDisableCrossfade ? 0f : 1f);
-                _cullingCmd.SetComputeIntParam(cullingShader, _ID_IsOrthographic, shadowIsOrthographic ? 1 : 0);
-                _cullingCmd.SetComputeFloatParam(cullingShader, _ID_OrthoSize, shadowOrthoSize);
-                _cullingCmd.SetComputeIntParam(cullingShader, _ID_AnimatedCrossfadeMode, (int)Config.animatedCrossfadeMode);
+                _cullingCmd.SetComputeVectorParam(_cullingShader, s_idCameraPosition, shadowCameraPosition);
+                _cullingCmd.SetComputeFloatParam(_cullingShader, s_idCameraHalfFOV, shadowCameraHalfFOV);
+                _cullingCmd.SetComputeFloatParam(_cullingShader, s_idLodBias, shadowLodBiasValue);
+                _cullingCmd.SetComputeFloatParam(_cullingShader, s_idScreenRatioScale, shadowScreenRatioScale);
+                _cullingCmd.SetComputeFloatParam(_cullingShader, s_idCrossFadeWidth, Config.debugDisableCrossfade ? 0f : 1f);
+                _cullingCmd.SetComputeIntParam(_cullingShader, s_idIsOrthographic, shadowIsOrthographic ? 1 : 0);
+                _cullingCmd.SetComputeFloatParam(_cullingShader, s_idOrthoSize, shadowOrthoSize);
+                _cullingCmd.SetComputeIntParam(_cullingShader, s_idAnimatedCrossfadeMode, (int)Config.animatedCrossfadeMode);
 
                 // per-view shadow buffer binds
-                _cullingCmd.SetComputeBufferParam(cullingShader, _cullChunksShadowKernel, _ID_VisibleShadowChunks, shadowSet.VisibleChunksBuffer);
-                _cullingCmd.SetComputeBufferParam(cullingShader, _cullChunksShadowKernel, _ID_VisibleShadowChunkCount, shadowSet.VisibleChunkCountBuffer);
-                _cullingCmd.SetComputeBufferParam(cullingShader, _cullInstancesShadowKernel, _ID_ShadowDrawBuckets, shadowSet.DrawBucketBuffer);
-                _cullingCmd.SetComputeBufferParam(cullingShader, _cullInstancesShadowKernel, _ID_ShadowVisibilityBuffer, shadowSet.VisibilityBuffer);
-                _cullingCmd.SetComputeBufferParam(cullingShader, _cullInstancesShadowKernel, _ID_VisibleShadowChunks, shadowSet.VisibleChunksBuffer);
-                _cullingCmd.SetComputeBufferParam(cullingShader, _cullInstancesShadowKernel, _ID_FadeStates, shadowFade);
-                _cullingCmd.SetComputeBufferParam(cullingShader, _finalizeShadowDrawArgsKernel, _ID_ShadowDrawBuckets, shadowSet.DrawBucketBuffer);
-                _cullingCmd.SetComputeBufferParam(cullingShader, _finalizeShadowDrawArgsKernel, _ID_ShadowIndirectArgs, shadowSet.IndirectArgsBuffer);
+                _cullingCmd.SetComputeBufferParam(_cullingShader, _cullChunksShadowKernel, s_idVisibleShadowChunks, shadowSet.visibleChunksBuffer);
+                _cullingCmd.SetComputeBufferParam(_cullingShader, _cullChunksShadowKernel, s_idVisibleShadowChunkCount, shadowSet.visibleChunkCountBuffer);
+                _cullingCmd.SetComputeBufferParam(_cullingShader, _cullInstancesShadowKernel, s_idShadowDrawBuckets, shadowSet.drawBucketBuffer);
+                _cullingCmd.SetComputeBufferParam(_cullingShader, _cullInstancesShadowKernel, s_idShadowVisibilityBuffer, shadowSet.visibilityBuffer);
+                _cullingCmd.SetComputeBufferParam(_cullingShader, _cullInstancesShadowKernel, s_idVisibleShadowChunks, shadowSet.visibleChunksBuffer);
+                _cullingCmd.SetComputeBufferParam(_cullingShader, _cullInstancesShadowKernel, s_idFadeStates, shadowFade);
+                _cullingCmd.SetComputeBufferParam(_cullingShader, _finalizeShadowDrawArgsKernel, s_idShadowDrawBuckets, shadowSet.drawBucketBuffer);
+                _cullingCmd.SetComputeBufferParam(_cullingShader, _finalizeShadowDrawArgsKernel, s_idShadowIndirectArgs, shadowSet.indirectArgsBuffer);
 
                 // reset shadow buckets, args, counters in one dispatch
-                DispatchResetCullingState(_cullingCmd, shadowSet.DrawBucketBuffer, shadowSet.IndirectArgsBuffer,
-                    shadowSet.VisibleChunkCountBuffer,
+                DispatchResetCullingState(_cullingCmd, shadowSet.drawBucketBuffer, shadowSet.indirectArgsBuffer,
+                    shadowSet.visibleChunkCountBuffer,
                     _shadowBucketCount, _shadowDrawCommandCount);
 
-                _cullingCmd.SetComputeIntParam(cullingShader, _ID_ShadowChunkCount, _shadowActiveCount);
-                _cullingCmd.SetComputeIntParam(cullingShader, _ID_CullingLayerMask, (int)(uint)cullingContext.cullingLayerMask);
-                _cullingCmd.SetComputeBufferParam(cullingShader, _cullChunksShadowKernel, _ID_ShadowChunkIds, _shadowChunkIdsBuffer);
+                _cullingCmd.SetComputeIntParam(_cullingShader, s_idShadowChunkCount, _shadowActiveCount);
+                _cullingCmd.SetComputeIntParam(_cullingShader, s_idCullingLayerMask, (int)(uint)cullingContext.cullingLayerMask);
+                _cullingCmd.SetComputeBufferParam(_cullingShader, _cullChunksShadowKernel, s_idShadowChunkIds, _shadowChunkIdsBuffer);
 
-                CmdDispatchCull(_cullingCmd, "FraxinusGPUBatcher.CullChunksShadow", _cullChunksShadowKernel, (int)math.ceil(_shadowActiveCount / (float)kThreadsChunks));
-                CmdDispatchCullIndirect(_cullingCmd, "FraxinusGPUBatcher.CullInstancesShadow", _cullInstancesShadowKernel, shadowSet.VisibleChunkCountBuffer);
+                CmdDispatchCull(_cullingCmd, "FraxinusGPUBatcher.CullChunksShadow", _cullChunksShadowKernel, (int)math.ceil(_shadowActiveCount / (float)k_threadsChunks));
+                CmdDispatchCullIndirect(_cullingCmd, "FraxinusGPUBatcher.CullInstancesShadow", _cullInstancesShadowKernel, shadowSet.visibleChunkCountBuffer);
 
                 // finalize shadow draw args
                 int totalShadowCmds = _shadowDrawCommandCount;
-                _cullingCmd.SetComputeIntParam(cullingShader, _ID_ShadowDrawCommandCount, totalShadowCmds);
-                CmdDispatchCull(_cullingCmd, "FraxinusGPUBatcher.FinalizeShadowDrawArgs", _finalizeShadowDrawArgsKernel, (int)math.ceil(totalShadowCmds / (float)kThreadsFinalize));
+                _cullingCmd.SetComputeIntParam(_cullingShader, s_idShadowDrawCommandCount, totalShadowCmds);
+                CmdDispatchCull(_cullingCmd, "FraxinusGPUBatcher.FinalizeShadowDrawArgs", _finalizeShadowDrawArgsKernel, (int)math.ceil(totalShadowCmds / (float)k_threadsFinalize));
 
 #if UNITY_EDITOR
                 RequestShadowReadback(_cullingCmd, shadowSet, GPUBatcherHelpers.GetViewID(cullingContext.viewID));
@@ -2126,6 +2118,10 @@ namespace Fraxinus.GPUBatcher
 #endif
 
             if (!_gpuCullingReady || _batchSlotHWM == 0)
+                return default;
+
+            if (cullingContext.viewType == BatchCullingViewType.Camera &&
+                GPUBatcherSpeedTreeWindBridge.IsCaptureCamera(GPUBatcherHelpers.GetViewID(cullingContext.viewID)))
                 return default;
 
             if (cullingContext.viewType == BatchCullingViewType.Camera)
@@ -2180,8 +2176,8 @@ namespace Fraxinus.GPUBatcher
             // frozen scene view: emit draw commands from persistent scene view buffer set
             if (Config.debugVisualizeCullingInSceneView && _frozenCullingValid &&
                 !camData.isGame && !camData.isRef && _sceneViewCameraBufferSet != null
-                && _sceneViewCameraBufferSet.IndirectArgsBuffer != null
-                && _sceneViewCameraBufferSet.IndirectArgsBuffer.IsValid())
+                && _sceneViewCameraBufferSet.indirectArgsBuffer != null
+                && _sceneViewCameraBufferSet.indirectArgsBuffer.IsValid())
             {
                 _deferredCullingCameras.Remove(viewID);
                 _sceneViewShadowReplayIndex = 0;
@@ -2256,7 +2252,7 @@ namespace Fraxinus.GPUBatcher
         private unsafe JobHandle OnPerformCullingPicking(
             in BatchCullingContext cullingContext, BatchCullingOutput cullingOutput)
         {
-            if (_pickingEntries.Count == 0 || _batchSlots == null || _protoBatchSlots == null)
+            if (pickingEntries.Count == 0 || _batchSlots == null || _protoBatchSlots == null)
                 return default;
 
             int planeCount = math.min(cullingContext.cullingPlanes.Length, 6);
@@ -2286,7 +2282,7 @@ namespace Fraxinus.GPUBatcher
                 if (lod0Count > maxLod0Submeshes) maxLod0Submeshes = lod0Count;
             }
 
-            int maxDraws = _pickingEntries.Count * maxLod0Submeshes;
+            int maxDraws = pickingEntries.Count * maxLod0Submeshes;
             var drawCommands = (BatchCullingOutputDrawCommands*)cullingOutput.drawCommands.GetUnsafePtr();
 
             drawCommands->drawCommands = (BatchDrawCommand*)UnsafeUtility.Malloc(
@@ -2308,7 +2304,7 @@ namespace Fraxinus.GPUBatcher
 
             int emitted = 0;
             bool hasSlotProto = _slotProtoIndex.IsCreated;
-            foreach (var kvp in _pickingEntries)
+            foreach (var kvp in pickingEntries)
             {
                 int globalSlot = kvp.Key;
                 var entry = kvp.Value;
@@ -2320,7 +2316,7 @@ namespace Fraxinus.GPUBatcher
                 if (_prototypeVacant != null && protoIdx < _prototypeVacant.Length && _prototypeVacant[protoIdx])
                     continue;
 
-                int poolIdx = globalSlot / kPoolSize;
+                int poolIdx = globalSlot / k_poolSize;
                 int chunkId = -1;
                 if (_poolToChunk.IsCreated && poolIdx >= 0 && poolIdx < _poolToChunk.Length)
                     chunkId = _poolToChunk[poolIdx];
@@ -2390,7 +2386,7 @@ namespace Fraxinus.GPUBatcher
             }
 
             drawCommands->drawCommandCount = emitted;
-#if UNITY_6000_0_OR_NEWER
+#if FRAXINUS_BRG_INDIRECT_API
             drawCommands->indirectDrawCommandCount = 0;
 #endif
             drawCommands->visibleInstanceCount = emitted;
@@ -2398,7 +2394,7 @@ namespace Fraxinus.GPUBatcher
             drawCommands->drawRangeCount = 1;
             drawCommands->drawRanges[0] = new BatchDrawRange
             {
-#if UNITY_6000_0_OR_NEWER
+#if FRAXINUS_BRG_INDIRECT_API
                 drawCommandsType = BatchDrawCommandType.Direct,
 #endif
                 drawCommandsBegin = 0,
@@ -2414,7 +2410,7 @@ namespace Fraxinus.GPUBatcher
                     allDepthSorted = false
                 }
             };
-#if UNITY_6000_0_OR_NEWER
+#if FRAXINUS_BRG_INDIRECT_API
             drawCommands->indirectDrawCommands = null;
 #endif
             drawCommands->instanceSortingPositions = null;
@@ -2458,14 +2454,14 @@ namespace Fraxinus.GPUBatcher
             int totalCmdCount = _drawCommandCount;
             int totalRangeCount = _cameraDrawRangeTemplate.IsCreated && _cameraDrawRangeCount > 0 ? _cameraDrawRangeCount : 1;
             EnsureIndirectSubmissionCapacity(viewSet, totalCmdCount, totalRangeCount);
-            var commands = (BatchDrawCommandIndirect*)viewSet.CpuDrawCommands.GetUnsafePtr();
-            var ranges = (BatchDrawRange*)viewSet.CpuDrawRanges.GetUnsafePtr();
+            var commands = (BatchDrawCommandIndirect*)viewSet.cpuDrawCommands.GetUnsafePtr();
+            var ranges = (BatchDrawRange*)viewSet.cpuDrawRanges.GetUnsafePtr();
 
             // Copy templates and patch per-view buffer handles before crossing the submission boundary.
             UnsafeUtility.MemCpy(commands, _cameraDrawCommandTemplate.GetUnsafeReadOnlyPtr(),
                 totalCmdCount * UnsafeUtility.SizeOf<BatchDrawCommandIndirect>());
-            var visHandle = viewSet.VisibilityBuffer.bufferHandle;
-            var argsHandle = viewSet.IndirectArgsBuffer.bufferHandle;
+            var visHandle = viewSet.visibilityBuffer.bufferHandle;
+            var argsHandle = viewSet.indirectArgsBuffer.bufferHandle;
             for (int i = 0; i < totalCmdCount; i++)
             {
                 commands[i].visibleInstancesBufferHandle = visHandle;
@@ -2481,9 +2477,6 @@ namespace Fraxinus.GPUBatcher
             {
                 ranges[0] = new BatchDrawRange
                 {
-#if UNITY_6000_0_OR_NEWER
-                    drawCommandsType = BatchDrawCommandType.Indirect,
-#endif
                     drawCommandsBegin = 0,
                     drawCommandsCount = (uint)totalCmdCount,
                     filterSettings = new BatchFilterSettings
@@ -2520,7 +2513,7 @@ namespace Fraxinus.GPUBatcher
                 _sceneViewShadowReplayIndex < _sceneViewShadowCount)
             {
                 var frozenShadowSet = _sceneViewShadowBufferSets[_sceneViewShadowReplayIndex++];
-                if (frozenShadowSet?.IndirectArgsBuffer != null && frozenShadowSet.IndirectArgsBuffer.IsValid())
+                if (frozenShadowSet?.indirectArgsBuffer != null && frozenShadowSet.indirectArgsBuffer.IsValid())
                 {
                     EmitShadowDrawCommands(cullingContext, cullingOutput, frozenShadowSet);
                     return default;
@@ -2544,10 +2537,10 @@ namespace Fraxinus.GPUBatcher
             {
                 // on skip, zero the pooled args so the unconditional emit doesn't draw a prior render's shadow counts
                 if (!RunShadowCulling(cullingContext, shadowSet)
-                    && shadowSet.IndirectArgsBuffer != null
+                    && shadowSet.indirectArgsBuffer != null
                     && _shadowIndirectArgsTemplate.IsCreated && _shadowIndirectArgsTemplate.Length > 0)
-                    shadowSet.IndirectArgsBuffer.SetData(_shadowIndirectArgsTemplate, 0, 0,
-                        math.min(_shadowIndirectArgsTemplate.Length, shadowSet.IndirectArgsBuffer.count));
+                    shadowSet.indirectArgsBuffer.SetData(_shadowIndirectArgsTemplate, 0, 0,
+                        math.min(_shadowIndirectArgsTemplate.Length, shadowSet.indirectArgsBuffer.count));
             }
 
 #if DEBUG
@@ -2581,7 +2574,7 @@ namespace Fraxinus.GPUBatcher
             int maxRanges = _shadowDrawRangeTemplate.IsCreated && _shadowDrawRangeCount > 0
                 ? _shadowDrawRangeCount : 1;
             EnsureIndirectSubmissionCapacity(shadowSet, totalCmdCount, maxRanges);
-            var ranges = (BatchDrawRange*)shadowSet.CpuDrawRanges.GetUnsafePtr();
+            var ranges = (BatchDrawRange*)shadowSet.cpuDrawRanges.GetUnsafePtr();
             int preparedRangeCount = 1;
 
             int cmdIdx = 0;
@@ -2590,11 +2583,11 @@ namespace Fraxinus.GPUBatcher
             ulong cullingLayerMask = cullingContext.cullingLayerMask;
 
             // per-view buffer handles
-            var visHandle = shadowSet.VisibilityBuffer.bufferHandle;
-            var argsHandle = shadowSet.IndirectArgsBuffer.bufferHandle;
+            var visHandle = shadowSet.visibilityBuffer.bufferHandle;
+            var argsHandle = shadowSet.indirectArgsBuffer.bufferHandle;
             var templatePtr = (BatchDrawCommandIndirect*)_shadowDrawCommandTemplate.GetUnsafeReadOnlyPtr();
             var filterPtr = (ShadowCommandFilterInfo*)_shadowCommandFilterInfo.GetUnsafeReadOnlyPtr();
-            var outPtr = (BatchDrawCommandIndirect*)shadowSet.CpuDrawCommands.GetUnsafePtr();
+            var outPtr = (BatchDrawCommandIndirect*)shadowSet.cpuDrawCommands.GetUnsafePtr();
 
             // emit shadow commands using pre-built templates
             // ranges iterated for layer mask early-out and cascade filtering
@@ -2648,9 +2641,6 @@ namespace Fraxinus.GPUBatcher
                 {
                     ranges[0] = new BatchDrawRange
                     {
-#if UNITY_6000_0_OR_NEWER
-                        drawCommandsType = BatchDrawCommandType.Indirect,
-#endif
                         drawCommandsBegin = 0,
                         drawCommandsCount = 0,
                         filterSettings = new BatchFilterSettings
@@ -2688,9 +2678,6 @@ namespace Fraxinus.GPUBatcher
 
                 ranges[0] = new BatchDrawRange
                 {
-#if UNITY_6000_0_OR_NEWER
-                    drawCommandsType = BatchDrawCommandType.Indirect,
-#endif
                     drawCommandsBegin = 0,
                     drawCommandsCount = (uint)cmdIdx,
                     filterSettings = new BatchFilterSettings

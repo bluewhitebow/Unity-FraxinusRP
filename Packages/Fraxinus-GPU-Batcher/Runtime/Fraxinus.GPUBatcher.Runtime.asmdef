@@ -6,7 +6,7 @@
         "Unity.Collections",
         "Unity.Mathematics",
         "Unity.RenderPipelines.Core.Runtime",
-        "Unity.RenderPipelines.Universal.2D.Internal",
+        "Unity.InternalAPIEngineBridge.024",
         "Fraxinus.Runtime"
     ],
     "includePlatforms": [],
@@ -17,6 +17,11 @@
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [
+        {
+            "name": "Unity",
+            "expression": "6000.0.0a1",
+            "define": "FRAXINUS_BRG_INDIRECT_API"
+        },
         {
             "name": "com.bluewhitebow.fraxinus-rp",
             "expression": "0.1.0",

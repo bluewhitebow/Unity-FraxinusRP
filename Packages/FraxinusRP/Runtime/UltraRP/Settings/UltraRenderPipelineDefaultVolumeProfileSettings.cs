@@ -1,6 +1,5 @@
 using System;
 using UnityEngine;
-using UnityEngine.Rendering.Categorization;
 using UnityEngine.Rendering;
 
 #if UNITY_EDITOR
@@ -8,11 +7,17 @@ using UnityEditor;
 using UnityEditor.Rendering;
 #endif
 
+#if UNITY_6000_0_OR_NEWER
+using RenderingCategories = UnityEngine.Categorization;
+#else
+using RenderingCategories = UnityEngine.Rendering.Categorization;
+#endif
+
 namespace FraxinusEngine.Rendering.Ultra
 {
     [Serializable]
     [SupportedOnRenderPipeline(typeof(UltraRenderPipelineAsset))]
-    [CategoryInfo(Name = "Volume", Order = 0)]
+    [RenderingCategories.CategoryInfo(Name = "Volume", Order = 0)]
     public class UltraRenderPipelineDefaultVolumeProfileSettings : IDefaultVolumeProfileSettings
     {
         #region Version

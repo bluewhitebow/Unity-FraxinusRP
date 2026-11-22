@@ -71,19 +71,19 @@ namespace Fraxinus.GPUBatcher
         private GraphicsBuffer _matrixBuffer;            // float3x4 matrices for rendering
 
         // test accessors
-        public GraphicsBuffer InstanceBuffer => _instanceBuffer;
-        public GraphicsBuffer InstanceRotScaleBuffer => _instanceRotScaleBuffer;
-        public GraphicsBuffer PoolRefBuffer => _poolRefBuffer;
-        public GraphicsBuffer ChunkBuffer => _chunkBuffer;
-        public int MaxPoolRefsPerChunk => _maxPoolRefsPerChunk;
-        public int ColorRegionByteOffset => _colorRegionByteOffset;
-        public bool PerInstanceColorEnabled => _perInstanceColorEnabled;
+        public GraphicsBuffer instanceBuffer => _instanceBuffer;
+        public GraphicsBuffer instanceRotScaleBuffer => _instanceRotScaleBuffer;
+        public GraphicsBuffer poolRefBuffer => _poolRefBuffer;
+        public GraphicsBuffer chunkBuffer => _chunkBuffer;
+        public int maxPoolRefsPerChunk => _maxPoolRefsPerChunk;
+        public int colorRegionByteOffset => _colorRegionByteOffset;
+        public bool perInstanceColorEnabled => _perInstanceColorEnabled;
 
         // reusable buffers for WriteChunk
         private NativeArray<GPUStagedInstanceData> _writeChunkGpuBuffer;
 
         // shared across all counter resets
-        private static readonly uint[] kCounterResetData = new uint[] { 0, 1, 1, 0 };
+        private static readonly uint[] s_counterResetData = new uint[] { 0, 1, 1, 0 };
 
         [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
         public struct GPUChunk
@@ -171,9 +171,9 @@ namespace Fraxinus.GPUBatcher
             public float3 scale;
         }
 
-        internal static readonly int kGPUInstanceDataStride = UnsafeUtility.SizeOf<GPUInstanceData>();
-        internal static readonly int kGPUStagedInstanceDataStride = UnsafeUtility.SizeOf<GPUStagedInstanceData>();
-        internal static readonly int kGPUInstanceRotScaleStride = UnsafeUtility.SizeOf<GPUInstanceRotScaleData>();
+        internal static readonly int gpuInstanceDataStride = UnsafeUtility.SizeOf<GPUInstanceData>();
+        internal static readonly int gpuStagedInstanceDataStride = UnsafeUtility.SizeOf<GPUStagedInstanceData>();
+        internal static readonly int gpuInstanceRotScaleStride = UnsafeUtility.SizeOf<GPUInstanceRotScaleData>();
 
         [BurstCompile(OptimizeFor = OptimizeFor.Performance)]
         private struct PackInstanceDataJob : IJobParallelFor
@@ -205,21 +205,21 @@ namespace Fraxinus.GPUBatcher
 
         #region Public Properties
 
-        public int MaxInstancesPerChunk
+        public int maxInstancesPerChunk
         {
             get
             {
                 if (_chunkSystemInitialized)
-                    return _maxPoolRefsPerChunk * kPoolSize;
-                return Config.maxPoolRefsPerChunk * kPoolSize;
+                    return _maxPoolRefsPerChunk * k_poolSize;
+                return Config.maxPoolRefsPerChunk * k_poolSize;
             }
         }
 
-        public bool ChunkSystemInitialized => _chunkSystemInitialized;
+        public bool chunkSystemInitialized => _chunkSystemInitialized;
 
-        public int PoolCapacity => _poolCapacity;
+        public int poolCapacity => _poolCapacity;
 
-        public int PoolSize => kPoolSize;
+        public int poolSize => k_poolSize;
 
         public int GetChunkPoolCount(int chunkId)
         {
@@ -245,13 +245,12 @@ namespace Fraxinus.GPUBatcher
 
         #region Initialization
 
-        // called automatically on first AllocateChunk()
         private void InitializeChunkSystem()
         {
             if (_chunkSystemInitialized) return;
 
             int maxChunks = math.max(16, Config.initialChunkCount);
-            int ps = kPoolSize;
+            int ps = k_poolSize;
 
             _maxChunks = maxChunks;
             _initialChunkCapacity = maxChunks;
@@ -323,16 +322,14 @@ namespace Fraxinus.GPUBatcher
             // pool reference buffer, each chunk gets _maxPoolRefsPerChunk slots
             int totalPoolRefSlots = maxChunks * _maxPoolRefsPerChunk;
 
-            try
-            {
             _poolRefBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, totalPoolRefSlots, sizeof(int));
             _poolRefBuffer.name = "FraxinusGPUBatcher_poolRefBuffer";
             _poolRefBuffer.SetData(_chunkPools);
 
             int totalInstanceSlots = _poolCapacity * ps;
-            int instanceStride = kGPUInstanceDataStride;
-            int rotScaleStride = kGPUInstanceRotScaleStride;
-            int stagedStride = kGPUStagedInstanceDataStride;
+            int instanceStride = gpuInstanceDataStride;
+            int rotScaleStride = gpuInstanceRotScaleStride;
+            int stagedStride = gpuStagedInstanceDataStride;
             int chunkStride = UnsafeUtility.SizeOf<GPUChunk>();
 
             // instance data buffer for GPU culling
@@ -353,7 +350,7 @@ namespace Fraxinus.GPUBatcher
 
             // matrix buffer layout: [O2W * N][W2O * N][PrevM * N][SH AoS (if LP)][Color (if enabled)][SpeedTree (if any)]
             int matrixElements = totalInstanceSlots * 3 * 12;  // 3 matrices per instance (O2W, W2O, PrevM), 12 floats each
-            int shElements = LightProbesEnabled ? totalInstanceSlots * kSHFloat4sPerInstance * 4 : 0;
+            int shElements = lightProbesEnabled ? totalInstanceSlots * k_shFloat4sPerInstance * 4 : 0;
             _perInstanceColorEnabled = Config.enablePerInstanceColor;
             int colorElements = _perInstanceColorEnabled ? totalInstanceSlots : 0; // 1 uint (packed RGBA) per instance
 
@@ -363,7 +360,7 @@ namespace Fraxinus.GPUBatcher
             for (int i = 0; i < (_renderSignatures?.Count ?? 0); i++)
                 if (_renderSignatures[i] != null && _renderSignatures[i].speedTreeRendererID != default)
                     initialSpeedTreeCount++;
-            int speedTreeElements = initialSpeedTreeCount * kSpeedTreeParamsPerProto;
+            int speedTreeElements = initialSpeedTreeCount * k_speedTreeParamsPerProto;
             _speedTreeRegionByteOffset = (matrixElements + shElements + colorElements) * sizeof(float);
 
             _matrixBuffer = new GraphicsBuffer(
@@ -374,7 +371,7 @@ namespace Fraxinus.GPUBatcher
             _matrixBuffer.name = "FraxinusGPUBatcher_matrixBuffer";
             // inverted encoding, zero = white
             _colorRegionByteOffset = _perInstanceColorEnabled ? (matrixElements + shElements) * sizeof(float) : 0;
-            Shader.SetGlobalFloat(_ID_ColorRegionByteOffset, _colorRegionByteOffset);
+            Shader.SetGlobalFloat(s_idColorRegionByteOffset, _colorRegionByteOffset);
 
             _lightProbes?.Initialize(this, totalInstanceSlots);
 
@@ -385,7 +382,7 @@ namespace Fraxinus.GPUBatcher
             _writeChunkGpuBuffer = new NativeArray<GPUStagedInstanceData>(writeBufferSize, Allocator.Persistent);
 
             // staged GPU uploads: CPU -> NativeArray -> staging -> live
-            _stagingCapacity = kInstanceStagingCapacity;
+            _stagingCapacity = k_instanceStagingCapacity;
 
             // CPU-side staging array + GPU buffer
             _stagingCpuArray = new NativeArray<GPUStagedInstanceData>(_stagingCapacity, Allocator.Persistent);
@@ -400,27 +397,27 @@ namespace Fraxinus.GPUBatcher
             _stagedClears = new NativeList<StagedUpload>(stagingPrealloc, Allocator.Persistent);
             _stagedFadeResets = new NativeList<StagedUpload>(stagingPrealloc, Allocator.Persistent);
             _stagedPoolRefUploads = new NativeList<StagedUpload>(stagingPrealloc, Allocator.Persistent);
-            _poolRefSlotToCursor = new NativeHashMap<int, int>(kPoolRefStagingCapacity, Allocator.Persistent);
-            _poolRefStagingCapacity = kPoolRefStagingCapacity;
+            _poolRefSlotToCursor = new NativeHashMap<int, int>(k_poolRefStagingCapacity, Allocator.Persistent);
+            _poolRefStagingCapacity = k_poolRefStagingCapacity;
             _poolRefStagingCpuArray = new NativeArray<int>(_poolRefStagingCapacity, Allocator.Persistent);
             _poolRefStagingWriteCursor = 0;
-            _stagedChunkIndices = new NativeArray<int>(kChunkStagingCapacity, Allocator.Persistent);
-            _stagedChunkData = new NativeArray<GPUChunk>(kChunkStagingCapacity, Allocator.Persistent);
-            _chunkSlotToCursor = new NativeHashMap<int, int>(kChunkStagingCapacity, Allocator.Persistent);
+            _stagedChunkIndices = new NativeArray<int>(k_chunkStagingCapacity, Allocator.Persistent);
+            _stagedChunkData = new NativeArray<GPUChunk>(k_chunkStagingCapacity, Allocator.Persistent);
+            _chunkSlotToCursor = new NativeHashMap<int, int>(k_chunkStagingCapacity, Allocator.Persistent);
             _chunkStagingWriteCursor = 0;
-            _stagingChunkBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, kChunkStagingCapacity, chunkStride);
+            _stagingChunkBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, k_chunkStagingCapacity, chunkStride);
             _stagingChunkBuffer.name = "FraxinusGPUBatcher_StagingChunk";
-            _stagingChunkIndexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, kChunkStagingCapacity, sizeof(int));
+            _stagingChunkIndexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, k_chunkStagingCapacity, sizeof(int));
             _stagingChunkIndexBuffer.name = "FraxinusGPUBatcher_StagingChunkIdx";
             _settleList = new NativeList<int>(64, Allocator.Persistent);
             // patch-based move staging, GPU patches only changed TRS components
-            _trsPatchStagingCapacity = kTRSPatchStagingCapacity;
+            _trsPatchStagingCapacity = k_trsPatchStagingCapacity;
             _trsPatchStagingBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, _trsPatchStagingCapacity,
                 UnsafeUtility.SizeOf<GPUTRSPatchEntry>());
             _trsPatchStagingBuffer.name = "FraxinusGPUBatcher_PatchStaging";
             _trsPatchEntries = new NativeArray<GPUTRSPatchEntry>(_trsPatchStagingCapacity, Allocator.Persistent);
             _trsPatchSlotIndices = new NativeArray<int>(_trsPatchStagingCapacity, Allocator.Persistent);
-            int totalSlots = _poolCapacity * kPoolSize;
+            int totalSlots = _poolCapacity * k_poolSize;
             _slotMovedThisFrame = new NativeArray<bool>(totalSlots, Allocator.Persistent);
             _slotNeedsMatrix = new NativeArray<bool>(totalSlots, Allocator.Persistent);
             _recomputeScratch = new NativeList<int>(256, Allocator.Persistent);
@@ -438,17 +435,17 @@ namespace Fraxinus.GPUBatcher
             // per-instance color staging
             if (_perInstanceColorEnabled)
             {
-                _colorStagingCpuArray = new NativeArray<GPUColorEntry>(kColorStagingCapacity, Allocator.Persistent);
+                _colorStagingCpuArray = new NativeArray<GPUColorEntry>(k_colorStagingCapacity, Allocator.Persistent);
                 _colorStagingWriteCursor = 0;
-                _colorStagingBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, kColorStagingCapacity,
+                _colorStagingBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, k_colorStagingCapacity,
                     UnsafeUtility.SizeOf<GPUColorEntry>());
                 _colorStagingBuffer.name = "FraxinusGPUBatcher_ColorStaging";
             }
 
             // sig override staging (enable/disable instances via separate scatter write)
-            _sigOverrideStagingCpuArray = new NativeArray<GPUSigOverrideEntry>(kSigOverrideStagingCapacity, Allocator.Persistent);
+            _sigOverrideStagingCpuArray = new NativeArray<GPUSigOverrideEntry>(k_sigOverrideStagingCapacity, Allocator.Persistent);
             _sigOverrideStagingWriteCursor = 0;
-            _sigOverrideStagingBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, kSigOverrideStagingCapacity,
+            _sigOverrideStagingBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, k_sigOverrideStagingCapacity,
                 UnsafeUtility.SizeOf<GPUSigOverrideEntry>());
             _sigOverrideStagingBuffer.name = "FraxinusGPUBatcher_SigOverrideStaging";
 
@@ -462,10 +459,10 @@ namespace Fraxinus.GPUBatcher
             // invalidate pool entries
             _bufferPoolGeneration++;
 
-            // bucket system will be sized in CreateBatches
+            // Batch rebuilding sizes the draw buckets and visibility buffers.
             _bucketCount = 0;
             _drawCommandCount = 0;
-            _maxVisibleInstances = 1;  // placeholder, set by CreateBatches
+            _maxVisibleInstances = 1;
 
             _chunkSystemInitialized = true;
             _cachedNegativeScaleMode = Config.negativeScaleMode;
@@ -484,12 +481,6 @@ namespace Fraxinus.GPUBatcher
                             (long)maxChunks * sizeof(uint) * 2 +
                             sizeof(uint) * 8;
             LogMessageDevelopment($"GPUBatcherRenderer: Chunk system initialized (pool-based) - {maxChunks} chunks, {_poolCapacity} pools * {ps} = {GPUBatcherConfig.FormatBytes(memBytes)}");
-            }
-            catch (System.Exception ex)
-            {
-                Debug.LogError($"GPUBatcherRenderer: Failed to allocate GPU buffers during initialization. VRAM may be exhausted. {ex.Message}");
-                ShutdownChunkSystem();
-            }
         }
 
         #endregion
@@ -513,7 +504,7 @@ namespace Fraxinus.GPUBatcher
             if (!allowShrink && newMaxChunks < _maxChunks)
                 return;
 #if DEBUG
-            using var _rcc = s_MarkerResizeChunkCapacity.Auto();
+            using var _rcc = s_markerResizeChunkCapacity.Auto();
 #endif
 
             int oldMax = _maxChunks;
@@ -623,7 +614,7 @@ namespace Fraxinus.GPUBatcher
         private void ResizePoolBuffer(int newPoolCapacity, bool allowShrink = false)
         {
 #if DEBUG
-            using var _rpb = s_MarkerResizePoolBuffer.Auto();
+            using var _rpb = s_markerResizePoolBuffer.Auto();
 #endif
             if (newPoolCapacity == _poolCapacity)
                 return;
@@ -632,11 +623,11 @@ namespace Fraxinus.GPUBatcher
                 return;
 
 #if DEBUG
-            DebugResizedThisFrame = true;
+            debugResizedThisFrame = true;
 #endif
 
             int oldCapacity = _poolCapacity;
-            int totalInstanceSlots = newPoolCapacity * kPoolSize;
+            int totalInstanceSlots = newPoolCapacity * k_poolSize;
 
             GraphicsBuffer newInstanceBuffer = null;
             GraphicsBuffer newRotScaleBuffer = null;
@@ -646,21 +637,21 @@ namespace Fraxinus.GPUBatcher
                 newInstanceBuffer = new GraphicsBuffer(
                     GraphicsBuffer.Target.Structured,
                     totalInstanceSlots,
-                    kGPUInstanceDataStride
+                    gpuInstanceDataStride
                 );
                 newInstanceBuffer.name = "FraxinusGPUBatcher_instanceBuffer";
 
                 newRotScaleBuffer = new GraphicsBuffer(
                     GraphicsBuffer.Target.Structured,
                     totalInstanceSlots,
-                    kGPUInstanceRotScaleStride
+                    gpuInstanceRotScaleStride
                 );
                 newRotScaleBuffer.name = "FraxinusGPUBatcher_instanceRotScaleBuffer";
 
                 int matrixElements = totalInstanceSlots * 3 * 12;  // O2W + W2O + PrevM
-                int shElements = LightProbesEnabled ? totalInstanceSlots * kSHFloat4sPerInstance * 4 : 0;
+                int shElements = lightProbesEnabled ? totalInstanceSlots * k_shFloat4sPerInstance * 4 : 0;
                 int colorElements = _perInstanceColorEnabled ? totalInstanceSlots : 0;
-                int speedTreeElements = _speedTreeSlotHWM * kSpeedTreeParamsPerProto;
+                int speedTreeElements = _speedTreeSlotHWM * k_speedTreeParamsPerProto;
                 newMatrixBuffer = new GraphicsBuffer(
                     GraphicsBuffer.Target.Raw,
                     matrixElements + shElements + colorElements + speedTreeElements,
@@ -677,7 +668,7 @@ namespace Fraxinus.GPUBatcher
                 return;
             }
 
-            int oldInstanceSlots = oldCapacity * kPoolSize;
+            int oldInstanceSlots = oldCapacity * k_poolSize;
             int copyInstanceSlots = math.min(oldInstanceSlots, totalInstanceSlots); // clamp for shrink
             if (copyInstanceSlots > 0)
             {
@@ -705,19 +696,19 @@ namespace Fraxinus.GPUBatcher
                     matrixRegionBytes);
 
                 // SH region
-                if (LightProbesEnabled)
+                if (lightProbesEnabled)
                 {
                     int oldSHBase = oldInstanceSlots * 3 * 12 * sizeof(float);
                     int newSHBase = totalInstanceSlots * 3 * 12 * sizeof(float);
-                    int shCopyBytes = copyInstanceSlots * kSHBytesPerInstance;
+                    int shCopyBytes = copyInstanceSlots * k_shBytesPerInstance;
                     GPUCopyBufferRegion(_matrixBuffer, oldSHBase, newMatrixBuffer, newSHBase, shCopyBytes);
                 }
 
                 // color region
                 if (_perInstanceColorEnabled)
                 {
-                    int oldSHElem = LightProbesEnabled ? oldInstanceSlots * kSHFloat4sPerInstance * 4 : 0;
-                    int newSHElem = LightProbesEnabled ? totalInstanceSlots * kSHFloat4sPerInstance * 4 : 0;
+                    int oldSHElem = lightProbesEnabled ? oldInstanceSlots * k_shFloat4sPerInstance * 4 : 0;
+                    int newSHElem = lightProbesEnabled ? totalInstanceSlots * k_shFloat4sPerInstance * 4 : 0;
                     int oldColorBase = (oldInstanceSlots * 3 * 12 + oldSHElem) * sizeof(float);
                     int newColorBase = (totalInstanceSlots * 3 * 12 + newSHElem) * sizeof(float);
                     int colorCopyBytes = copyInstanceSlots * sizeof(uint);
@@ -729,15 +720,15 @@ namespace Fraxinus.GPUBatcher
             // copy wind region before replacing buffers
             if (_speedTreeSlotHWM > 0 && copyInstanceSlots > 0)
             {
-                int oldSHElem = LightProbesEnabled ? oldInstanceSlots * kSHFloat4sPerInstance * 4 : 0;
+                int oldSHElem = lightProbesEnabled ? oldInstanceSlots * k_shFloat4sPerInstance * 4 : 0;
                 int oldColorElem = _perInstanceColorEnabled ? oldInstanceSlots : 0;
                 int oldWindBase = (oldInstanceSlots * 3 * 12 + oldSHElem + oldColorElem) * sizeof(float);
 
-                int newSHElem2 = LightProbesEnabled ? totalInstanceSlots * kSHFloat4sPerInstance * 4 : 0;
+                int newSHElem2 = lightProbesEnabled ? totalInstanceSlots * k_shFloat4sPerInstance * 4 : 0;
                 int newColorElem2 = _perInstanceColorEnabled ? totalInstanceSlots : 0;
                 int newWindBase = (totalInstanceSlots * 3 * 12 + newSHElem2 + newColorElem2) * sizeof(float);
 
-                int windBytes = _speedTreeSlotHWM * kSpeedTreeParamsPerProto * sizeof(float);
+                int windBytes = _speedTreeSlotHWM * k_speedTreeParamsPerProto * sizeof(float);
                 GPUCopyBufferRegion(_matrixBuffer, oldWindBase, newMatrixBuffer, newWindBase, windBytes);
             }
 
@@ -751,12 +742,12 @@ namespace Fraxinus.GPUBatcher
             // recompute region byte offsets after resize
             {
                 int newMatrixElem = totalInstanceSlots * 3 * 12;
-                int newSHElem = LightProbesEnabled ? totalInstanceSlots * kSHFloat4sPerInstance * 4 : 0;
+                int newSHElem = lightProbesEnabled ? totalInstanceSlots * k_shFloat4sPerInstance * 4 : 0;
                 int newColorElem = _perInstanceColorEnabled ? totalInstanceSlots : 0;
                 if (_perInstanceColorEnabled)
                 {
                     _colorRegionByteOffset = (newMatrixElem + newSHElem) * sizeof(float);
-                    Shader.SetGlobalFloat(_ID_ColorRegionByteOffset, _colorRegionByteOffset);
+                    Shader.SetGlobalFloat(s_idColorRegionByteOffset, _colorRegionByteOffset);
                 }
                 _speedTreeRegionByteOffset = (newMatrixElem + newSHElem + newColorElem) * sizeof(float);
 
@@ -765,7 +756,7 @@ namespace Fraxinus.GPUBatcher
             _lightProbes?.OnPoolResize(totalInstanceSlots);
 
             int copyPools = math.min(oldCapacity, newPoolCapacity);
-            int copySlots = copyPools * kPoolSize;
+            int copySlots = copyPools * k_poolSize;
 
             ResizeNativeArray(ref _poolInUse, newPoolCapacity, copyPools);
             ResizeNativeArray(ref _poolStagedFrame, newPoolCapacity, copyPools);
@@ -836,7 +827,7 @@ namespace Fraxinus.GPUBatcher
 
             // suppress auto-compaction after grow to avoid shrink-grow ping-pong
             if (!allowShrink)
-                _compactionCooldown = kCompactionCooldownCycles;
+                _compactionCooldown = k_compactionCooldownCycles;
 
             RefreshCachedPointers();
         }
@@ -858,7 +849,7 @@ namespace Fraxinus.GPUBatcher
             foreach (var kvp in _viewFadeStates)
             {
                 var state = kvp.Value;
-                var oldBuffer = state.FadeStateBuffer;
+                var oldBuffer = state.fadeStateBuffer;
                 int oldCount = oldBuffer?.count ?? 0;
 
                 if (oldCount == newCount)
@@ -878,7 +869,7 @@ namespace Fraxinus.GPUBatcher
                     shrunkBuffer.name = $"FraxinusGPUBatcher_FadeState_View{kvp.Key}";
                     GPUCopyFadeStateRegion(oldBuffer, shrunkBuffer, newCount);
                     oldBuffer?.Dispose();
-                    state.FadeStateBuffer = shrunkBuffer;
+                    state.fadeStateBuffer = shrunkBuffer;
                     continue;
                 }
 
@@ -903,13 +894,13 @@ namespace Fraxinus.GPUBatcher
                     GPUInitFadeStateTyped(newBuffer, 0, newCount);
                 }
 
-                state.FadeStateBuffer = newBuffer;
+                state.fadeStateBuffer = newBuffer;
             }
 
             // recalculate tracked total
             _trackedTotalFadeStates = 0;
             foreach (var kvp2 in _viewFadeStates)
-                _trackedTotalFadeStates += kvp2.Value.FadeStateBuffer?.count ?? 0;
+                _trackedTotalFadeStates += kvp2.Value.fadeStateBuffer?.count ?? 0;
         }
 
         #endregion
@@ -931,9 +922,9 @@ namespace Fraxinus.GPUBatcher
             _protoSpeedTreeSlotIndex = null;
             ShutdownSpeedTreeState();
 #if UNITY_EDITOR
-            _pickingEntries.Clear();
+            pickingEntries.Clear();
 #endif
-            Shader.SetGlobalFloat(_ID_ColorRegionByteOffset, 0);
+            Shader.SetGlobalFloat(s_idColorRegionByteOffset, 0);
 
             _writeChunkGpuBuffer.DisposeIfCreated();
 
@@ -1163,16 +1154,12 @@ namespace Fraxinus.GPUBatcher
         public int AllocateChunk()
         {
 #if DEBUG
-            using var _ac = s_MarkerAllocateChunk.Auto();
+            using var _ac = s_markerAllocateChunk.Auto();
 #endif
+            if (!_chunkSystemInitialized) return -1;
             if (_freeChunkSlots.Count == 0)
-            {
-                // auto-grow
-                int newCapacity = _maxChunks * 2;
-                ResizeChunkCapacity(newCapacity);
-            }
-
-            int slotId = _freeChunkSlots.Dequeue();
+                ResizeChunkCapacity(_maxChunks * 2);
+            if (!_freeChunkSlots.TryDequeue(out int slotId)) return -1;
             _chunkSlotActive[slotId] = true;
             _chunkEnabled[slotId] = true;
             if (_chunkLayerMask.IsCreated) _chunkLayerMask[slotId] = 0;
@@ -1192,9 +1179,9 @@ namespace Fraxinus.GPUBatcher
         private int AllocatePools(int chunkId, int instanceCount, bool isRetry = false)
         {
 #if DEBUG
-            using var _ap = s_MarkerAllocatePools.Auto();
+            using var _ap = s_markerAllocatePools.Auto();
 #endif
-            int poolsNeeded = (int)math.ceil((float)instanceCount / kPoolSize);
+            int poolsNeeded = (int)math.ceil((float)instanceCount / k_poolSize);
 
             int baseIdx = chunkId * _maxPoolRefsPerChunk;
             int poolCount = 0;
@@ -1307,7 +1294,7 @@ namespace Fraxinus.GPUBatcher
         public void WriteChunk(int chunkId, NativeArray<InstanceData> instances, Bounds bounds, float cullDistance = 0f, float instanceCullDistance = float.MaxValue)
         {
 #if DEBUG
-            using var _wc = s_MarkerWriteChunk.Auto();
+            using var _wc = s_markerWriteChunk.Auto();
 #endif
             if (!_chunkSystemInitialized)
             {
@@ -1328,7 +1315,7 @@ namespace Fraxinus.GPUBatcher
             }
 
             int count = instances.Length;
-            int maxInstances = _maxPoolRefsPerChunk * kPoolSize;
+            int maxInstances = _maxPoolRefsPerChunk * k_poolSize;
             if (count > maxInstances)
             {
                 Debug.LogWarning($"GPUBatcherRenderer: Chunk {chunkId} has {count} instances, exceeds max {maxInstances}. Truncating.");
@@ -1435,7 +1422,7 @@ namespace Fraxinus.GPUBatcher
                     gpuBuffer = _writeChunkGpuBuffer
                 }.Run(count);
 
-                int instancesPerPool = kPoolSize;
+                int instancesPerPool = k_poolSize;
                 int remaining = count;
                 int srcOffset = 0;
 
@@ -1486,12 +1473,12 @@ namespace Fraxinus.GPUBatcher
                 for (int p = 0; p < poolCount; p++)
                 {
                     int poolIdx = _chunkPools[poolBaseIdx + p];
-                    int slotsFilled = math.min(remaining, kPoolSize);
+                    int slotsFilled = math.min(remaining, k_poolSize);
 
                     _poolOccupancy[poolIdx] = slotsFilled;
                     SetPoolSlotMask(poolIdx, slotsFilled);
 
-                    int slotBase = poolIdx * kPoolSize;
+                    int slotBase = poolIdx * k_poolSize;
                     for (int s = 0; s < slotsFilled; s++)
                     {
                         var inst = instances[srcIdx + s];
@@ -1544,14 +1531,14 @@ namespace Fraxinus.GPUBatcher
                             }
                         }
                     }
-                    for (int s = slotsFilled; s < kPoolSize; s++)
+                    for (int s = slotsFilled; s < k_poolSize; s++)
                     {
                         _slotProtoIndex[slotBase + s] = -1;
                         if (writeSlotFlipped) _slotFlipped[slotBase + s] = false;
                     }
 
-                    if (slotsFilled < kPoolSize)
-                        StageClear(slotBase + slotsFilled, kPoolSize - slotsFilled);
+                    if (slotsFilled < k_poolSize)
+                        StageClear(slotBase + slotsFilled, k_poolSize - slotsFilled);
 
                     remaining -= slotsFilled;
                     srcIdx += slotsFilled;
@@ -1696,9 +1683,9 @@ namespace Fraxinus.GPUBatcher
             }
 
             // overflow: flush chunk metadata, reset cursor
-            if (_chunkStagingWriteCursor >= kChunkStagingCapacity)
+            if (_chunkStagingWriteCursor >= k_chunkStagingCapacity)
             {
-                StatChunkOverflowFlushes++;
+                statChunkOverflowFlushes++;
                 FlushChunkMetadataUploads();
             }
 
@@ -1747,7 +1734,7 @@ namespace Fraxinus.GPUBatcher
             }
 
 #if DEBUG
-            using var _fc = s_MarkerFreeChunk.Auto();
+            using var _fc = s_markerFreeChunk.Auto();
 #endif
         #if DEBUG
             _totalInstanceCount -= _chunks[chunkId].instanceCount;
@@ -1766,13 +1753,13 @@ namespace Fraxinus.GPUBatcher
                 {
                     int poolIdx = _chunkPools[poolBaseIdx + p];
                     if (poolIdx < 0) continue;
-                    int offset = poolIdx * kPoolSize;
+                    int offset = poolIdx * k_poolSize;
 
                     if (clearFades)
-                        ResetFadeStatesForSlots(offset, kPoolSize);
+                        ResetFadeStatesForSlots(offset, k_poolSize);
 
                     if (clearProbes)
-                        _lightProbes.ClearSlots(offset, kPoolSize);
+                        _lightProbes.ClearSlots(offset, k_poolSize);
                 }
             }
 
@@ -1786,11 +1773,11 @@ namespace Fraxinus.GPUBatcher
                     int poolIdx = _chunkPools[freeBase + p];
                     if (poolIdx < 0) continue;
                     ulong mask = _poolSlotMask[poolIdx];
-                    int slotBase = poolIdx * kPoolSize;
+                    int slotBase = poolIdx * k_poolSize;
                     while (mask != 0)
                     {
                         int bit = math.tzcnt(mask);
-                        _pickingEntries.Remove(slotBase + bit);
+                        pickingEntries.Remove(slotBase + bit);
                         mask &= mask - 1;
                     }
                 }
@@ -1945,7 +1932,7 @@ namespace Fraxinus.GPUBatcher
         {
             _poolOccupancy[poolIdx] = 0;
             _poolSlotMask[poolIdx] = 0;
-            unsafe { UnsafeUtility.MemSet((byte*)_slotProtoIndex.GetUnsafePtr() + poolIdx * kPoolSize * sizeof(int), 0xFF, kPoolSize * sizeof(int)); }
+            unsafe { UnsafeUtility.MemSet((byte*)_slotProtoIndex.GetUnsafePtr() + poolIdx * k_poolSize * sizeof(int), 0xFF, k_poolSize * sizeof(int)); }
         }
 
         // set slot bitmask for occupied slot count
@@ -1958,7 +1945,7 @@ namespace Fraxinus.GPUBatcher
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void InitializeNewPool(int poolIndex, int chunkId)
         {
-            StageClear(poolIndex * kPoolSize, kPoolSize);
+            StageClear(poolIndex * k_poolSize, k_poolSize);
             ClearPoolTrackingState(poolIndex);
             _poolToChunk[poolIndex] = chunkId;
         }
@@ -2084,7 +2071,7 @@ namespace Fraxinus.GPUBatcher
         public int AddInstance(int chunkId, InstanceData instance)
         {
 #if DEBUG
-            using var _ai = s_MarkerAddInstance.Auto();
+            using var _ai = s_markerAddInstance.Auto();
 #endif
             if (!_chunkSystemInitialized)
             {
@@ -2107,7 +2094,7 @@ namespace Fraxinus.GPUBatcher
             {
                 int candidate = _chunkPools[poolBaseIdx + p];
                 if (candidate < 0) continue;
-                if (_poolOccupancy[candidate] < kPoolSize)
+                if (_poolOccupancy[candidate] < k_poolSize)
                 {
                     targetPool = candidate;
                     _chunkFirstFreePoolHint[chunkId] = p;
@@ -2137,7 +2124,7 @@ namespace Fraxinus.GPUBatcher
             Debug.Assert(localSlot >= 0, "FindAndClaimFreeSlot returned -1 despite occupancy < kPoolSize");
 #endif
 
-            int globalSlot = targetPool * kPoolSize + localSlot;
+            int globalSlot = targetPool * k_poolSize + localSlot;
 
             // pack and stage
 #if DEBUG
@@ -2158,7 +2145,7 @@ namespace Fraxinus.GPUBatcher
 
             _poolOccupancy[targetPool]++;
             // advance hint past full pool
-            if (_poolOccupancy[targetPool] >= kPoolSize)
+            if (_poolOccupancy[targetPool] >= k_poolSize)
                 _chunkFirstFreePoolHint[chunkId] = _chunkFirstFreePoolHint[chunkId] + 1;
             _slotProtoIndex[globalSlot] = instance.signatureIndex;
             IncrementProtoInstanceCount(chunkId, instance.signatureIndex, globalSlot, s.x * s.y * s.z < 0f);
@@ -2188,7 +2175,7 @@ namespace Fraxinus.GPUBatcher
         public void AddInstances(int chunkId, NativeArray<InstanceData> instances, int count, NativeArray<int> outSlotIndices)
         {
 #if DEBUG
-            using var _ais = s_MarkerAddInstances.Auto();
+            using var _ais = s_markerAddInstances.Auto();
             Debug.Assert(count >= 0 && count <= instances.Length);
             Debug.Assert(outSlotIndices.Length >= count);
 #endif
@@ -2226,7 +2213,7 @@ namespace Fraxinus.GPUBatcher
                 {
                     int candidate = _chunkPools[poolBaseIdx + p];
                     if (candidate < 0) continue;
-                    if (_poolOccupancy[candidate] < kPoolSize)
+                    if (_poolOccupancy[candidate] < k_poolSize)
                     {
                         targetPool = candidate;
                         _chunkFirstFreePoolHint[chunkId] = p;
@@ -2266,7 +2253,7 @@ namespace Fraxinus.GPUBatcher
                 Debug.Assert(localSlot >= 0, "FindAndClaimFreeSlot returned -1 despite occupancy < kPoolSize");
 #endif
 
-                int globalSlot = targetPool * kPoolSize + localSlot;
+                int globalSlot = targetPool * k_poolSize + localSlot;
                 outSlotIndices[i] = globalSlot;
 
                 // pack GPU data
@@ -2305,7 +2292,7 @@ namespace Fraxinus.GPUBatcher
 
                 // update tracking
                 _poolOccupancy[targetPool]++;
-                if (_poolOccupancy[targetPool] >= kPoolSize)
+                if (_poolOccupancy[targetPool] >= k_poolSize)
                     _chunkFirstFreePoolHint[chunkId] = _chunkFirstFreePoolHint[chunkId] + 1;
                 _slotProtoIndex[globalSlot] = inst.signatureIndex;
                 IncrementProtoInstanceCount(chunkId, inst.signatureIndex, globalSlot, inst.scale.x * inst.scale.y * inst.scale.z < 0f);
@@ -2359,7 +2346,7 @@ namespace Fraxinus.GPUBatcher
             Bounds bounds = chunk.bounds;
             int placed = 0;
 
-            _lightProbes?.BeginBatchSample(instances, srcOffset, math.min(count, _maxPoolRefsPerChunk * kPoolSize));
+            _lightProbes?.BeginBatchSample(instances, srcOffset, math.min(count, _maxPoolRefsPerChunk * k_poolSize));
 
             while (placed < count)
             {
@@ -2373,8 +2360,8 @@ namespace Fraxinus.GPUBatcher
                     break;
                 }
 
-                int slotBase = newPool * kPoolSize;
-                int slotsToFill = math.min(count - placed, kPoolSize);
+                int slotBase = newPool * k_poolSize;
+                int slotsToFill = math.min(count - placed, k_poolSize);
 
                 // pack GPU data via Burst job
                 new PackInstanceDataJob
@@ -2408,10 +2395,10 @@ namespace Fraxinus.GPUBatcher
                 }
 
                 // clear trailing empty slots
-                for (int s = slotsToFill; s < kPoolSize; s++)
+                for (int s = slotsToFill; s < k_poolSize; s++)
                     _slotProtoIndex[slotBase + s] = -1;
-                if (slotsToFill < kPoolSize)
-                    StageClear(slotBase + slotsToFill, kPoolSize - slotsToFill);
+                if (slotsToFill < k_poolSize)
+                    StageClear(slotBase + slotsToFill, k_poolSize - slotsToFill);
 
                 placed += slotsToFill;
             }
@@ -2443,10 +2430,10 @@ namespace Fraxinus.GPUBatcher
         public void RemoveInstance(int chunkId, int globalSlotIndex)
         {
 #if DEBUG
-            using var _ri = s_MarkerRemoveInstance.Auto();
+            using var _ri = s_markerRemoveInstance.Auto();
 #endif
 #if UNITY_EDITOR
-            _pickingEntries.Remove(globalSlotIndex);
+            pickingEntries.Remove(globalSlotIndex);
 #endif
             if (!_chunkSystemInitialized)
             {
@@ -2458,11 +2445,11 @@ namespace Fraxinus.GPUBatcher
                 Debug.LogError($"GPUBatcherRenderer: Invalid or inactive chunk ID {chunkId}");
                 return;
             }
-            if (globalSlotIndex < 0 || globalSlotIndex >= _poolCapacity * kPoolSize)
+            if (globalSlotIndex < 0 || globalSlotIndex >= _poolCapacity * k_poolSize)
                 return;
 
-            int poolIdx = globalSlotIndex / kPoolSize;
-            int localSlot = globalSlotIndex % kPoolSize;
+            int poolIdx = globalSlotIndex / k_poolSize;
+            int localSlot = globalSlotIndex % k_poolSize;
 
             // ownership check via reverse map
             if (_poolToChunk[poolIdx] != chunkId)
@@ -2526,13 +2513,12 @@ namespace Fraxinus.GPUBatcher
         /// <summary>
         /// Enable or disable a single instance. Disabled instances are invisible to culling
         /// but keep their slot, TRS data, and pool allocation. Re-enabling restores visibility.
-        /// Direct usage of this method is not protected against multiple instance manipulations per frame.
-        /// Read more: https://milk-drinker01.github.io/BRGInstancedRenderer/articles/api/registration-tracker.html
+        /// Use <see cref="GPUBatcherRegistrationTracker"/> to coalesce repeated enable/disable changes.
         /// </summary>
         public void SetInstanceEnabled(int globalSlotIndex, bool enabled)
         {
             if (!_chunkSystemInitialized) return;
-            int totalSlots = _poolCapacity * kPoolSize;
+            int totalSlots = _poolCapacity * k_poolSize;
             if (globalSlotIndex < 0 || globalSlotIndex >= totalSlots) return;
 
             int encoded = _slotProtoIndex[globalSlotIndex];
@@ -2560,7 +2546,7 @@ namespace Fraxinus.GPUBatcher
         public bool IsInstanceEnabled(int globalSlotIndex)
         {
             if (!_chunkSystemInitialized) return false;
-            int totalSlots = _poolCapacity * kPoolSize;
+            int totalSlots = _poolCapacity * k_poolSize;
             if (globalSlotIndex < 0 || globalSlotIndex >= totalSlots) return false;
             return _slotProtoIndex[globalSlotIndex] >= 0;
         }

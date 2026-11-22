@@ -21,14 +21,14 @@ namespace Fraxinus.GPUBatcher
         {
             lodBias = Mathf.Max(0f, value);
             // guard avoids spinning up the renderer just to set a value; it re-reads on registration anyway
-            if (GPUBatcherRenderer.HasInstance) GPUBatcherRenderer.Instance.NotifyGroupChanged(this);
+            if (GPUBatcherRenderer.hasInstance) GPUBatcherRenderer.instance.NotifyGroupChanged(this);
         }
 
         /// <summary>set density (0-1) for every prototype in this group. 1 = full, 0 = all culled. applies live.</summary>
         public void SetDensity(float value)
         {
             density = Mathf.Clamp01(value);
-            if (GPUBatcherRenderer.HasInstance) GPUBatcherRenderer.Instance.NotifyGroupChanged(this);
+            if (GPUBatcherRenderer.hasInstance) GPUBatcherRenderer.instance.NotifyGroupChanged(this);
         }
     }
 }

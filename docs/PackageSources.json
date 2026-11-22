@@ -34,8 +34,22 @@
       "sourceProject": "Duckov-Recovered",
       "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
       "sourcePath": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher",
-      "sourceCommit": "148ad81fd976e6a5f76624ce081c779c2bd61dd9",
-      "sourceState": "Committed BRG port snapshot; synchronized with the matching Core native-tracking wrapper and FraxinusRP injection hook."
+      "sourceCommit": "5494613cdff36fd003f0537a60fd0b1b5498060d",
+      "sourceState": "Committed unified Unity 2022 / Unity 6 snapshot with GPU Batcher configuration diagnostics; retains this suite's PrepareFrameResources hook. Source audit hashes describe their recorded snapshots."
     }
-  ]
+  ],
+  "latestSync": {
+    "date": "2026-11-22",
+    "sourceProject": "Duckov-Recovered",
+    "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
+    "sourceCommit": "5494613cdff36fd003f0537a60fd0b1b5498060d",
+    "sourceBaselineCommit": "148ad81fd976e6a5f76624ce081c779c2bd61dd9",
+    "sourceState": "Committed package changes including GPU Batcher configuration diagnostics and Shader Graph pipeline lookup; merged with this suite's existing rendering hooks, light migration, assembly access and distribution documentation.",
+    "packages": [
+      "Fraxinus-GPU-Batcher",
+      "FraxinusRP",
+      "Fraxinus-RPCore",
+      "Fraxinus-ShaderGraph"
+    ]
+  }
 }
