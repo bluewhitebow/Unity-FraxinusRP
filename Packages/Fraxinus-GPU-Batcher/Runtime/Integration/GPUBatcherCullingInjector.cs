@@ -17,6 +17,9 @@ namespace Fraxinus.GPUBatcher.Integration
         {
             RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
             RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            GPUBatcherDebugUI.Initialize();
+#endif
         }
 
 #if UNITY_EDITOR

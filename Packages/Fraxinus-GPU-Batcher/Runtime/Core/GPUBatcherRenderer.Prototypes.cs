@@ -244,7 +244,7 @@ namespace Fraxinus.GPUBatcher
         {
             if (_pendingProtoPurge.Count == 0) return;
             float now = Time.realtimeSinceStartup;
-            float grace = Config.prototypeIdleGracePeriod;
+            float grace = _config.prototypeIdleGracePeriod;
 
             _tempPurgeList.Clear();
             foreach (var kvp in _pendingProtoPurge)

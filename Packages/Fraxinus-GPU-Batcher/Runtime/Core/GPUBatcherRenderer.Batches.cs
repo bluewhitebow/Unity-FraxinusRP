@@ -574,7 +574,7 @@ namespace Fraxinus.GPUBatcher
             if (_prototypeAnimatedCrossfade.IsCreated && protoIndex < _prototypeAnimatedCrossfade.Length && _prototypeAnimatedCrossfade[protoIndex])
                 crossfadeCascades = shadowCascades;
             else if (anyFade)
-                crossfadeCascades = math.clamp(proto.maxShadowCrossfadeCascade == -99 ? Config.maxShadowCrossfadeCascade : proto.maxShadowCrossfadeCascade, 0, shadowCascades);
+                crossfadeCascades = math.clamp(proto.maxShadowCrossfadeCascade == -99 ? _config.maxShadowCrossfadeCascade : proto.maxShadowCrossfadeCascade, 0, shadowCascades);
             else crossfadeCascades = 0;
 
             int shadowLodStride = crossfadeCascades + shadowCascades;
@@ -704,7 +704,7 @@ namespace Fraxinus.GPUBatcher
                     {
                         _buckets[bucketIdx] = new DrawBucket { bufferOffset = bucketVisOffset, instanceCount = 0, maxSlots = visSlots };
 #if UNITY_EDITOR
-                        if (Config.debugDrawBoundingSpheres)
+                        if (_config.debugDrawBoundingSpheres)
                         {
                             if (_camBucketLod == null || _camBucketLod.Length < _buckets.Length)
                                 Array.Resize(ref _camBucketLod, _buckets.Length);
@@ -1713,7 +1713,7 @@ namespace Fraxinus.GPUBatcher
                 }
                 _prototypeMaxShadowDistance[p] = proto.maxShadowDistance;
                 _prototypeMaxShadowCascade[p] = math.clamp(proto.maxShadowCascade, 1, 4);
-                _prototypeCrossfadeEnabled[p] = !Config.debugDisableCrossfade && (proto.fadeMode == LODFadeMode.CrossFade || proto.fadeMode == LODFadeMode.SpeedTree);
+                _prototypeCrossfadeEnabled[p] = !_config.debugDisableCrossfade && (proto.fadeMode == LODFadeMode.CrossFade || proto.fadeMode == LODFadeMode.SpeedTree);
                 _prototypeAnimatedCrossfade[p] = _prototypeCrossfadeEnabled[p] && proto.animateCrossFading;
                 if (_prototypeAnimatedCrossfade[p]) { _anyPrototypeUsesAnimatedCrossfade = true;
 #if DEBUG
@@ -1856,7 +1856,7 @@ namespace Fraxinus.GPUBatcher
             int densityMode = !proto.enableDistanceDensity ? 0 : (int)proto.distanceDensityMode + 1;
             int minShadowLOD = math.clamp(proto.minShadowLOD, 0, lodCount - 1);
             int maxShadowCascade = math.clamp(_prototypeMaxShadowCascade[p], 1, 4);
-            int maxShadowCrossfadeCascade = proto.maxShadowCrossfadeCascade == -99 ? Config.maxShadowCrossfadeCascade : proto.maxShadowCrossfadeCascade;
+            int maxShadowCrossfadeCascade = proto.maxShadowCrossfadeCascade == -99 ? _config.maxShadowCrossfadeCascade : proto.maxShadowCrossfadeCascade;
             float fadeDuration = math.clamp(proto.lodFadeDuration, 0f, 10f);
             float dp1 = proto.distanceDensityMode == DistanceDensityMode.ScreenSize ? proto.densityStartScreenSize : proto.densityStartDistance;
             float dp2;

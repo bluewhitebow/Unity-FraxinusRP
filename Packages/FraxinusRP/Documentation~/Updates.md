@@ -1,3 +1,26 @@
+# 2026-11-23 GPU Batcher settings and rendering diagnostics
+
+Synchronizes the 26 package changes in Duckov-Recovered `580583ccc`. The active
+GPU Batcher config is now available under Project Settings > Graphics, while a
+dedicated Rendering Debugger panel hosts culling overrides and diagnostics.
+System Window retains detailed resource and buffer inspection.
+
+Fraxinus RP owns the shared editor reference-camera state. GPU Batcher reuses
+completed reference-camera culling for Scene view diagnostics with camera and
+buffer-generation checks. Picking shaders use explicit serialized references
+with package-path repair. Core updates automatic debugger repaint subscriptions
+when selecting panels and closing the window.
+
+The merge retains this suite's `PrepareFrameResources` hooks, light-data migration
+and distribution documentation. Historical source audit results remain tied to
+their recorded snapshots. See the [usage guide](../../../docs/Usage.md) and
+[synchronization provenance](../../../docs/PackageSources.json).
+
+Offline C# compilation passed for all 9 assemblies against Unity 2022.3.62f3
+and 10 against Unity 6000.0.85f2, including both new source files and the native
+BRG branch. There were zero errors; warning counts were unchanged from the
+previous synchronization. This merge did not rerun scene/GPU or Player tests.
+
 # 2026-11-22 Shared Unity 2022 / Unity 6 GPU batching
 
 Synchronizes Duckov-Recovered package changes through `5494613cd`, including the

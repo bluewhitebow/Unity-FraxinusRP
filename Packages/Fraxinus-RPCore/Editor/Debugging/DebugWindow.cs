@@ -166,13 +166,7 @@ namespace UnityEditor.Rendering
             // First init
             UpdateWidgetStates();
 
-            EditorApplication.update -= Repaint;
-            var panels = DebugManager.instance.panels;
-            var selectedPanelIndex = m_Settings.selectedPanel;
-            if (selectedPanelIndex >= 0
-                && selectedPanelIndex < panels.Count
-                && panels[selectedPanelIndex].editorForceUpdate)
-                EditorApplication.update += Repaint;
+            UpdatePanelRepaint();
 
 #if UNITY_6000_0_OR_NEWER
             GraphicsToolLifetimeAnalytic.WindowOpened<DebugWindow>();
@@ -191,6 +185,7 @@ namespace UnityEditor.Rendering
 
         private void OnDisable()
         {
+            EditorApplication.update -= Repaint;
 #if UNITY_6000_0_OR_NEWER
             GraphicsToolLifetimeAnalytic.WindowClosed<DebugWindow>();
 #endif
@@ -369,6 +364,8 @@ namespace UnityEditor.Rendering
             if (requestedPanelIndex != null)
             {
                 m_Settings.selectedPanel = requestedPanelIndex.Value;
+                UpdatePanelRepaint();
+                Repaint();
             }
 
             if (m_IsDirty)
@@ -377,6 +374,15 @@ namespace UnityEditor.Rendering
                 ApplyStates();
                 m_IsDirty = false;
             }
+        }
+
+        private void UpdatePanelRepaint()
+        {
+            EditorApplication.update -= Repaint;
+            var panels = DebugManager.instance.panels;
+            int index = m_Settings.selectedPanel;
+            if (index >= 0 && index < panels.Count && panels[index].editorForceUpdate)
+                EditorApplication.update += Repaint;
         }
 
         void OnGUI()
@@ -456,14 +462,8 @@ namespace UnityEditor.Rendering
                         if (EditorGUI.EndChangeCheck())
                         {
                             Undo.RegisterCompleteObjectUndo(m_Settings, $"Debug Panel '{panel.displayName}' Selection");
-                            var previousPanel = m_Settings.selectedPanel >= 0 && m_Settings.selectedPanel < panels.Count
-                                ? panels[m_Settings.selectedPanel]
-                                : null;
-                            if (previousPanel != null && previousPanel.editorForceUpdate && !panel.editorForceUpdate)
-                                EditorApplication.update -= Repaint;
-                            else if ((previousPanel == null || !previousPanel.editorForceUpdate) && panel.editorForceUpdate)
-                                EditorApplication.update += Repaint;
                             m_Settings.selectedPanel = i;
+                            UpdatePanelRepaint();
                         }
                     }
 

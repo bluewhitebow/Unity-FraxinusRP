@@ -1,8 +1,8 @@
 # Fraxinus GPU Batcher
 
 This package was synchronized from Duckov-Recovered commit
-`5494613cdff36fd003f0537a60fd0b1b5498060d`
-on 2026-11-22. Recorded source tests and `SourceAudit.json` describe their captured
+`580583ccc4ffca8916109df06102348e17919ea6`
+on 2026-11-23. Recorded source tests and `SourceAudit.json` describe their captured
 snapshots, not a GPU/Player validation rerun of this checkout or its later changes.
 This suite retains `PrepareFrameResources(...)` and its existing Core/RP adaptations.
 
@@ -37,12 +37,16 @@ enable that symbol when it backports the complete matching bindings, or register
 own `submitHandler` at startup for a different API. With no handler, `TrySubmit`
 returns false without allocating or modifying native output.
 
-Configuration is discovered or created automatically under
+Edit the active configuration in **Edit > Project Settings > Graphics > Fraxinus GPU Batcher**.
+The page edits the same asset used by the Player. Configuration is discovered or created automatically under
 `Assets/FraxinusGPUBatcherData/FraxinusGPUBatcherConfig.asset`; existing project configs
 are found first. Shader references are repaired automatically and the config is added
 to Player Settings preloaded assets. Source renderers/terrain are taken over as in
 the reference, and Bake removes the baked source children. Registered objects need a
 submission handler to render indirectly; stock Unity 2022 has none by default.
+
+Open **Window > Analysis > Rendering Debugger** and select **GPU Batcher** in the sidebar for culling
+overrides, Scene view diagnostics and live instance, chunk and draw-command counts.
 
 Fraxinus graph injection runs culling before depth/shadow rendering. History HZB is
 built after opaque rendering without requesting a full prepass. Current-frame retest

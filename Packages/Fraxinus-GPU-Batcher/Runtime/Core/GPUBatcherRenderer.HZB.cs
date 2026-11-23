@@ -157,7 +157,6 @@ namespace Fraxinus.GPUBatcher
             public Vector4 cameraPosition;
             public Vector4 facingDirection;
             public Vector4 radialDirection;
-            public bool frozen;
         }
 
         internal HZBBuildContext CaptureHZBBuildContext(int cameraId)
@@ -170,9 +169,6 @@ namespace Fraxinus.GPUBatcher
                 cameraPosition = camera.hzbCameraPosition,
                 facingDirection = camera.facingDir,
                 radialDirection = camera.radialDir,
-#if UNITY_EDITOR
-                frozen = camera.usesFrozenData
-#endif
             };
         }
 
@@ -187,7 +183,7 @@ namespace Fraxinus.GPUBatcher
         }
 
         internal bool isGPUOcclusionEnabled => SystemInfo.supportsComputeShaders &&
-                                               Config.useGPUOcclusionCulling &&
+                                               _config.useGPUOcclusionCulling &&
                                                _occlusionShader != null &&
                                                _hzbDownscaleSPDKernel >= 0;
 
@@ -222,7 +218,7 @@ namespace Fraxinus.GPUBatcher
 
         private void InitHZB()
         {
-            _occlusionShader = Config.occlusionShader;
+            _occlusionShader = _config.occlusionShader;
             if (_occlusionShader == null) return;
 
             _hzbDownscaleSPDKernel = _occlusionShader.HasKernel("HZBDownscaleSPD") ? _occlusionShader.FindKernel("HZBDownscaleSPD") : -1;
@@ -430,10 +426,6 @@ namespace Fraxinus.GPUBatcher
         {
             var hzbState = camera.state;
             if (_occlusionShader == null || _hzbDownscaleSPDKernel < 0 || hzbState == null)
-                return;
-
-            // frozen data path - do not rebuild, would overwrite game camera's atlas with scene view depth
-            if (camera.frozen)
                 return;
 
             // texture pre-created on main thread; skip if atlas missing or dimensions changed

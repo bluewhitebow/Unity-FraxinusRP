@@ -211,7 +211,7 @@ namespace Fraxinus.GPUBatcher
             {
                 if (_chunkSystemInitialized)
                     return _maxPoolRefsPerChunk * k_poolSize;
-                return Config.maxPoolRefsPerChunk * k_poolSize;
+                return _config.maxPoolRefsPerChunk * k_poolSize;
             }
         }
 
@@ -249,14 +249,14 @@ namespace Fraxinus.GPUBatcher
         {
             if (_chunkSystemInitialized) return;
 
-            int maxChunks = math.max(16, Config.initialChunkCount);
+            int maxChunks = math.max(16, _config.initialChunkCount);
             int ps = k_poolSize;
 
             _maxChunks = maxChunks;
             _initialChunkCapacity = maxChunks;
-            _maxPoolRefsPerChunk = Config.maxPoolRefsPerChunk;
+            _maxPoolRefsPerChunk = _config.maxPoolRefsPerChunk;
 
-            int initPoolCount = math.max(16, Config.initialPoolCapacity);
+            int initPoolCount = math.max(16, _config.initialPoolCapacity);
             _poolCapacity = initPoolCount;
             _initialPoolCapacity = initPoolCount;
 
@@ -351,7 +351,7 @@ namespace Fraxinus.GPUBatcher
             // matrix buffer layout: [O2W * N][W2O * N][PrevM * N][SH AoS (if LP)][Color (if enabled)][SpeedTree (if any)]
             int matrixElements = totalInstanceSlots * 3 * 12;  // 3 matrices per instance (O2W, W2O, PrevM), 12 floats each
             int shElements = lightProbesEnabled ? totalInstanceSlots * k_shFloat4sPerInstance * 4 : 0;
-            _perInstanceColorEnabled = Config.enablePerInstanceColor;
+            _perInstanceColorEnabled = _config.enablePerInstanceColor;
             int colorElements = _perInstanceColorEnabled ? totalInstanceSlots : 0; // 1 uint (packed RGBA) per instance
 
             // speedtree region: allocate only for speedtree prototypes (512 bytes each)
@@ -371,7 +371,7 @@ namespace Fraxinus.GPUBatcher
             _matrixBuffer.name = "FraxinusGPUBatcher_matrixBuffer";
             // inverted encoding, zero = white
             _colorRegionByteOffset = _perInstanceColorEnabled ? (matrixElements + shElements) * sizeof(float) : 0;
-            Shader.SetGlobalFloat(s_idColorRegionByteOffset, _colorRegionByteOffset);
+            Shader.SetGlobalFloat(_ColorRegionByteOffset, _colorRegionByteOffset);
 
             _lightProbes?.Initialize(this, totalInstanceSlots);
 
@@ -465,7 +465,7 @@ namespace Fraxinus.GPUBatcher
             _maxVisibleInstances = 1;
 
             _chunkSystemInitialized = true;
-            _cachedNegativeScaleMode = Config.negativeScaleMode;
+            _cachedNegativeScaleMode = _config.negativeScaleMode;
             RefreshCachedPointers();
 
             // resize pre-existing view fade buffers
@@ -678,22 +678,10 @@ namespace Fraxinus.GPUBatcher
                 GPUCopyRotScaleBuffer(_instanceRotScaleBuffer, 0, newRotScaleBuffer, 0, copyInstanceSlots);
 
                 // matrix buffer: [O2W * N][W2O * N][PrevM * N][SH (if LP)]
-                int matrixRegionBytes = copyInstanceSlots * 12 * sizeof(float);
-
-                // O2W
-                GPUCopyBufferRegion(_matrixBuffer, 0, newMatrixBuffer, 0, matrixRegionBytes);
-
-                // W2O
-                int oldW2OOffset = oldInstanceSlots * 12 * sizeof(float);
-                int newW2OOffset = totalInstanceSlots * 12 * sizeof(float);
-                GPUCopyBufferRegion(_matrixBuffer, oldW2OOffset, newMatrixBuffer, newW2OOffset,
-                    matrixRegionBytes);
-
-                // PrevM
-                int oldPrevMOffset = oldInstanceSlots * 2 * 12 * sizeof(float);
-                int newPrevMOffset = totalInstanceSlots * 2 * 12 * sizeof(float);
-                GPUCopyBufferRegion(_matrixBuffer, oldPrevMOffset, newMatrixBuffer, newPrevMOffset,
-                    matrixRegionBytes);
+                int matrixRegionBytes = copyInstanceSlots * k_sizeOfPackedMatrix;
+                for (int region = 0; region < 3; region++) // O2W, W2O, PrevM
+                    GPUCopyBufferRegion(_matrixBuffer, oldInstanceSlots * region * k_sizeOfPackedMatrix,
+                        newMatrixBuffer, totalInstanceSlots * region * k_sizeOfPackedMatrix, matrixRegionBytes);
 
                 // SH region
                 if (lightProbesEnabled)
@@ -747,7 +735,7 @@ namespace Fraxinus.GPUBatcher
                 if (_perInstanceColorEnabled)
                 {
                     _colorRegionByteOffset = (newMatrixElem + newSHElem) * sizeof(float);
-                    Shader.SetGlobalFloat(s_idColorRegionByteOffset, _colorRegionByteOffset);
+                    Shader.SetGlobalFloat(_ColorRegionByteOffset, _colorRegionByteOffset);
                 }
                 _speedTreeRegionByteOffset = (newMatrixElem + newSHElem + newColorElem) * sizeof(float);
 
@@ -852,26 +840,9 @@ namespace Fraxinus.GPUBatcher
                 var oldBuffer = state.fadeStateBuffer;
                 int oldCount = oldBuffer?.count ?? 0;
 
-                if (oldCount == newCount)
-                    continue; // exact match
-
-                if (oldCount > newCount)
-                {
-                    // shrink only if savings exceed 50%
-                    if (newCount >= oldCount / 2)
-                        continue;
-
-                    var shrunkBuffer = new GraphicsBuffer(
-                        GraphicsBuffer.Target.Structured,
-                        newCount,
-                        sizeof(int) * 2
-                    );
-                    shrunkBuffer.name = $"FraxinusGPUBatcher_FadeState_View{kvp.Key}";
-                    GPUCopyFadeStateRegion(oldBuffer, shrunkBuffer, newCount);
-                    oldBuffer?.Dispose();
-                    state.fadeStateBuffer = shrunkBuffer;
+                // Keep exact matches; shrink only if savings exceed 50%.
+                if (oldCount == newCount || (oldCount > newCount && newCount >= oldCount / 2))
                     continue;
-                }
 
                 var newBuffer = new GraphicsBuffer(
                     GraphicsBuffer.Target.Structured,
@@ -880,19 +851,14 @@ namespace Fraxinus.GPUBatcher
                 );
                 newBuffer.name = $"FraxinusGPUBatcher_FadeState_View{kvp.Key}";
 
-                if (oldBuffer != null && oldCount > 0)
-                {
-                    GPUCopyFadeStateRegion(oldBuffer, newBuffer, oldCount);
-                    oldBuffer?.Dispose();
+                int copyCount = math.min(oldCount, newCount);
+                if (oldBuffer != null && copyCount > 0)
+                    GPUCopyFadeStateRegion(oldBuffer, newBuffer, copyCount);
+                oldBuffer?.Dispose();
 
-                    // init new slots to "culled, not fading"
+                // init new slots to "culled, not fading"
+                if (newCount > oldCount)
                     GPUInitFadeStateTyped(newBuffer, oldCount, newCount - oldCount);
-                }
-                else
-                {
-                    oldBuffer?.Dispose();
-                    GPUInitFadeStateTyped(newBuffer, 0, newCount);
-                }
 
                 state.fadeStateBuffer = newBuffer;
             }
@@ -909,6 +875,7 @@ namespace Fraxinus.GPUBatcher
 
         private void ShutdownChunkSystem()
         {
+            _currentCullingContext = null;
             ClearBatchSlots();
             DisposeDrawOrderState();
 
@@ -924,7 +891,7 @@ namespace Fraxinus.GPUBatcher
 #if UNITY_EDITOR
             pickingEntries.Clear();
 #endif
-            Shader.SetGlobalFloat(s_idColorRegionByteOffset, 0);
+            Shader.SetGlobalFloat(_ColorRegionByteOffset, 0);
 
             _writeChunkGpuBuffer.DisposeIfCreated();
 
@@ -1011,6 +978,9 @@ namespace Fraxinus.GPUBatcher
                 _shadowBufferPool.Clear();
             }
 #if UNITY_EDITOR
+            InvalidateFrozenCulling();
+            _activeCullingCameraId = default;
+            _activeCullingCameraData = default;
             _sceneViewCameraBufferSet?.Dispose();
             _sceneViewCameraBufferSet = null;
             foreach (var set in _sceneViewShadowBufferSets) set.Dispose();
@@ -1270,7 +1240,7 @@ namespace Fraxinus.GPUBatcher
         private void ReturnPoolToFreeList(int poolIdx)
         {
 #if UNITY_EDITOR
-            if (Config.debugDeferPoolFrees) { _deferredPoolFrees.Add(poolIdx); return; }
+            if (_config.debugDeferPoolFrees) { _deferredPoolFrees.Add(poolIdx); return; }
 #endif
             _freePools.Add(poolIdx);
         }

@@ -73,7 +73,7 @@ UltraRP 的 Target 内部 API 需要配套 Shader Graph 分支。它的版本仍
 
 BRG 实现替换了旧 GPUInstancer 代码、Profile、公开 API 和可导入示例，不提供自动迁移。已有项目数据需要按新组件与配置重建；UPM 标识和 `0.1.0` 版本号不变，不代表这些契约仍兼容。
 
-通过 **Tools > Fraxinus GPU Batcher > System Window** 查看新系统。配置会在 `Assets/FraxinusGPUBatcherData/FraxinusGPUBatcherConfig.asset` 自动查找或创建，优先使用已有项目配置，修复 Shader 引用，并将选定配置加入 Player Settings 的 Preloaded Assets。GameObject 和地形注册改用新的 `GPUBatcher*`／`TerrainGPUBatcherRegisterer` 组件。
+通过 **Edit > Project Settings > Graphics > Fraxinus GPU Batcher** 编辑 Player 使用的配置。在 **Window > Analysis > Rendering Debugger** 的 **GPU Batcher** 面板调整剔除开关、查看 Scene 视图诊断；**Tools > Fraxinus GPU Batcher > System Window** 保留详细资源和缓冲检查。实时计数需要编译时启用 `DEBUG`。配置会在 `Assets/FraxinusGPUBatcherData/FraxinusGPUBatcherConfig.asset` 自动查找或创建，优先使用已有项目配置，修复 Shader 引用，并将选定配置加入 Player Settings 的 Preloaded Assets。GameObject 和地形注册改用新的 `GPUBatcher*`／`TerrainGPUBatcherRegisterer` 组件。
 
 Core、FraxinusRP 与 Shader Graph 必须使用同一修订的配套版本。Core 通过 `NativeObjectChangeTracker` 提供原生 ObjectDispatcher 追踪；RP 的 `InjectPass.ShouldExecute` 钩子让 HZB 历史选择最后一个受支持的不透明 Pass。Shader Graph 提供 SpeedTree 8 DOTS 风参数映射，并在 Player 构建中保留内部风捕获 Pass。BRG 包自己管理历史 HZB 与当前帧重测：历史在不透明渲染后生成，不要求完整预通道；重测会申请完整预通道深度。这替代了旧 GPU Batcher 对 `HiZDepthHistory` 的使用。
 

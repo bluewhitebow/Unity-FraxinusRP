@@ -93,10 +93,10 @@ namespace Fraxinus.GPUBatcher.Editor
                 _propOverrideMaxShadowDistance,
                 _propMaxShadowDistance,
                 s_maxShadowDistance);
-            DrawOverrideSliderField(
+            DrawOverrideField(
                 _propOverrideMaxShadowCrossfadeCascade,
                 _propMaxShadowCrossfadeCascade,
-                s_maxCrossfadeCascade, 0, 4);
+                s_maxCrossfadeCascade, (0, 4));
             EditorGUILayout.EndVertical();
 
             // screen size / LOD overrides
@@ -266,25 +266,8 @@ namespace Fraxinus.GPUBatcher.Editor
             return threshold;
         }
 
-        private static void DrawOverrideSliderField(SerializedProperty toggleProp, SerializedProperty valueProp, GUIContent label, int min, int max)
-        {
-            var rect = EditorGUILayout.GetControlRect();
-            float toggleWidth = EditorStyles.toggle.CalcSize(GUIContent.none).x + 2;
-
-            var toggleRect = new Rect(rect.x, rect.y, toggleWidth, rect.height);
-            toggleProp.boolValue = EditorGUI.Toggle(toggleRect, toggleProp.boolValue);
-
-            var fieldRect = new Rect(rect.x + toggleWidth, rect.y,
-                rect.width - toggleWidth, rect.height);
-            float prevLabelWidth = EditorGUIUtility.labelWidth;
-            EditorGUIUtility.labelWidth = prevLabelWidth - toggleWidth;
-            EditorGUI.BeginDisabledGroup(!toggleProp.boolValue);
-            valueProp.intValue = EditorGUI.IntSlider(fieldRect, label, valueProp.intValue, min, max);
-            EditorGUI.EndDisabledGroup();
-            EditorGUIUtility.labelWidth = prevLabelWidth;
-        }
-
-        private static void DrawOverrideField(SerializedProperty toggleProp, SerializedProperty valueProp, GUIContent label)
+        private static void DrawOverrideField(SerializedProperty toggleProp, SerializedProperty valueProp,
+            GUIContent label, (int min, int max)? sliderRange = null)
         {
             var rect = EditorGUILayout.GetControlRect();
             float toggleWidth = EditorStyles.toggle.CalcSize(GUIContent.none).x + 2;
@@ -298,9 +281,16 @@ namespace Fraxinus.GPUBatcher.Editor
                 rect.width - toggleWidth, rect.height);
             float prevLabelWidth = EditorGUIUtility.labelWidth;
             EditorGUIUtility.labelWidth = prevLabelWidth - toggleWidth;
-            EditorGUI.BeginDisabledGroup(!toggleProp.boolValue);
-            EditorGUI.PropertyField(fieldRect, valueProp, label);
-            EditorGUI.EndDisabledGroup();
+            using (new EditorGUI.DisabledScope(!toggleProp.boolValue))
+            {
+                if (sliderRange.HasValue)
+                {
+                    var (min, max) = sliderRange.Value;
+                    valueProp.intValue = EditorGUI.IntSlider(fieldRect, label, valueProp.intValue, min, max);
+                }
+                else
+                    EditorGUI.PropertyField(fieldRect, valueProp, label);
+            }
             EditorGUIUtility.labelWidth = prevLabelWidth;
         }
     }

@@ -234,11 +234,11 @@ namespace Fraxinus.GPUBatcher
         private int _statAnimatedProtoCount;
         public int statAnimatedProtoCount => _statAnimatedProtoCount;
         public int statTotalFadeStates => _statTotalFadeStates;
-        public float statLodFadeDuration => Config.defaultAnimatedCrossfadeDuration;
-        public bool statSkipIntermediateLODs => Config.skipIntermediateLODs;
-        public bool statDebugDisableCPUChunkCulling => Config.debugDisableCPUChunkCulling;
-        public bool statDebugDisableCulling => Config.debugDisableCulling;
-        public bool statDebugDisableRendering => Config.debugDisableRendering;
+        public float statLodFadeDuration => _config.defaultAnimatedCrossfadeDuration;
+        public bool statSkipIntermediateLODs => _config.skipIntermediateLODs;
+        public bool statDebugDisableCPUChunkCulling => _config.debugDisableCPUChunkCulling;
+        public bool statDebugDisableCulling => _config.debugDisableCulling;
+        public bool statDebugDisableRendering => _config.debugDisableRendering;
         public int statRegisteredMeshes => _meshIdCache?.Count ?? 0;
         public int statRegisteredMaterials => _materialIdCache?.Count ?? 0;
 
@@ -334,8 +334,8 @@ namespace Fraxinus.GPUBatcher
             _statTotalFadeStates = _trackedTotalFadeStates;
 
 #if UNITY_EDITOR
-            if (Config.recordAllocations && Application.isPlaying && (_allocatedCount > 0 || _allocatedPoolCount > 0 || _totalInstanceCount > 0))
-                Config.RecordHighWaterMarks(_allocatedCount, _allocatedPoolCount, _totalInstanceCount);
+            if (_config.recordAllocations && Application.isPlaying && (_allocatedCount > 0 || _allocatedPoolCount > 0 || _totalInstanceCount > 0))
+                _config.RecordHighWaterMarks(_allocatedCount, _allocatedPoolCount, _totalInstanceCount);
 #endif
         }
 
@@ -524,7 +524,7 @@ namespace Fraxinus.GPUBatcher
         // called once per frame from SystemUpdate; submits the overlay draw for this frame
         private void PrepareDebugSpheres()
         {
-            bool enabled = Config.debugDrawBoundingSpheres;
+            bool enabled = _config.debugDrawBoundingSpheres;
             // _camBucketLod is filled in EmitCameraCommands only while enabled; force a rebuild on enable
             if (enabled && !_prevDebugDrawSpheres) MarkBatchesDirtyForFullRebuild();
             _prevDebugDrawSpheres = enabled;
@@ -555,7 +555,7 @@ namespace Fraxinus.GPUBatcher
         // appended to the camera cull command buffer; compacts the visible set after culling
         private void DispatchDebugSphereCompaction(CommandBuffer cmd, CullingBufferSet viewSet)
         {
-            if (!Config.debugDrawBoundingSpheres) return;
+            if (!_config.debugDrawBoundingSpheres) return;
             if (_debugSphereCompute == null || _debugSphereList == null || _debugSphereArgs == null
                 || _debugBucketLodBuffer == null || _debugSphereMesh == null)
                 return;
@@ -1071,7 +1071,7 @@ namespace Fraxinus.GPUBatcher
         // called at the end of FlushStagedUploads
         private void DebugUploadValidationTick()
         {
-            bool cfg = Config.debugValidateUploads;
+            bool cfg = _config.debugValidateUploads;
             if (cfg != _prevConfigValidateUploads)
             {
                 _prevConfigValidateUploads = cfg;

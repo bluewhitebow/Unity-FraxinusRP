@@ -312,6 +312,9 @@ namespace FraxinusEngine.Rendering.Ultra
 
         protected override void Dispose(bool disposing)
         {
+#if UNITY_EDITOR
+            UltraRenderPipelineCameraState.Clear();
+#endif
             APRTRelightPass.Cleanup();
             if (_probeVolumesInitialized)
                 ProbeReferenceVolumeProvider.Cleanup();
@@ -792,6 +795,9 @@ namespace FraxinusEngine.Rendering.Ultra
                 // RenderingData takes a copy of the CameraData.
                 // RenderingData needs to be created here to avoid copying cullResults.
                 var data = frameData.Create<RenderingData>();
+#if UNITY_EDITOR
+                UltraRenderPipelineCameraState.Record(cameraData.camera);
+#endif
                 beforeCameraCulling?.Invoke(camera, in cullingParameters);
                 data.cullResults = context.Cull(ref cullingParameters);
                 afterCameraCulling?.Invoke(camera, in cullingParameters);

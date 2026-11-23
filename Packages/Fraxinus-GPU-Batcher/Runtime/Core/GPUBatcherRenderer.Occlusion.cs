@@ -37,7 +37,7 @@ namespace Fraxinus.GPUBatcher
                 _bakedOcclusionViews.Remove(stale);
             }
             _bakedOcclusionViews.TryGetValue(id, out var state);
-            if (!_initialized || !Config.useBakedOcclusionCulling || !_chunkSystemInitialized ||
+            if (!_initialized || !_config.useBakedOcclusionCulling || !_chunkSystemInitialized ||
                 _allocatedCount == 0 || !GPUBatcherOcclusionBridge.Supports(camera, parameters))
             {
                 state?.Cancel();
@@ -71,7 +71,7 @@ namespace Fraxinus.GPUBatcher
         {
             var state = split.bakedOcclusion;
             if (state == null || !state.isPublished || state.generation != split.bakedOcclusionGeneration ||
-                !Config.useBakedOcclusionCulling) return count;
+                !_config.useBakedOcclusionCulling) return count;
             int write = 0;
             var ids = split.viewSet.cpuVisibleChunkIds;
             for (int i = 0; i < count; ++i)

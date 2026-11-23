@@ -20,6 +20,25 @@ namespace FraxinusEngine.Rendering.Ultra
 
         bool IRenderPipelineGraphicsSettings.isAvailableInPlayerBuild => false;
 
+        private const string k_brgPickingShaderPath = "Shaders/BRGPicking.shader";
+
+        [SerializeField, ResourcePath(k_brgPickingShaderPath)]
+        private Shader _brgPickingShader;
+
+        public Shader brgPickingShader
+        {
+            get => _brgPickingShader;
+            set => this.SetValueAndNotify(ref _brgPickingShader, value);
+        }
+
+        internal static Shader ResolveBRGPickingShader(UltraRenderPipelineEditorShaders resources)
+        {
+            if (resources?.brgPickingShader != null)
+                return resources.brgPickingShader;
+
+            return UnityEditor.AssetDatabase.LoadAssetAtPath<Shader>(UltraRenderPipelineAsset.packagePath + "/" + k_brgPickingShaderPath);
+        }
+
         #region Autodesk
         [Header("Autodesk")]
         [SerializeField]

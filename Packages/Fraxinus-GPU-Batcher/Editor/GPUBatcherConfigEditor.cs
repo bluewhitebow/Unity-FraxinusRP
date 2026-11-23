@@ -21,9 +21,25 @@ namespace Fraxinus.GPUBatcher.Editor
     {
         static float s_gatheredPadding = 1f;
 
+        [SettingsProvider]
+        private static SettingsProvider CreateProjectSettings()
+        {
+            UnityEditor.Editor configEditor = null;
+            return new SettingsProvider("Project/Graphics/Fraxinus GPU Batcher", SettingsScope.Project)
+            {
+                keywords = new[] { "GPU Batcher", "BRG", "HZB", "Occlusion", "Culling", "LOD" },
+                activateHandler = (_, _) => GPUBatcherConfig.GetOrCreateProjectConfig(),
+                guiHandler = _ =>
+                {
+                    CreateCachedEditor(GPUBatcherConfig.instance, typeof(GPUBatcherConfigEditor), ref configEditor);
+                    configEditor.OnInspectorGUI();
+                },
+                deactivateHandler = () => DestroyImmediate(configEditor)
+            };
+        }
+
         public override void OnInspectorGUI()
         {
-
             var config = (GPUBatcherConfig)target;
             var preloaded = PlayerSettings.GetPreloadedAssets();
             int preloadedCount = CountPreloadedConfigs(preloaded);
@@ -71,6 +87,7 @@ namespace Fraxinus.GPUBatcher.Editor
             {
                 GPUBatcherRendererWindow.ShowWindow();
             }
+            GPUBatcherInspectorGUI.DrawRenderingDebuggerButton();
 
             EditorGUILayout.Space();
 
@@ -125,11 +142,10 @@ namespace Fraxinus.GPUBatcher.Editor
             // add the new one
             list.Add(config);
             PlayerSettings.SetPreloadedAssets(list.ToArray());
+            GPUBatcherConfig.GetOrCreateProjectConfig();
 
-            // reinitialize the system with the new config
-            var system = GPUBatcherRenderer.instance;
-            if (system != null)
-                system.Reinitialize();
+            if (GPUBatcherRenderer.hasInstance)
+                GPUBatcherRenderer.instance?.Reinitialize();
         }
 
         // caller must handle SerializedObject.Update() / ApplyModifiedProperties()
@@ -147,9 +163,7 @@ namespace Fraxinus.GPUBatcher.Editor
 
                 if (prop.name is "gatheredMaxChunks" or "gatheredPoolCapacity" or "gatheredMaxInstances")
                 {
-                    EditorGUI.BeginDisabledGroup(true);
-                    EditorGUILayout.PropertyField(prop, true);
-                    EditorGUI.EndDisabledGroup();
+                    DrawProperty(prop, disabled: true);
                     continue;
                 }
 
@@ -170,22 +184,14 @@ namespace Fraxinus.GPUBatcher.Editor
                 // gray out pixel expansion when occlusion is off or retest pass handles it
                 if (prop.name == "hzbPixelExpansion")
                 {
-                    EditorGUI.indentLevel++;
-                    EditorGUI.BeginDisabledGroup(!config.useGPUOcclusionCulling || config.useHZBRetestPass);
-                    EditorGUILayout.PropertyField(prop, true);
-                    EditorGUI.EndDisabledGroup();
-                    EditorGUI.indentLevel--;
+                    DrawProperty(prop, !config.useGPUOcclusionCulling || config.useHZBRetestPass, indented: true);
                     continue;
                 }
 
                 // gray out shadow caster occlusion when occlusion culling is off
                 if (prop.name == "shadowCasterOcclusion")
                 {
-                    EditorGUI.indentLevel++;
-                    EditorGUI.BeginDisabledGroup(!config.useGPUOcclusionCulling);
-                    EditorGUILayout.PropertyField(prop, true);
-                    EditorGUI.EndDisabledGroup();
-                    EditorGUI.indentLevel--;
+                    DrawProperty(prop, !config.useGPUOcclusionCulling, indented: true);
                     continue;
                 }
 
@@ -206,9 +212,7 @@ namespace Fraxinus.GPUBatcher.Editor
                 // gray out fade width when not using stateless crossfade
                 if (prop.name == "defaultSmallMeshFadeWidth")
                 {
-                    EditorGUI.BeginDisabledGroup(config.defaultSmallMeshFadeMode != MinScreenSizeFadeMode.Crossfade);
-                    EditorGUILayout.PropertyField(prop, true);
-                    EditorGUI.EndDisabledGroup();
+                    DrawProperty(prop, config.defaultSmallMeshFadeMode != MinScreenSizeFadeMode.Crossfade);
                     continue;
                 }
 
@@ -220,22 +224,6 @@ namespace Fraxinus.GPUBatcher.Editor
                     EditorGUILayout.LabelField($"  Max {maxInstances:N0} instances per chunk", EditorStyles.miniLabel);
                 }
 
-                // session-only toggles drawn inline after the last debug field
-                if (prop.name == "debugDisableRendering")
-                {
-                    config.debugVisualizeCullingInSceneView = EditorGUILayout.Toggle(
-                        new GUIContent("Debug Visualize Culling In Scene View",
-                            "Freeze culling to the game camera's frustum. Scene view will show what the game camera sees. Resets to off on editor restart."),
-                        config.debugVisualizeCullingInSceneView);
-                    config.debugDrawBoundingSpheres = EditorGUILayout.Toggle(
-                        new GUIContent("Debug Draw Bounding Spheres",
-                            "Draw a per-instance bounding sphere for the visible set, colored by LOD. Resets to off on editor restart."),
-                        config.debugDrawBoundingSpheres);
-                    config.debugValidateUploads = EditorGUILayout.Toggle(
-                        new GUIContent("Debug Validate Uploads",
-                            "Validate GPU uploads against a CPU mirror and log mismatches with last-writer info. Slow (GPU readback). Resets to off on editor restart."),
-                        config.debugValidateUploads);
-                }
             }
 
             EditorGUIUtility.labelWidth = savedLabelWidth;
@@ -267,6 +255,13 @@ namespace Fraxinus.GPUBatcher.Editor
                 }
                 EditorGUILayout.EndHorizontal();
             }
+        }
+
+        private static void DrawProperty(SerializedProperty property, bool disabled, bool indented = false)
+        {
+            using (new EditorGUI.IndentLevelScope(indented ? 1 : 0))
+            using (new EditorGUI.DisabledScope(disabled))
+                EditorGUILayout.PropertyField(property, true);
         }
     }
 }

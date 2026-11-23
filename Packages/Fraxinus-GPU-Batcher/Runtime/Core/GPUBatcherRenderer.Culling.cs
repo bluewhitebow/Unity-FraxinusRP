@@ -87,13 +87,7 @@ namespace Fraxinus.GPUBatcher
                 }
 
                 // frustum cull (6-plane AABB test)
-                if (!AABBInFrustum(aabbMin, aabbMax))
-                {
-                    cullResults[i] = false;
-                    return;
-                }
-
-                cullResults[i] = true;
+                cullResults[i] = AABBInFrustum(aabbMin, aabbMax);
             }
 
             private bool AABBInFrustum(float3 aabbMin, float3 aabbMax)
@@ -424,11 +418,7 @@ namespace Fraxinus.GPUBatcher
         }
 
         // mark all existing views for snap (new views snap by default in CreateViewFadeState)
-        public void RequestSnapAllViews()
-        {
-            foreach (var kvp in _viewFadeStates)
-                kvp.Value.snapRequested = true;
-        }
+        public void RequestSnapAllViews() => SnapAllCrossfadeStates();
 
         #endregion
 
@@ -594,14 +584,15 @@ namespace Fraxinus.GPUBatcher
                 _visibilitySlotPool.Pop().Dispose();
         }
 
-        private void ReleaseSplitVisibilitySlots()
+        private void ReleaseSplitVisibilitySlots(CameraCullingContext context)
         {
-            if (_currentCullingContext == null || _currentCullingContext.splits == null) return;
-            for (int s = 0; s < _currentCullingContext.splits.Count; s++)
+            var splits = context?.splits;
+            if (splits == null) return;
+            foreach (var split in splits)
             {
-                if (_currentCullingContext.splits[s].chunkCullJobScheduled)
-                    _currentCullingContext.splits[s].chunkCullJobHandle.Complete();
-                ReleaseVisibilitySlot(_currentCullingContext.splits[s].visibilitySlot);
+                if (split.chunkCullJobScheduled)
+                    split.chunkCullJobHandle.Complete();
+                ReleaseVisibilitySlot(split.visibilitySlot);
             }
         }
 
@@ -609,42 +600,19 @@ namespace Fraxinus.GPUBatcher
         private void DrainDeferredVisibilitySlots()
         {
             CancelPendingHZBRetest();
-            foreach (var kvp in _deferredContexts)
-            {
-                var splits = kvp.Value.splits;
-                if (splits == null) continue;
-                for (int s = 0; s < splits.Count; s++)
-                {
-                    if (splits[s].chunkCullJobScheduled)
-                        splits[s].chunkCullJobHandle.Complete();
-                    ReleaseVisibilitySlot(splits[s].visibilitySlot);
-                }
-            }
+            foreach (var context in _deferredContexts.Values)
+                ReleaseSplitVisibilitySlots(context);
         }
 
         private void DrainOrphanedDeferredContexts()
         {
             CancelPendingHZBRetest();
             if (_deferredContexts.Count == 0) return;
-            foreach (var kvp in _deferredContexts)
+            foreach (var context in _deferredContexts.Values)
             {
-                var ctx = kvp.Value;
-                if (ctx.splits != null)
-                {
-                    for (int s = 0; s < ctx.splits.Count; s++)
-                    {
-                        if (ctx.splits[s].chunkCullJobScheduled)
-                            ctx.splits[s].chunkCullJobHandle.Complete();
-                        ReleaseVisibilitySlot(ctx.splits[s].visibilitySlot);
-                    }
-                    ctx.splits.Clear();
-                }
-                if (ctx.frustumPlanes != null)
-                {
-                    _planeArrayPool.Push(ctx.frustumPlanes);
-                    ctx.frustumPlanes = null;
-                }
-                _deferredCameraPool.Push(ctx);
+                ReleaseSplitVisibilitySlots(context);
+                context.splits?.Clear();
+                ReleaseCameraCullingContext(context);
             }
             _deferredContexts.Clear();
         }
@@ -680,14 +648,44 @@ namespace Fraxinus.GPUBatcher
 #if UNITY_EDITOR
         // freeze culling: scene view reuses game camera's culling data
         private bool _frozenCullingValid;
-        private Vector4[] _frozenPlanes = new Vector4[6];
-        private ViewID _frozenFadeViewID = default;
-        private CameraCullingContext _frozen = new();
+        private ViewID _frozenReferenceCameraId;
+        private ViewID _activeCullingCameraId;
+        private CameraRenderData _activeCullingCameraData;
+        private bool _replayingFrozenCulling;
         // persistent scene view buffer sets (not in pool, survive across frames)
         private CullingBufferSet _sceneViewCameraBufferSet;
         private readonly List<CullingBufferSet> _sceneViewShadowBufferSets = new();
         private int _sceneViewShadowCount;
         private int _sceneViewShadowReplayIndex;
+
+        private void InvalidateFrozenCulling()
+        {
+            _frozenCullingValid = false;
+            _frozenReferenceCameraId = default;
+            _sceneViewShadowCount = 0;
+            _sceneViewShadowReplayIndex = 0;
+            _replayingFrozenCulling = false;
+        }
+
+        private bool IsCurrentCullingBuffer(CullingBufferSet set) =>
+            set != null && set.generation == _bufferPoolGeneration &&
+            set.indirectArgsBuffer != null && set.indirectArgsBuffer.IsValid() &&
+            set.visibilityBuffer != null && set.visibilityBuffer.IsValid();
+
+        private bool CanReplayFrozenCulling(ViewID referenceCameraId) =>
+            _config.debugVisualizeCullingInSceneView && referenceCameraId != default &&
+            referenceCameraId == _frozenReferenceCameraId && _frozenCullingValid &&
+            IsCurrentCullingBuffer(_sceneViewCameraBufferSet);
+
+        private void PublishFrozenCulling(CameraCullingContext camera)
+        {
+            if (camera.referenceCameraId == default || camera.referenceCameraId != _frozenReferenceCameraId ||
+                camera.cameraId != camera.referenceCameraId || !_config.debugVisualizeCullingInSceneView ||
+                camera.splits == null || camera.splits.Count == 0)
+                return;
+            _frozenCullingValid = ReferenceEquals(camera.splits[0].viewSet, _sceneViewCameraBufferSet) &&
+                IsCurrentCullingBuffer(_sceneViewCameraBufferSet);
+        }
 
         private void EnsureSceneViewCameraBufferSet()
         {
@@ -724,7 +722,8 @@ namespace Fraxinus.GPUBatcher
             public int cameraPoolSnapshot;
             public int shadowPoolSnapshot;
 #if UNITY_EDITOR
-            public bool isRef, isGame;
+            public bool isSceneView;
+            public ViewID referenceCameraId;
 #endif
         }
         private readonly Dictionary<ViewID, CameraRenderData> _cameraRenderData = new();
@@ -768,11 +767,10 @@ namespace Fraxinus.GPUBatcher
         /// <summary>
         /// Per-camera culling state captured in OnPerformCulling and consumed in ExecuteDeferredCulling.
         /// Contains shared camera parameters and a list of per-split contexts.
-        /// Also used as frozen state for scene view visualization (editor only).
         /// </summary>
         private class CameraCullingContext
         {
-            // camera culling parameters (frozen/restored for scene view visualization)
+            // Parameters of this view's native culling request.
             public Vector3 cameraPosition;
             public float cameraHalfFOV;
             public bool isOrthographic;
@@ -803,39 +801,9 @@ namespace Fraxinus.GPUBatcher
             // editor-only flags
 #if UNITY_EDITOR
             public ViewID cameraId;
-            public bool usesFrozenData;
-            public bool isRefCamera;
-            public bool isGameCamera;
+            public ViewID referenceCameraId;
             public bool debugBypassCulling;
 #endif
-
-            public void CopyFrom(CameraCullingContext other)
-            {
-                cameraPosition = other.cameraPosition;
-                cameraHalfFOV = other.cameraHalfFOV;
-                isOrthographic = other.isOrthographic;
-                orthoSize = other.orthoSize;
-                perCameraLodBias = other.perCameraLodBias;
-                viewProjMatrix = other.viewProjMatrix;
-                facingDir = other.facingDir;
-                radialDir = other.radialDir;
-                hzbCameraPosition = other.hzbCameraPosition;
-                hzbState = other.hzbState;
-                useHZB = other.useHZB;
-                lodBias = other.lodBias;
-                screenRatioScale = other.screenRatioScale;
-                fadeState = other.fadeState;
-                shouldDispatchFade = other.shouldDispatchFade;
-                shouldSnap = other.shouldSnap;
-                // frustumPlanes and splits are NOT copied - they are per-instance owned
-#if UNITY_EDITOR
-                cameraId = other.cameraId;
-                usesFrozenData = other.usesFrozenData;
-                isRefCamera = other.isRefCamera;
-                isGameCamera = other.isGameCamera;
-                debugBypassCulling = other.debugBypassCulling;
-#endif
-            }
         }
 
         // per-camera deferred culling flags, keyed by camera instance ID
@@ -1039,37 +1007,10 @@ namespace Fraxinus.GPUBatcher
                 _currentCullingContext.hzbState = camData.hzbState;
                 _currentCullingContext.useHZB = _deferredUseHZB.Remove(cameraId, out var useHZB) && useHZB;
 
-                // freeze culling (editor only)
 #if UNITY_EDITOR
                 _currentCullingContext.cameraId = cameraId;
-                _currentCullingContext.isRefCamera = camData.isRef;
-                _currentCullingContext.isGameCamera = camData.isGame;
-                _currentCullingContext.usesFrozenData = false;
-                _currentCullingContext.debugBypassCulling = Config.debugDisableCPUChunkCulling;
-
-                if (Config.debugVisualizeCullingInSceneView)
-                {
-                    if (_currentCullingContext.isRefCamera)
-                    {
-                        System.Array.Copy(_cachedFrustumPlanes, _frozenPlanes, 6);
-                        _frozen.CopyFrom(_currentCullingContext);
-                    }
-                    else if (_frozenCullingValid && !camData.isGame)
-                    {
-                        System.Array.Copy(_frozenPlanes, _cachedFrustumPlanes, 6);
-                        bool frozenUseHZB = _frozen.useHZB;
-                        _currentCullingContext.CopyFrom(_frozen);
-                        _currentCullingContext.isRefCamera = camData.isRef;
-                        _currentCullingContext.usesFrozenData = true;
-                        _currentCullingContext.debugBypassCulling = Config.debugDisableCPUChunkCulling;
-                        _currentCullingContext.useHZB = frozenUseHZB;
-                    }
-                }
-                else
-                {
-                    _frozenCullingValid = false;
-                    _frozenFadeViewID = default;
-                }
+                _currentCullingContext.referenceCameraId = camData.referenceCameraId;
+                _currentCullingContext.debugBypassCulling = _config.debugDisableCPUChunkCulling;
 #endif
 
                 // precompute screen ratio scale
@@ -1081,50 +1022,31 @@ namespace Fraxinus.GPUBatcher
 
                 // resolve fade buffer
                 _currentCullingContext.fadeState = camData.viewFadeState;
-#if UNITY_EDITOR
-                if (_currentCullingContext.usesFrozenData && _frozenFadeViewID != default &&
-                    _viewFadeStates.TryGetValue(_frozenFadeViewID, out var frozenView))
-                    _currentCullingContext.fadeState = frozenView;
-#endif
 
                 // evaluate fade state mutations
                 _currentCullingContext.shouldDispatchFade = false;
                 _currentCullingContext.shouldSnap = false;
-                if (_currentCullingContext.fadeState?.fadeStateBuffer != null && _anyPrototypeUsesAnimatedCrossfade && !Config.debugDisableCrossfade)
+                if (_currentCullingContext.fadeState?.fadeStateBuffer != null && _anyPrototypeUsesAnimatedCrossfade && !_config.debugDisableCrossfade)
                 {
-                    bool isPerProtoMode = Config.animatedCrossfadeMode == AnimatedCrossfadeMode.PerPrototype;
+                    bool isPerProtoMode = _config.animatedCrossfadeMode == AnimatedCrossfadeMode.PerPrototype;
                     int activeKernel = isPerProtoMode
                         ? _updateFadeStatesPerPrototypeKernel
                         : _updateFadeStatesPerInstanceKernel;
 
                     if (activeKernel >= 0)
                     {
-#if UNITY_EDITOR
-                        if (_currentCullingContext.usesFrozenData && _frozenFadeViewID != default &&
-                            _viewFadeStates.TryGetValue(_frozenFadeViewID, out var frozenViewAnim))
+                        var fadeState = camData.viewFadeState;
+                        if (_renderCycleCounter != fadeState.lastFadeUpdateFrame)
                         {
-                            _currentCullingContext.fadeState = frozenViewAnim;
-                        }
-                        else
-#endif
-                        {
-                            var fadeState = camData.viewFadeState;
-                            if (_renderCycleCounter != fadeState.lastFadeUpdateFrame)
-                            {
-                                fadeState.lastFadeUpdateFrame = _renderCycleCounter;
+                            fadeState.lastFadeUpdateFrame = _renderCycleCounter;
 #if UNITY_EDITOR
-                                fadeState.CalculateDeltaTime();
+                            fadeState.CalculateDeltaTime();
 #endif
-                                _currentCullingContext.shouldSnap = fadeState.snapRequested;
-                                if (fadeState.snapRequested) fadeState.snapRequested = false;
+                            _currentCullingContext.shouldSnap = fadeState.snapRequested;
+                            if (fadeState.snapRequested) fadeState.snapRequested = false;
 
-                                if (!(isPerProtoMode && !_anyPrototypeBoundary && !_currentCullingContext.shouldSnap))
-                                    _currentCullingContext.shouldDispatchFade = true;
-                            }
-#if UNITY_EDITOR
-                            if (Config.debugVisualizeCullingInSceneView && _currentCullingContext.isRefCamera)
-                                _frozenFadeViewID = cameraId;
-#endif
+                            if (!(isPerProtoMode && !_anyPrototypeBoundary && !_currentCullingContext.shouldSnap))
+                                _currentCullingContext.shouldDispatchFade = true;
                         }
                     }
                 }
@@ -1169,9 +1091,6 @@ namespace Fraxinus.GPUBatcher
             debugBypassCulling = false;
 #endif
             if (!debugBypassCulling)
-#if UNITY_EDITOR
-            if (!_currentCullingContext.usesFrozenData)
-#endif
             {
                 chunkCullJobHandle = new ChunkCullJob
                 {
@@ -1230,7 +1149,7 @@ namespace Fraxinus.GPUBatcher
 
             if (_cullingShader == null || !_gpuCullingReady)
             {
-                ReleaseSplitVisibilitySlots();
+                ReleaseSplitVisibilitySlots(_currentCullingContext);
                 ReleaseCameraCullingContext(_currentCullingContext);
                 return;
             }
@@ -1241,7 +1160,7 @@ namespace Fraxinus.GPUBatcher
 
             if (!_chunkSystemInitialized || _allocatedCount == 0 || _cullChunksKernel < 0)
             {
-                ReleaseSplitVisibilitySlots();
+                ReleaseSplitVisibilitySlots(_currentCullingContext);
                 ReleaseCameraCullingContext(_currentCullingContext);
                 return;
             }
@@ -1251,7 +1170,7 @@ namespace Fraxinus.GPUBatcher
             BindCameraCullingUniforms(cmd, cam);
 
             // HZB keyword + uniforms
-            bool enableHZBPhase0 = hzbActive && !Config.useHZBRetestPass;
+            bool enableHZBPhase0 = hzbActive && !_config.useHZBRetestPass;
             if (enableHZBPhase0)
             {
                 var hzbState = _currentCullingContext.hzbState;
@@ -1272,7 +1191,7 @@ namespace Fraxinus.GPUBatcher
                         if (verticalFOV > 0f)
                             cameraMotionPixels = angularDelta * hzbState.topMipHeight / verticalFOV;
                     }
-                    float hzbPixelExpansion = Config.hzbPixelExpansion + cameraMotionPixels;
+                    float hzbPixelExpansion = _config.hzbPixelExpansion + cameraMotionPixels;
 
                     float hzbTranslationScale = 0f;
                     if (hzbState.prevDataValid)
@@ -1313,7 +1232,7 @@ namespace Fraxinus.GPUBatcher
             var fadeBuffer = _currentCullingContext.fadeState?.fadeStateBuffer;
             if (fadeBuffer == null)
             {
-                ReleaseSplitVisibilitySlots();
+                ReleaseSplitVisibilitySlots(_currentCullingContext);
                 ReleaseCameraCullingContext(_currentCullingContext);
                 return;
             }
@@ -1321,7 +1240,7 @@ namespace Fraxinus.GPUBatcher
             // fade state dispatch (once per camera, not per split)
             if (_currentCullingContext.shouldDispatchFade && _uploadShader != null)
             {
-                bool isPerProtoMode = Config.animatedCrossfadeMode == AnimatedCrossfadeMode.PerPrototype;
+                bool isPerProtoMode = _config.animatedCrossfadeMode == AnimatedCrossfadeMode.PerPrototype;
                 int activeKernel = isPerProtoMode
                     ? _updateFadeStatesPerPrototypeKernel
                     : _updateFadeStatesPerInstanceKernel;
@@ -1330,10 +1249,10 @@ namespace Fraxinus.GPUBatcher
                 cmd.SetComputeFloatParam(_uploadShader, s_idCameraHalfFOV, _currentCullingContext.cameraHalfFOV);
                 cmd.SetComputeFloatParam(_uploadShader, s_idLodBias, _currentCullingContext.lodBias);
                 cmd.SetComputeFloatParam(_uploadShader, s_idScreenRatioScale, _currentCullingContext.screenRatioScale);
-                cmd.SetComputeFloatParam(_uploadShader, s_idCrossFadeWidth, Config.debugDisableCrossfade ? 0f : 1f);
+                cmd.SetComputeFloatParam(_uploadShader, s_idCrossFadeWidth, _config.debugDisableCrossfade ? 0f : 1f);
                 cmd.SetComputeFloatParam(_uploadShader, s_idDeltaTime, _currentCullingContext.fadeState.deltaTime * _crossfadeTimeScale);
-                cmd.SetComputeIntParam(_uploadShader, s_idSkipIntermediateLODs, Config.skipIntermediateLODs ? 1 : 0);
-                cmd.SetComputeIntParam(_uploadShader, s_idAnimatedCrossfadeMode, (int)Config.animatedCrossfadeMode);
+                cmd.SetComputeIntParam(_uploadShader, s_idSkipIntermediateLODs, _config.skipIntermediateLODs ? 1 : 0);
+                cmd.SetComputeIntParam(_uploadShader, s_idAnimatedCrossfadeMode, (int)_config.animatedCrossfadeMode);
                 cmd.SetComputeIntParam(_uploadShader, s_idIsOrthographic, _currentCullingContext.isOrthographic ? 1 : 0);
                 cmd.SetComputeFloatParam(_uploadShader, s_idOrthoSize, _currentCullingContext.orthoSize);
 
@@ -1377,7 +1296,7 @@ namespace Fraxinus.GPUBatcher
                     continue;
                 }
 
-                // populate visible chunk list if no job was scheduled (bypass/frozen)
+                // Populate the visible chunk list when CPU culling was bypassed.
                 if (!split.chunkCullJobScheduled)
                 {
                     for (int a = 0; a < _allocatedCount; a++)
@@ -1469,11 +1388,12 @@ namespace Fraxinus.GPUBatcher
             }
 
             // signal Pass 1 is pending (if HZB active) - only for first split
-            bool retestPending = hzbActive && Config.useHZBRetestPass;
+            bool retestPending = hzbActive && _config.useHZBRetestPass;
             if (retestPending)
                 _hzbRetestContexts.Add(cameraId, cam);
 
 #if UNITY_EDITOR
+            PublishFrozenCulling(cam);
             if (!retestPending && _currentCullingContext.splits != null && _currentCullingContext.splits.Count > 0)
                 DispatchDebugSphereCompaction(cmd, _currentCullingContext.splits[0].viewSet);
 #endif
@@ -1496,7 +1416,7 @@ namespace Fraxinus.GPUBatcher
                 if (_cullingShader == null || !_gpuCullingReady)
                     return;
 
-                if (!Config.useHZBRetestPass) return;
+                if (!_config.useHZBRetestPass) return;
 
                 if (retainedContext.splits == null || retainedContext.splits.Count == 0) return;
                 var viewSet = retainedContext.splits[0].viewSet;
@@ -1604,10 +1524,10 @@ namespace Fraxinus.GPUBatcher
             cmd.SetComputeVectorArrayParam(_cullingShader, s_idFrustumPlanes, camera.frustumPlanes);
             cmd.SetComputeFloatParam(_cullingShader, s_idLodBias, camera.lodBias);
             cmd.SetComputeFloatParam(_cullingShader, s_idScreenRatioScale, camera.screenRatioScale);
-            cmd.SetComputeFloatParam(_cullingShader, s_idCrossFadeWidth, Config.debugDisableCrossfade ? 0f : 1f);
+            cmd.SetComputeFloatParam(_cullingShader, s_idCrossFadeWidth, _config.debugDisableCrossfade ? 0f : 1f);
             cmd.SetComputeIntParam(_cullingShader, s_idIsOrthographic, camera.isOrthographic ? 1 : 0);
             cmd.SetComputeFloatParam(_cullingShader, s_idOrthoSize, camera.orthoSize);
-            cmd.SetComputeIntParam(_cullingShader, s_idAnimatedCrossfadeMode, (int)Config.animatedCrossfadeMode);
+            cmd.SetComputeIntParam(_cullingShader, s_idAnimatedCrossfadeMode, (int)_config.animatedCrossfadeMode);
             cmd.SetComputeVectorParam(_cullingShader, s_idCameraPosition, camera.cameraPosition);
             cmd.SetComputeFloatParam(_cullingShader, s_idCameraHalfFOV, camera.cameraHalfFOV);
             cmd.SetComputeIntParam(_cullingShader, s_idBucketCount, _bucketCount);
@@ -1939,7 +1859,7 @@ namespace Fraxinus.GPUBatcher
                 // but the deferred camera path hasn't executed yet, so _FadeStates are stale
                 if (_currentCullingContext.shouldDispatchFade && _uploadShader != null)
                 {
-                    bool isPerProtoMode = Config.animatedCrossfadeMode == AnimatedCrossfadeMode.PerPrototype;
+                    bool isPerProtoMode = _config.animatedCrossfadeMode == AnimatedCrossfadeMode.PerPrototype;
                     int activeKernel = isPerProtoMode
                         ? _updateFadeStatesPerPrototypeKernel
                         : _updateFadeStatesPerInstanceKernel;
@@ -1951,8 +1871,8 @@ namespace Fraxinus.GPUBatcher
                         _cullingCmd.SetComputeFloatParam(_uploadShader, s_idScreenRatioScale, _currentCullingContext.screenRatioScale);
                         _cullingCmd.SetComputeFloatParam(_uploadShader, s_idLodBias, _currentCullingContext.lodBias);
                         _cullingCmd.SetComputeFloatParam(_uploadShader, s_idDeltaTime, _currentCullingContext.fadeState.deltaTime * _crossfadeTimeScale);
-                        _cullingCmd.SetComputeIntParam(_uploadShader, s_idSkipIntermediateLODs, Config.skipIntermediateLODs ? 1 : 0);
-                        _cullingCmd.SetComputeIntParam(_uploadShader, s_idAnimatedCrossfadeMode, (int)Config.animatedCrossfadeMode);
+                        _cullingCmd.SetComputeIntParam(_uploadShader, s_idSkipIntermediateLODs, _config.skipIntermediateLODs ? 1 : 0);
+                        _cullingCmd.SetComputeIntParam(_uploadShader, s_idAnimatedCrossfadeMode, (int)_config.animatedCrossfadeMode);
                         _cullingCmd.SetComputeIntParam(_uploadShader, s_idIsOrthographic, _currentCullingContext.isOrthographic ? 1 : 0);
                         _cullingCmd.SetComputeFloatParam(_uploadShader, s_idOrthoSize, _currentCullingContext.orthoSize);
 
@@ -1980,13 +1900,13 @@ namespace Fraxinus.GPUBatcher
                 _cullingCmd.SetComputeIntParam(_cullingShader, s_idApplyCascadeLimits, isOrthoLight ? 1 : 0);
 
                 // shadow caster occlusion vs the owning camera's prev-frame HZB (directional only)
-                var shadowHzbState = (Config.shadowCasterOcclusion && isOrthoLight && isGPUOcclusionEnabled &&
+                var shadowHzbState = (_config.shadowCasterOcclusion && isOrthoLight && isGPUOcclusionEnabled &&
                     _currentCullingContext != null && _currentCullingContext.useHZB)
                     ? _currentCullingContext.hzbState : null;
                 bool shadowHZBTestable = shadowHzbState != null && shadowHzbState.hzbValid &&
                     shadowHzbState.prevDataValid && shadowHzbState.hzbAtlas != null;
 #if UNITY_EDITOR
-                if (Config.debugVisualizeCullingInSceneView)
+                if (_config.debugVisualizeCullingInSceneView)
                     shadowHZBTestable = false;
 #endif
                 if (shadowHZBTestable)
@@ -2011,7 +1931,7 @@ namespace Fraxinus.GPUBatcher
                     if (posDelta > 0.001f && _currentCullingContext.cameraHalfFOV > 0f)
                         hzbTranslationScale = posDelta * shadowHzbState.topMipHeight / (2f * _currentCullingContext.cameraHalfFOV);
 
-                    _cullingCmd.SetComputeFloatParam(_cullingShader, s_idHzbPixelExpansion, Config.hzbPixelExpansion + cameraMotionPixels);
+                    _cullingCmd.SetComputeFloatParam(_cullingShader, s_idHzbPixelExpansion, _config.hzbPixelExpansion + cameraMotionPixels);
                     _cullingCmd.SetComputeFloatParam(_cullingShader, s_idHzbTranslationScale, hzbTranslationScale);
                     _cullingCmd.SetComputeMatrixParam(_cullingShader, s_idViewProjMatrix, shadowHzbState.prevViewProjMatrix);
                     _cullingCmd.SetComputeVectorParam(_cullingShader, s_idFacingDirWorldSpace, shadowHzbState.prevFacingDir);
@@ -2060,10 +1980,10 @@ namespace Fraxinus.GPUBatcher
                 _cullingCmd.SetComputeFloatParam(_cullingShader, s_idCameraHalfFOV, shadowCameraHalfFOV);
                 _cullingCmd.SetComputeFloatParam(_cullingShader, s_idLodBias, shadowLodBiasValue);
                 _cullingCmd.SetComputeFloatParam(_cullingShader, s_idScreenRatioScale, shadowScreenRatioScale);
-                _cullingCmd.SetComputeFloatParam(_cullingShader, s_idCrossFadeWidth, Config.debugDisableCrossfade ? 0f : 1f);
+                _cullingCmd.SetComputeFloatParam(_cullingShader, s_idCrossFadeWidth, _config.debugDisableCrossfade ? 0f : 1f);
                 _cullingCmd.SetComputeIntParam(_cullingShader, s_idIsOrthographic, shadowIsOrthographic ? 1 : 0);
                 _cullingCmd.SetComputeFloatParam(_cullingShader, s_idOrthoSize, shadowOrthoSize);
-                _cullingCmd.SetComputeIntParam(_cullingShader, s_idAnimatedCrossfadeMode, (int)Config.animatedCrossfadeMode);
+                _cullingCmd.SetComputeIntParam(_cullingShader, s_idAnimatedCrossfadeMode, (int)_config.animatedCrossfadeMode);
 
                 // per-view shadow buffer binds
                 _cullingCmd.SetComputeBufferParam(_cullingShader, _cullChunksShadowKernel, s_idVisibleShadowChunks, shadowSet.visibleChunksBuffer);
@@ -2148,18 +2068,36 @@ namespace Fraxinus.GPUBatcher
             BatchCullingContext cullingContext,
             BatchCullingOutput cullingOutput)
         {
+            ViewID viewID = GPUBatcherHelpers.GetViewID(cullingContext.viewID);
+            bool hasCamData = _cameraRenderData.TryGetValue(viewID, out var camData);
+#if UNITY_EDITOR
+            // Even an empty or masked view must not leave the preceding camera's
+            // role/context active for the next shadow cull.
+            _currentCullingContext = null;
+            _activeCullingCameraId = viewID;
+            _activeCullingCameraData = camData;
+            _replayingFrozenCulling = false;
+            bool isReferenceCamera = camData.referenceCameraId != default && camData.referenceCameraId == viewID;
+            if (!_config.debugVisualizeCullingInSceneView || camData.referenceCameraId == default ||
+                camData.referenceCameraId != _frozenReferenceCameraId ||
+                (_sceneViewCameraBufferSet != null && _sceneViewCameraBufferSet.generation != _bufferPoolGeneration))
+                InvalidateFrozenCulling();
+            if (_config.debugVisualizeCullingInSceneView && isReferenceCamera)
+            {
+                _frozenReferenceCameraId = camData.referenceCameraId;
+                _frozenCullingValid = false;
+                _sceneViewShadowCount = 0;
+            }
+#endif
             if (!_chunkSystemInitialized || _allocatedCount == 0 ||
                 !_cameraDrawCommandTemplate.IsCreated || !_cameraIndirectArgsTemplate.IsCreated ||
                 _drawCommandCount == 0 || cullingContext.cullingLayerMask == 0)
                 return default;
 
-            ViewID viewID = GPUBatcherHelpers.GetViewID(cullingContext.viewID);
-
             bool isDeferred = _deferredCullingCameras.Contains(viewID);
 
             // look up per-camera SRP data (populated in OnBeginCameraRendering)
             // non-SRP cameras (baked occlusion viz, etc.) won't have an entry - use defaults
-            bool hasCamData = _cameraRenderData.TryGetValue(viewID, out var camData);
             if (!hasCamData)
             {
                 // ensure a fade state exists for this view
@@ -2174,17 +2112,13 @@ namespace Fraxinus.GPUBatcher
 
 #if UNITY_EDITOR
             // frozen scene view: emit draw commands from persistent scene view buffer set
-            if (Config.debugVisualizeCullingInSceneView && _frozenCullingValid &&
-                !camData.isGame && !camData.isRef && _sceneViewCameraBufferSet != null
-                && _sceneViewCameraBufferSet.indirectArgsBuffer != null
-                && _sceneViewCameraBufferSet.indirectArgsBuffer.IsValid())
+            if (camData.isSceneView && !isReferenceCamera && CanReplayFrozenCulling(camData.referenceCameraId))
             {
                 _deferredCullingCameras.Remove(viewID);
+                _deferredUseHZB.Remove(viewID);
                 _sceneViewShadowReplayIndex = 0;
-                // clear stale isRefCamera so shadow replay path sees correct state
-                _currentCullingContext.isRefCamera = false;
-                _currentCullingContext.isGameCamera = false;
-                if (Config.debugDisableRendering) return default;
+                _replayingFrozenCulling = true;
+                if (_config.debugDisableRendering) return default;
                 EmitCameraDrawCommands(cullingOutput, _sceneViewCameraBufferSet);
                 return default;
             }
@@ -2195,12 +2129,10 @@ namespace Fraxinus.GPUBatcher
             JobHandle dependency = default;
 
 #if UNITY_EDITOR
-            if (Config.debugVisualizeCullingInSceneView && camData.isRef)
+            if (_config.debugVisualizeCullingInSceneView && isReferenceCamera)
             {
-                _frozenCullingValid = true;
                 EnsureSceneViewCameraBufferSet();
                 viewSet = _sceneViewCameraBufferSet;
-                _sceneViewShadowCount = 0;
             }
             else
 #endif
@@ -2211,7 +2143,7 @@ namespace Fraxinus.GPUBatcher
             // compute dispatch
 #if DEBUG
             // debugDisableCulling: skip GPU dispatches, reuse stale data from prior frame
-            if (!Config.debugDisableCulling)
+            if (!_config.debugDisableCulling)
 #endif
             {
                 if (isDeferred)
@@ -2237,7 +2169,7 @@ namespace Fraxinus.GPUBatcher
 
 #if DEBUG
             // debugDisableRendering: culling ran but skip draw command emission
-            if (Config.debugDisableRendering)
+            if (_config.debugDisableRendering)
                 return dependency;
 #endif
 
@@ -2501,30 +2433,36 @@ namespace Fraxinus.GPUBatcher
             BatchCullingContext cullingContext,
             BatchCullingOutput cullingOutput)
         {
-            if (_currentCullingContext == null || !_chunkSystemInitialized || _allocatedCount == 0 ||
+            if (!_chunkSystemInitialized || _allocatedCount == 0 ||
                 !_shadowDrawCommandTemplate.IsCreated || !_shadowIndirectArgsTemplate.IsCreated ||
                 _shadowDrawCommandCount == 0 || cullingContext.cullingLayerMask == 0)
                 return default;
 
 #if UNITY_EDITOR
             // frozen scene view: emit shadow draw commands from persistent scene view sets
-            if (Config.debugVisualizeCullingInSceneView && _frozenCullingValid &&
-                !_currentCullingContext.isGameCamera && !_currentCullingContext.isRefCamera &&
-                _sceneViewShadowReplayIndex < _sceneViewShadowCount)
+            if (_replayingFrozenCulling)
             {
-                var frozenShadowSet = _sceneViewShadowBufferSets[_sceneViewShadowReplayIndex++];
-                if (frozenShadowSet?.indirectArgsBuffer != null && frozenShadowSet.indirectArgsBuffer.IsValid())
+                if (_activeCullingCameraData.isSceneView &&
+                    CanReplayFrozenCulling(_activeCullingCameraData.referenceCameraId) &&
+                    _sceneViewShadowReplayIndex < _sceneViewShadowCount)
                 {
-                    EmitShadowDrawCommands(cullingContext, cullingOutput, frozenShadowSet);
-                    return default;
+                    var frozenShadowSet = _sceneViewShadowBufferSets[_sceneViewShadowReplayIndex++];
+                    if (IsCurrentCullingBuffer(frozenShadowSet) && !_config.debugDisableRendering)
+                        EmitShadowDrawCommands(cullingContext, cullingOutput, frozenShadowSet);
                 }
+                // No camera context was created for a replay view. Never borrow
+                // a preceding camera's fade/HZB state for uncaptured shadow views.
+                return default;
             }
 #endif
+            if (_currentCullingContext == null) return default;
 
             // acquire a per-view shadow buffer set
             CullingBufferSet shadowSet;
 #if UNITY_EDITOR
-            if (Config.debugVisualizeCullingInSceneView && _currentCullingContext.isRefCamera)
+            if (_config.debugVisualizeCullingInSceneView && _activeCullingCameraData.referenceCameraId != default &&
+                _activeCullingCameraId == _activeCullingCameraData.referenceCameraId &&
+                _currentCullingContext.cameraId == _activeCullingCameraId)
                 shadowSet = EnsureSceneViewShadowBufferSet(_sceneViewShadowCount++);
             else
 #endif
@@ -2532,7 +2470,7 @@ namespace Fraxinus.GPUBatcher
 
 #if DEBUG
             // debugDisableCulling: skip GPU dispatches, reuse stale data from prior frame
-            if (!Config.debugDisableCulling)
+            if (!_config.debugDisableCulling)
 #endif
             {
                 // on skip, zero the pooled args so the unconditional emit doesn't draw a prior render's shadow counts
@@ -2545,7 +2483,7 @@ namespace Fraxinus.GPUBatcher
 
 #if DEBUG
             // debugDisableRendering: culling ran but skip draw command emission
-            if (Config.debugDisableRendering)
+            if (_config.debugDisableRendering)
                 return default;
 #endif
 

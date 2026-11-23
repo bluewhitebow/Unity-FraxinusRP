@@ -13,9 +13,10 @@ namespace Fraxinus.GPUBatcher
         private static GPUBatcherConfig s_instance;
         private static bool s_configMissing;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
+        internal static GPUBatcherConfig loadedConfig => s_instance;
         private static DebugUI.MessageBox s_missingConfigWarning;
 #endif
-        private const string k_missingConfigMessage = "GPU Batcher config is missing. Open Tools > Fraxinus GPU Batcher > Select Config to create or preload it.";
+        private const string k_missingConfigMessage = "GPU Batcher config is missing. Open Project Settings > Graphics > Fraxinus GPU Batcher to create or preload it.";
 
         // Automatic configuration assets belong to the project rather than the embedded package.
         private const string k_fallbackFolder = "Assets/FraxinusGPUBatcherData";
@@ -33,7 +34,7 @@ namespace Fraxinus.GPUBatcher
                 if (s_instance == null)
                 {
 #if UNITY_EDITOR
-                    s_instance = FindOrCreateAsset();
+                    GetOrCreateProjectConfig();
 #else
                     var found = Resources.FindObjectsOfTypeAll<GPUBatcherConfig>();
                     if (found.Length > 0)
@@ -59,12 +60,13 @@ namespace Fraxinus.GPUBatcher
                     displayName = k_missingConfigMessage,
                     style = DebugUI.MessageBox.Style.Error
                 };
-                var panel = DebugManager.instance.GetPanel("Rendering", createIfNull: true, groupIndex: 1);
-                panel.children.Insert(0, s_missingConfigWarning);
+                GPUBatcherDebugUI.GetPanel().children.Insert(0, s_missingConfigWarning);
             }
             else
             {
-                s_missingConfigWarning.panel?.children.Remove(s_missingConfigWarning);
+                var panel = s_missingConfigWarning.panel;
+                panel?.children.Remove(s_missingConfigWarning);
+                GPUBatcherDebugUI.RemovePanelIfEmpty(panel);
                 s_missingConfigWarning = null;
             }
 #endif
@@ -78,10 +80,13 @@ namespace Fraxinus.GPUBatcher
 #if UNITY_EDITOR
             if (s_instance == null || FindInPreloadedAssets() == this)
                 s_instance = this;
-            EnsureComputeShaders();
+            EnsureShaderReferences();
 #if FRAXINUS_RP
             EnsureTextureGrassShader();
 #endif
+#elif DEVELOPMENT_BUILD
+            if (s_instance == null)
+                s_instance = this;
 #endif
         }
 
@@ -135,6 +140,8 @@ namespace Fraxinus.GPUBatcher
 
         internal static void SuppressAssetCreation() => s_suppressAssetCreation = true;
 
+        internal static GPUBatcherConfig GetOrCreateProjectConfig() => s_instance = FindOrCreateAsset();
+
         private static GPUBatcherConfig FindOrCreateAsset()
         {
             var found0 = FindInPreloadedAssets();
@@ -172,7 +179,7 @@ namespace Fraxinus.GPUBatcher
 
             EnsurePreloadedAsset(found);
 
-            found.EnsureComputeShaders();
+            found.EnsureShaderReferences();
 
             return found;
         }
@@ -207,8 +214,16 @@ namespace Fraxinus.GPUBatcher
             }
         }
 
-        private void EnsureComputeShaders()
+        private void EnsureShaderReferences()
         {
+            if (pickingShader == null)
+            {
+                pickingShader = UnityEditor.AssetDatabase.LoadAssetAtPath<Shader>(
+                    "Packages/com.bluewhitebow.fraxinus-rp/Shaders/BRGPicking.shader");
+                if (pickingShader != null)
+                    UnityEditor.EditorUtility.SetDirty(this);
+            }
+
             bool dirty = false;
 
             if (cullingShader == null)
@@ -245,19 +260,20 @@ namespace Fraxinus.GPUBatcher
         [UnityEditor.InitializeOnLoadMethod]
         private static void ResolveShadersAfterReload()
         {
-            UnityEditor.EditorApplication.delayCall += () => { if (instance != null) instance.EnsureComputeShaders(); };
+            UnityEditor.EditorApplication.delayCall += () => instance?.EnsureShaderReferences();
         }
 
 #if FRAXINUS_RP
         // serialize the grass shader when enabled so it ships in builds, clear it otherwise
         private void EnsureTextureGrassShader()
         {
-            var desired = allowTextureGrass ? Shader.Find("Hidden/FraxinusGPUBatcher/TerrainTextureGrass") : null;
-            if (_textureGrassShader != desired)
-            {
-                _textureGrassShader = desired;
-                UnityEditor.EditorUtility.SetDirty(this);
-            }
+            var desired = allowTextureGrass
+                ? UnityEditor.AssetDatabase.LoadAssetAtPath<Shader>(k_packagePath + "/Shaders/FraxinusGPUBatcherTerrainTextureGrass.shader")
+                : null;
+            if (_textureGrassShader == desired) return;
+
+            _textureGrassShader = desired;
+            UnityEditor.EditorUtility.SetDirty(this);
         }
 #endif
 
@@ -317,7 +333,7 @@ namespace Fraxinus.GPUBatcher
             terrainMaxConcurrentJobs = math.max(1, terrainMaxConcurrentJobs);
 
 #if UNITY_EDITOR
-            EnsureComputeShaders();
+            EnsureShaderReferences();
 #if FRAXINUS_RP
             EnsureTextureGrassShader();
 #endif
@@ -440,6 +456,12 @@ namespace Fraxinus.GPUBatcher
 
         [Tooltip("Compute shader for HZB generation (GPUBatcher_HZBGeneration).")]
         public ComputeShader occlusionShader;
+
+#if UNITY_EDITOR
+        [Header("Editor Shaders")]
+        [Tooltip("Shader used to pick GPU Batcher instances in the Scene view.")]
+        public Shader pickingShader;
+#endif
 
         [Header("Culling")]
         [Tooltip("Test spheres enclosing each chunk against Unity's baked occlusion after the current camera cull.")]
@@ -565,7 +587,7 @@ namespace Fraxinus.GPUBatcher
         [Range(0, 4)]
         public int maxShadowCrossfadeCascade = 4;
 
-        public bool debugDisableCrossfade = false;
+        [HideInInspector] public bool debugDisableCrossfade = false;
 
         [Tooltip("PerPrototype: All instances of a prototype fade in lockstep using a global cycle timer. Matches Default Unity Behavior." +
                  "\n\nPerInstance: Each instance manages and tracks its own fade state independently.")]
@@ -576,17 +598,17 @@ namespace Fraxinus.GPUBatcher
         public bool skipIntermediateLODs = true;
 
 #if DEBUG
-        [Header("Debug")]
+        [HideInInspector]
         public bool enableDebugLogging = false;
 #endif
         [Tooltip("Mark all chunks visible, skip CPU frustum/distance culling. GPU CullChunks still runs.")]
-        public bool debugDisableCPUChunkCulling = false;
+        [HideInInspector] public bool debugDisableCPUChunkCulling = false;
         [Tooltip("Skip all GPU culling dispatches and reuse the previous frame's visibility/indirect args. Useful for isolating CPU vs GPU cost.")]
-        public bool debugDisableCulling = false;
+        [HideInInspector] public bool debugDisableCulling = false;
         [Tooltip("Skip BRG rendering entirely (OnPerformCulling returns empty). GPU culling still runs. Useful for profiling culling cost without draw overhead.")]
-        public bool debugDisableRendering = false;
+        [HideInInspector] public bool debugDisableRendering = false;
         [Tooltip("Draw chunk bounds as gizmos when a registerer is selected in the scene view.")]
-        public bool showChunkBounds = false;
+        [HideInInspector] public bool showChunkBounds = false;
 #if UNITY_EDITOR
         // session-only: survives domain reloads, resets on editor restart
         public bool debugDrawBoundingSpheres
@@ -609,7 +631,7 @@ namespace Fraxinus.GPUBatcher
         }
 
         [Tooltip("Defer pool frees until after FlushStagedUploads. Prevents freed pools from being reused before staged overrides flush.")]
-        public bool debugDeferPoolFrees = false;
+        [HideInInspector] public bool debugDeferPoolFrees = false;
 
         public bool debugValidateUploads
         {

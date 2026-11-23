@@ -104,21 +104,7 @@ namespace Fraxinus.GPUBatcher.Editor
                 EditorGUILayout.FloatField(s_treeCullDistance, terrain != null ? terrain.treeDistance : 0f);
                 EditorGUI.EndDisabledGroup();
 
-                int resolvedTreeCount = _displayTreePrefabs != null ? _displayTreePrefabs.Length : 0;
-                _showResolvedTreePrefabs = EditorGUILayout.Foldout(_showResolvedTreePrefabs, $"Resolved Prefabs ({resolvedTreeCount})", true);
-                if (_showResolvedTreePrefabs && resolvedTreeCount > 0)
-                {
-                    EditorGUI.indentLevel++;
-                    EditorGUI.BeginDisabledGroup(true);
-                    for (int i = 0; i < resolvedTreeCount; i++)
-                    {
-                        var prefab = _displayTreePrefabs[i];
-                        string label = prefab != null ? $"[{i}] {prefab.name}" : $"[{i}] (none)";
-                        EditorGUILayout.ObjectField(label, prefab, typeof(GameObject), false);
-                    }
-                    EditorGUI.EndDisabledGroup();
-                    EditorGUI.indentLevel--;
-                }
+                DrawResolvedPrefabs(_displayTreePrefabs, ref _showResolvedTreePrefabs);
 
                 // chunking
                 EditorGUILayout.PropertyField(_propTreeChunkSize, s_chunkSize);
@@ -152,21 +138,7 @@ namespace Fraxinus.GPUBatcher.Editor
 
                 // resolved prefab list (readonly)
                 EditorGUILayout.HelpBox("Tip: Add the 'GPU Batcher Terrain Detail Override' component to your detail prefab to render details with LOD groups!", MessageType.Info);
-                int resolvedCount = _displayDetailPrefabs != null ? _displayDetailPrefabs.Length : 0;
-                _showResolvedPrefabs = EditorGUILayout.Foldout(_showResolvedPrefabs, $"Resolved Prefabs ({resolvedCount})", true);
-                if (_showResolvedPrefabs && resolvedCount > 0)
-                {
-                    EditorGUI.indentLevel++;
-                    EditorGUI.BeginDisabledGroup(true);
-                    for (int i = 0; i < resolvedCount; i++)
-                    {
-                        var prefab = _displayDetailPrefabs[i];
-                        string label = prefab != null ? $"[{i}] {prefab.name}" : $"[{i}] (none)";
-                        EditorGUILayout.ObjectField(label, prefab, typeof(GameObject), false);
-                    }
-                    EditorGUI.EndDisabledGroup();
-                    EditorGUI.indentLevel--;
-                }
+                DrawResolvedPrefabs(_displayDetailPrefabs, ref _showResolvedPrefabs);
 
                 EditorGUILayout.Space(4);
 
@@ -243,27 +215,39 @@ namespace Fraxinus.GPUBatcher.Editor
             EditorGUILayout.LabelField("Actions", EditorStyles.boldLabel);
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("Refresh All"))
-            {
-                foreach (var t in targets)
-                {
-                    var reg = (TerrainGPUBatcherRegisterer)t;
-                    reg.Refresh();
-                }
-                SceneView.RepaintAll();
-            }
+                RefreshTargets();
             if (GUILayout.Button("Refresh"))
-            {
-                foreach (var t in targets)
-                {
-                    var reg = (TerrainGPUBatcherRegisterer)t;
-                    reg.Refresh();
-                }
-                SceneView.RepaintAll();
-            }
+                RefreshTargets();
             EditorGUILayout.EndHorizontal();
             #endregion
 
             serializedObject.ApplyModifiedProperties();
+        }
+
+        private static void DrawResolvedPrefabs(GameObject[] prefabs, ref bool expanded)
+        {
+            int count = prefabs?.Length ?? 0;
+            expanded = EditorGUILayout.Foldout(expanded, $"Resolved Prefabs ({count})", true);
+            if (!expanded || count == 0)
+                return;
+
+            using (new EditorGUI.IndentLevelScope())
+            using (new EditorGUI.DisabledScope(true))
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    var prefab = prefabs[i];
+                    string label = prefab != null ? $"[{i}] {prefab.name}" : $"[{i}] (none)";
+                    EditorGUILayout.ObjectField(label, prefab, typeof(GameObject), false);
+                }
+            }
+        }
+
+        private void RefreshTargets()
+        {
+            foreach (TerrainGPUBatcherRegisterer registerer in targets)
+                registerer.Refresh();
+            SceneView.RepaintAll();
         }
     }
 }

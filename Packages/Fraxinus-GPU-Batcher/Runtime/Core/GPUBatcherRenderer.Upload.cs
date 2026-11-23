@@ -296,15 +296,7 @@ namespace Fraxinus.GPUBatcher
                 || _gpuSignatureBuffer == null || _matrixBuffer == null)
                 return false;
 
-            // grow-on-demand
-            if (_settleIndexBuffer == null || _settleIndexBuffer.count < count)
-            {
-                _settleIndexBuffer?.Dispose();
-                int cap = math.ceilpow2(count);
-                _settleIndexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, cap, sizeof(int));
-                _settleIndexBuffer.name = "FraxinusGPUBatcher_SettleIdx";
-            }
-            _settleIndexBuffer.SetData(slots, 0, 0, count);
+            UploadSettleSlotIndices(slots, count);
 
             int totalInstanceSlots = _poolCapacity * k_poolSize;
             _uploadShader.SetBuffer(_computeMatricesBatchedKernel, s_idInstancesRW, _instanceBuffer);
@@ -419,9 +411,9 @@ namespace Fraxinus.GPUBatcher
             _uploadShader.SetInt(s_idBatchCmdCount, cmdCount);
             _uploadShader.SetInt(s_idTrsTotalSlots, totalSlots);
             _uploadShader.SetInt(s_idTrsPrevMMode, prevMMode);
-            _uploadShader.SetInt(s_idColorEnabled, _perInstanceColorEnabled ? 1 : 0);
+            _uploadShader.SetInt(_ColorEnabled, _perInstanceColorEnabled ? 1 : 0);
             if (_perInstanceColorEnabled)
-                _uploadShader.SetInt(s_idColorRegionOffsetUint, _colorRegionByteOffset / 4);
+                _uploadShader.SetInt(_ColorRegionOffsetUint, _colorRegionByteOffset / 4);
             DispatchSafe(_uploadShader, _batchComputeMatricesKernel, cmdCount);
         }
 
@@ -446,13 +438,8 @@ namespace Fraxinus.GPUBatcher
             DispatchSafe(_uploadShader, _batchUploadIntsKernel, cmdCount);
         }
 
-        // copies O2W -> PrevM for the given slots (the sole writer of PrevM: at first-move and at stop-move)
-        private void GPUSettleMotionVectors(NativeArray<int> slots, int count)
+        private void UploadSettleSlotIndices(NativeArray<int> slots, int count)
         {
-            if (_settleMotionVectorsKernel < 0 || _uploadShader == null || count <= 0)
-                return;
-
-            // grow-on-demand
             if (_settleIndexBuffer == null || _settleIndexBuffer.count < count)
             {
                 _settleIndexBuffer?.Dispose();
@@ -461,6 +448,15 @@ namespace Fraxinus.GPUBatcher
                 _settleIndexBuffer.name = "FraxinusGPUBatcher_SettleIdx";
             }
             _settleIndexBuffer.SetData(slots, 0, 0, count);
+        }
+
+        // copies O2W -> PrevM for the given slots (the sole writer of PrevM: at first-move and at stop-move)
+        private void GPUSettleMotionVectors(NativeArray<int> slots, int count)
+        {
+            if (_settleMotionVectorsKernel < 0 || _uploadShader == null || count <= 0)
+                return;
+
+            UploadSettleSlotIndices(slots, count);
 
             int totalSlots = _poolCapacity * k_poolSize;
             _uploadShader.SetBuffer(_settleMotionVectorsKernel, s_idCopyDst, _matrixBuffer);
@@ -823,10 +819,10 @@ namespace Fraxinus.GPUBatcher
         private void GPUScatterWriteColors(GraphicsBuffer colorSrc, int count)
         {
             if (_scatterWriteColorsKernel < 0 || _uploadShader == null || count <= 0) return;
-            _uploadShader.SetBuffer(_scatterWriteColorsKernel, s_idColorStagingSrc, colorSrc);
+            _uploadShader.SetBuffer(_scatterWriteColorsKernel, _ColorStagingSrc, colorSrc);
             _uploadShader.SetBuffer(_scatterWriteColorsKernel, s_idCopyDst, _matrixBuffer);
-            _uploadShader.SetInt(s_idColorScatterCount, count);
-            _uploadShader.SetInt(s_idColorRegionOffsetUint, _colorRegionByteOffset / 4);
+            _uploadShader.SetInt(_ColorScatterCount, count);
+            _uploadShader.SetInt(_ColorRegionOffsetUint, _colorRegionByteOffset / 4);
             DispatchSafe(_uploadShader, _scatterWriteColorsKernel, (count + 255) / 256);
         }
 
@@ -1177,7 +1173,7 @@ namespace Fraxinus.GPUBatcher
             using var _flush = s_markerFlushStagedUploads.Auto();
 #endif
             if (!_chunkSystemInitialized) return;
-            _cachedNegativeScaleMode = Config.negativeScaleMode;
+            _cachedNegativeScaleMode = _config.negativeScaleMode;
             statInstanceOverflowFlushes = 0;
             statPoolRefOverflowFlushes = 0;
             statTRSPatchOverflowFlushes = 0;

@@ -20,7 +20,7 @@ namespace FraxinusEngine.Rendering.Ultra
             allowInEditMode = true,
             smallMeshScreenPercentage = _smallMeshScreenPercentage,
 #if UNITY_EDITOR
-            pickingShader = Shader.Find("Hidden/Ultra Render Pipeline/BRGPicking"),
+            pickingShader = UltraRenderPipelineEditorShaders.ResolveBRGPickingShader(defaultShaders),
 #endif
             errorShader = Shader.Find("Hidden/Ultra Render Pipeline/FallbackError"),
             loadingShader = Shader.Find("Hidden/Ultra Render Pipeline/FallbackLoading"),
