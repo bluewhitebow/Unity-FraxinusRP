@@ -1,3 +1,26 @@
+# 2026-11-24 Windows Vulkan GPU Batcher and Hi-Z consolidation
+
+Synchronizes Duckov-Recovered through `f48854aa6`, including the Windows x64
+Vulkan native plugin, matching per-view draw/visibility buffers, and the RP/Core
+DOTS shader adaptations. Installed submission handlers retain priority; check
+`GPUBatcherRenderer.canSubmitDraws` for combined backend availability. The
+[package guide](../../Fraxinus-GPU-Batcher/README.md) describes Vulkan setup,
+limits, memory costs and the committed native source/build script.
+
+GPU Batcher now owns all its Hi-Z generation and diagnostic reference-camera
+state. The obsolete RP Hi-Z classes/compute shader and public
+`UltraRenderPipelineCameraState` are removed; consumers must migrate to the GPU
+package paths. Object tracking is renamed and GameObject dirty/registration
+handling is updated. The merge preserves `PrepareFrameResources`, light-data
+migration and native culling callbacks, and removes stale Hi-Z type references
+from this suite's shader-stripping lists.
+
+Offline C# compilation passed for 9 assemblies against stock Unity 2022.3.62f3
+and 10 against Unity 6000.0.85f2, including all three Vulkan partials and the
+Unity 6 native BRG branch, with zero errors. The native plugin hash matches the
+source binary. This synchronization did not rerun Vulkan/GPU rendering or Player
+tests; copied source validation records retain their original scope.
+
 # 2026-11-23 GPU Batcher settings and rendering diagnostics
 
 Synchronizes the 26 package changes in Duckov-Recovered `580583ccc`. The active

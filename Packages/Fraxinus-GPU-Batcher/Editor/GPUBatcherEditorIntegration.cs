@@ -1,6 +1,5 @@
 // Copyright (c) 2026 Milk_Drinker01. All rights reserved.
 
-using FraxinusEngine.Rendering.Ultra;
 using UnityEngine;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -51,6 +50,7 @@ namespace Fraxinus.GPUBatcher.Editor
         #region Lifecycle and cleanup
         private static void Cleanup()
         {
+            GPUBatcherDebugCameras.Clear();
             GPUBatcherRenderer.Shutdown();
             TerrainGPUBatcherRegisterer.DisposeStaticNativeCollections();
             s_dirtyPrototypes.Clear();
@@ -92,7 +92,7 @@ namespace Fraxinus.GPUBatcher.Editor
             if (brg == null || !brg.isInitialized) return;
             if (!GPUBatcherConfig.instance.debugVisualizeCullingInSceneView) return;
 
-            var refCam = UltraRenderPipelineCameraState.referenceCamera;
+            var refCam = GPUBatcherDebugCameras.referenceCamera;
             string camName = refCam != null ? refCam.name : "(none)";
 
             int fontSize = Mathf.Clamp((int)(sceneView.position.width / 45f), 10, 18);

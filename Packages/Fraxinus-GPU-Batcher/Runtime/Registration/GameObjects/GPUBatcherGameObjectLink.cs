@@ -2,6 +2,9 @@
 
 using System.Collections.Generic;
 using UnityEngine;
+#if UNITY_EDITOR
+using UnityEngine.Pool;
+#endif
 
 namespace Fraxinus.GPUBatcher
 {
@@ -63,9 +66,7 @@ namespace Fraxinus.GPUBatcher
             }
             // detect clones from editor duplication (_instanceLink not serialized, _globalProtoIndex is)
             else if (!_instanceLink.isValid && _group != null && _globalProtoIndex >= 0)
-            {
                 isClone = true;
-            }
 
             if (isClone && _group != null)
             {
@@ -141,21 +142,24 @@ namespace Fraxinus.GPUBatcher
         // native renderer change tracking via ObjectDispatcher - notifies group on mesh/material change
         public static void TryProcessRendererChanges(ChangeTrackerTypeData changes)
         {
-            HashSet<GPUBatcherGameObjectGroup> dirtyGroups = null;
-            for (int i = 0; i < changes.length; i++)
+            var changedObjects = changes.changed;
+            if (changedObjects == null || changedObjects.Length == 0)
+                return;
+
+            using var lease = HashSetPool<GPUBatcherGameObjectGroup>.Get(out var dirtyGroups);
+            foreach (var changedObject in changedObjects)
             {
-                var mr = changes.changed[i] as MeshRenderer;
-                if (mr == null) continue;
+                var renderer = changedObject as MeshRenderer;
+                if (renderer == null || !renderer.TryGetComponent<GPUBatcherGameObjectLink>(out var link))
+                    continue;
 
-                var link = mr.GetComponent<GPUBatcherGameObjectLink>();
-                if (link == null || link._group == null || !link._group.isRegistered) continue;
-
-                dirtyGroups ??= new HashSet<GPUBatcherGameObjectGroup>();
-                dirtyGroups.Add(link._group);
+                var group = link._group;
+                if (group != null && group.isRegistered)
+                    dirtyGroups.Add(group);
             }
-            if (dirtyGroups != null)
-                foreach (var group in dirtyGroups)
-                    group.NotifySourceChanged();
+
+            foreach (var group in dirtyGroups)
+                group.NotifySourceChanged();
         }
 #endif
     }

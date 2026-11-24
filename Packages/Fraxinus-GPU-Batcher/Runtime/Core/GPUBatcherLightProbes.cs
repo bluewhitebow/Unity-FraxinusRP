@@ -41,18 +41,11 @@ namespace Fraxinus.GPUBatcher
         private SphericalHarmonicsL2[] _shResults;
         private Vector4[] _occlusionResults;
 
-        // packing scratch - 8 float4 per instance, AoS
-        private NativeArray<float4> _packBuffer;
+        private NativeArray<SHCoefficients> _packBuffer;
 
-        private static readonly int s_float4sPerInstance = GPUBatcherRenderer.shFloat4sPerInstance;
         private static readonly int s_bytesPerInstance = GPUBatcherRenderer.shBytesPerInstance;      // 128
         private const int k_initialManagedArraySize = 256;
         private const int k_initialStagingUintCapacity = 32768;
-
-        // SH coefficient index reference:
-        // sphericalHarmonicsL2[channel, coefficient]:
-        //   channel: 0=R, 1=G, 2=B
-        //   coefficients: 0=Y00(DC), 1=Y1-1, 2=Y10, 3=Y11, 4=Y2-2, 5=Y2-1, 6=Y20, 7=Y21, 8=Y22
 
         public void Initialize(GPUBatcherRenderer renderer, int totalSlots)
         {
@@ -72,7 +65,7 @@ namespace Fraxinus.GPUBatcher
             _samplePositions = new Vector3[initialArraySize];
             _shResults = new SphericalHarmonicsL2[initialArraySize];
             _occlusionResults = new Vector4[initialArraySize];
-            _packBuffer = new NativeArray<float4>(initialArraySize * s_float4sPerInstance, Allocator.Persistent);
+            _packBuffer = new NativeArray<SHCoefficients>(initialArraySize, Allocator.Persistent);
 
             LightProbes.lightProbesUpdated += OnLightProbesUpdated;
             SceneManager.sceneLoaded += OnSceneLoaded;
@@ -288,38 +281,19 @@ namespace Fraxinus.GPUBatcher
 
         private void PackAndStage(int srcIndex, int count, int liveSlotOffset)
         {
-            int needed = count * s_float4sPerInstance;
-            if (!_packBuffer.IsCreated || _packBuffer.Length < needed)
+            if (_packBuffer.Length < count)
             {
                 _packBuffer.DisposeIfCreated();
-                _packBuffer = new NativeArray<float4>(math.max(needed, k_initialManagedArraySize * s_float4sPerInstance), Allocator.Persistent);
+                _packBuffer = new NativeArray<SHCoefficients>(count, Allocator.Persistent);
             }
 
-            // pack SH data in AoS layout, matches SetupDOTSSHCoeffs() in UnityDOTSInstancing.hlsl
             for (int i = 0; i < count; i++)
             {
-                var sh = _shResults[srcIndex + i];
-                int baseIdx = i * s_float4sPerInstance;
-
-                // SHAr: (L11_r, L1-1_r, L10_r, L00_r)
-                _packBuffer[baseIdx + 0] = new float4(sh[0, 3], sh[0, 1], sh[0, 2], sh[0, 0]);
-                // SHAg
-                _packBuffer[baseIdx + 1] = new float4(sh[1, 3], sh[1, 1], sh[1, 2], sh[1, 0]);
-                // SHAb
-                _packBuffer[baseIdx + 2] = new float4(sh[2, 3], sh[2, 1], sh[2, 2], sh[2, 0]);
-                // SHBr: (L2-2_r, L2-1_r, L20_r, L21_r)
-                _packBuffer[baseIdx + 3] = new float4(sh[0, 4], sh[0, 5], sh[0, 6], sh[0, 7]);
-                // SHBg
-                _packBuffer[baseIdx + 4] = new float4(sh[1, 4], sh[1, 5], sh[1, 6], sh[1, 7]);
-                // SHBb
-                _packBuffer[baseIdx + 5] = new float4(sh[2, 4], sh[2, 5], sh[2, 6], sh[2, 7]);
-                // SHC: (L22_r, L22_g, L22_b, 1.0)
-                _packBuffer[baseIdx + 6] = new float4(sh[0, 8], sh[1, 8], sh[2, 8], 1.0f);
-                var occ = _occlusionResults[srcIndex + i];
-                _packBuffer[baseIdx + 7] = new float4(occ.x, occ.y, occ.z, occ.w);
+                int sample = srcIndex + i;
+                _packBuffer[i] = new SHCoefficients(_shResults[sample], _occlusionResults[sample]);
             }
 
-            int uintCount = count * s_float4sPerInstance * 4;
+            int uintCount = count * (s_bytesPerInstance / sizeof(uint));
             int uintCursor = _stagingSHUintCursor;
 
             if (_stagingSHBuffer != null && uintCursor + uintCount > _stagingSHUintCapacity)
@@ -333,7 +307,7 @@ namespace Fraxinus.GPUBatcher
 
             EnsureStagingCapacity(uintCursor + uintCount);
 
-            var packAsUint = _packBuffer.Reinterpret<uint>(16);
+            var packAsUint = _packBuffer.Reinterpret<uint>(s_bytesPerInstance);
             _stagingSHBuffer.SetData(packAsUint, 0, uintCursor, uintCount);
 
             // extend the last entry when the new range continues it - one region copy per run

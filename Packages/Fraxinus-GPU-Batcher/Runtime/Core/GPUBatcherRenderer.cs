@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using FraxinusEngine.Rendering.Ultra;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -49,8 +48,7 @@ namespace Fraxinus.GPUBatcher
 
         public static bool hasInstance => s_instance != null;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-        internal static GPUBatcherRenderer initializedRenderer =>
-            s_instance is { _initialized: true, _disposed: false } ? s_instance : null;
+        internal static GPUBatcherRenderer initializedRenderer => s_instance is { _initialized: true, _disposed: false } ? s_instance : null;
 #endif
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -62,7 +60,11 @@ namespace Fraxinus.GPUBatcher
 
         public bool isInitialized => _initialized;
 
-        public static bool canSubmitDraws => Rendering.BRGIndirectSubmission.isAvailable;
+        public static bool canSubmitDraws => Rendering.BRGIndirectSubmission.isAvailable
+#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
+            || VulkanCarrierAvailable
+#endif
+            ;
 
         public static void Shutdown()
         {
@@ -176,12 +178,10 @@ namespace Fraxinus.GPUBatcher
         private int[] _protoSpeedTreeSlotIndex; // protoIndex -> speedtree slot, -1 if not speedtree
 
         // constants
-        private const int k_poolSize = 16; // must match _PoolSizeShift in GPUBatcher_Common.hlsl
+        private const int k_poolSize = 16; // Must equal (1 << _PoolSizeShift) in GPUBatcher_Common.hlsl.
         internal static int instancesPerPool => k_poolSize;
         private const int k_sizeOfPackedMatrix = sizeof(float) * 4 * 3;
-        internal static int sizeOfPackedMatrix => k_sizeOfPackedMatrix;
         private const int k_shFloat4sPerInstance = 8;                    // 7 SH + 1 ProbesOcclusion, packed as unity_SHCoefficients
-        internal static int shFloat4sPerInstance => k_shFloat4sPerInstance;
         private const int k_shBytesPerInstance = k_shFloat4sPerInstance * 16;
         internal static int shBytesPerInstance => k_shBytesPerInstance;
         private const int k_speedTreeParamsPerProto = 128; // 32 float4s, 512 bytes per prototype
@@ -302,6 +302,7 @@ namespace Fraxinus.GPUBatcher
                 _cullInstancesKernel = FindKernelSafe(_cullingShader, "CullInstances");
                 _cullChunksShadowKernel = FindKernelSafe(_cullingShader, "CullChunksShadow");
                 _cullInstancesShadowKernel = FindKernelSafe(_cullingShader, "CullInstancesShadow");
+
                 // combined reset kernel
                 _resetCullingStateKernel = FindKernelSafe(_cullingShader, "ResetCullingState");
 
@@ -372,12 +373,12 @@ namespace Fraxinus.GPUBatcher
                 _lightProbes = new GPUBatcherLightProbes();
 
             // native transform change tracking for GPUBatcherGameObjectLink
-            GPUBatcherChangeTracker.Initialize();
-            GPUBatcherChangeTracker.TrackTransforms<GPUBatcherGameObjectLink>();
+            GPUBatcherObjectChangeTracker.Initialize();
+            GPUBatcherObjectChangeTracker.TrackTransforms<GPUBatcherGameObjectLink>();
 #if UNITY_EDITOR
             if (!Application.isPlaying)
             {
-                GPUBatcherChangeTracker.TrackType<MeshRenderer>();
+                GPUBatcherObjectChangeTracker.TrackType<MeshRenderer>();
                 // drain ObjectDispatcher even when no view is rendering (e.g. debugger view)
                 // to prevent 64-frame auto-disable of type tracking
                 UnityEditor.EditorApplication.update -= EditorDrainRendererChanges;
@@ -442,7 +443,9 @@ namespace Fraxinus.GPUBatcher
         // called once per frame from Application.onBeforeRender
         private void BeforeRender()
         {
-            if (!_initialized) return;
+            if (!_initialized)
+                return;
+
 #if DEBUG
             using var _su = s_markerSystemUpdate.Auto();
 #endif
@@ -782,7 +785,7 @@ namespace Fraxinus.GPUBatcher
                         _gameCamPositions.Add(cam.transform.position);
                     }
 #if UNITY_EDITOR
-                    else if (UltraRenderPipelineCameraState.IsSceneViewCamera(cam))
+                    else if (ct == CameraType.SceneView)
                     {
                         _sceneViewCamPositions.Clear();
                         _sceneViewCamPositions.Add(cam.transform.position);
@@ -832,12 +835,12 @@ namespace Fraxinus.GPUBatcher
             if (!_viewFadeStates.TryGetValue(viewID, out var fadeState))
                 fadeState = CreateViewFadeState(viewID);
 #if UNITY_EDITOR
-            camData.isSceneView = UltraRenderPipelineCameraState.IsSceneViewCamera(camera);
+            camData.isSceneView = camera.cameraType == CameraType.SceneView;
             if (camData.isSceneView)
                 fadeState.isPersistent = true;
             if (_config.debugVisualizeCullingInSceneView)
             {
-                var reference = UltraRenderPipelineCameraState.referenceCamera;
+                var reference = GPUBatcherDebugCameras.referenceCamera;
                 if (reference != null)
                     camData.referenceCameraId = GPUBatcherHelpers.GetViewID(reference);
             }
@@ -851,6 +854,9 @@ namespace Fraxinus.GPUBatcher
         private void OnEndCameraRendering(ScriptableRenderContext ctx, Camera camera)
         {
             ViewID viewID = GPUBatcherHelpers.GetViewID(camera);
+#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
+            if (_vkViews.Count > 0) VkEndViews(viewID);
+#endif
             if (_cameraRenderData.TryGetValue(viewID, out var camData))
             {
                 _cameraPoolNextIndex = camData.cameraPoolSnapshot;
@@ -860,36 +866,34 @@ namespace Fraxinus.GPUBatcher
 
         private void OnSceneUnloaded(Scene scene)
         {
-            if (!_initialized) return;
+            if (!_initialized)
+                return;
 
-            // snap fade states for new cameras in next scene
             RequestSnapAllViews();
         }
 
         private void ProcessTrackedTransformChanges()
         {
-            using ChangeTrackerTransformData changes = GPUBatcherChangeTracker.GetTransformChanges<GPUBatcherGameObjectLink>(
+            using ChangeTrackerTransformData changes = GPUBatcherObjectChangeTracker.GetTransformChanges<GPUBatcherGameObjectLink>(
                 Unity.Collections.Allocator.TempJob);
 
             GPUBatcherGameObjectLink.TryProcessTransformChanges(changes, this);
         }
 
 #if UNITY_EDITOR
-        // detect mesh/material changes on renderers that have a GPUBatcherGameObjectLink
         private void ProcessTrackedRendererChanges()
         {
-            using ChangeTrackerTypeData changes = GPUBatcherChangeTracker.GetTypeChanges<MeshRenderer>(
-                Unity.Collections.Allocator.TempJob);
+            using ChangeTrackerTypeData changes = GPUBatcherObjectChangeTracker.GetTypeChanges<MeshRenderer>(Unity.Collections.Allocator.TempJob);
 
             if (!Application.isPlaying)
                 GPUBatcherGameObjectLink.TryProcessRendererChanges(changes);
         }
 
-        // fallback drain for when no view is rendering (e.g. debugger tab active)
-        // prevents ObjectDispatcher from auto-disabling type tracking after 64 uncollected frames
         private void EditorDrainRendererChanges()
         {
-            if (Application.isPlaying || !_initialized || !GPUBatcherChangeTracker.isInitialized) return;
+            if (Application.isPlaying || !_initialized || !GPUBatcherObjectChangeTracker.isInitialized)
+                return;
+
             ProcessTrackedRendererChanges();
         }
 #endif
@@ -921,9 +925,12 @@ namespace Fraxinus.GPUBatcher
             _deferredUseHZB.Clear();
             _cameraRenderData.Clear();
 
-            GPUBatcherChangeTracker.Dispose();
+            GPUBatcherObjectChangeTracker.Dispose();
             CleanupBakedOcclusion();
 
+#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
+            VkDisposeSubmission();
+#endif
             _brg?.Dispose();
             _brg = null;
             _sharedBatchIDValid = false;
@@ -1007,6 +1014,7 @@ namespace Fraxinus.GPUBatcher
         {
             if (_disposed)
                 throw new ObjectDisposedException(nameof(GPUBatcherRenderer));
+
             var prevRegistrations = new List<GPUBatcherRegistrationTracker>(_registrations);
             ShutdownAllRegistrations();
 

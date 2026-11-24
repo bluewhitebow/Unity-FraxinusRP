@@ -316,9 +316,9 @@
     },
     {
       "source": "Runtime/Scripts/Core/GPUDrivenBridge/BRGChangeTracker.cs",
-      "target": "Runtime/Integration/GPUBatcherChangeTracker.cs",
+      "target": "Runtime/Integration/GPUBatcherObjectChangeTracker.cs",
       "source_sha256": "79e6fdf8f74e497c6af7722859328c9b1cdf050a63ce91687a8031e5b997633c",
-      "target_sha256": "0937ce70ba6adf3b5b040db8a82a2dc46bc2723ad3c1e2c634f50857a24ee49f",
+      "target_sha256": "cc77aea3706f89b0db640fcba2c6282a55dc98b781db211db1c56233e574298c",
       "status": "changed"
     },
     {

@@ -1,7 +1,6 @@
 // Copyright (c) 2026 Milk_Drinker01. All rights reserved.
 
 using System.Collections.Generic;
-using FraxinusEngine.Rendering.Ultra;
 using UnityEngine;
 using UnityEditor;
 using UnityEditor.Rendering;
@@ -540,37 +539,6 @@ namespace Fraxinus.GPUBatcher.Editor
                 EditorGUILayout.LabelField("Shadow Sets",
                     $"{system.statShadowPoolActive} / {system.statShadowPoolTotal}");
                 EditorGUILayout.LabelField("Fade Views", system.statFadeStateViews.ToString());
-
-                var activeCams = UltraRenderPipelineCameraState.renderedGameCameras;
-                if (activeCams.Count > 0)
-                {
-                    EditorGUILayout.Space(3);
-                    EditorGUILayout.LabelField("Active Game Cameras", EditorStyles.miniBoldLabel);
-                    EditorGUI.EndDisabledGroup();
-
-                    for (int ci = 0; ci < activeCams.Count; ci++)
-                    {
-                        var cam = activeCams[ci];
-                        if (cam == null) continue;
-                        bool isRef = UltraRenderPipelineCameraState.IsReferenceCamera(cam);
-                        string label = $"{cam.name}  depth={cam.depth}";
-                        if (isRef) label += "  [REF]";
-
-                        EditorGUILayout.BeginHorizontal();
-                        EditorGUILayout.LabelField(label);
-                        if (!isRef && GUILayout.Button("Set as Ref", GUILayout.Width(80)))
-                        {
-                            UltraRenderPipelineCameraState.selectedReferenceCamera = cam;
-                        }
-                        if (cam == UltraRenderPipelineCameraState.selectedReferenceCamera && GUILayout.Button("Clear Ref", GUILayout.Width(80)))
-                        {
-                            UltraRenderPipelineCameraState.selectedReferenceCamera = null;
-                        }
-                        EditorGUILayout.EndHorizontal();
-                    }
-
-                    EditorGUI.BeginDisabledGroup(true);
-                }
             }
             else
             {
@@ -592,7 +560,7 @@ namespace Fraxinus.GPUBatcher.Editor
                     EditorGUI.EndDisabledGroup();
                     _hzbPreviewSize = EditorGUILayout.Slider("Preview Size", _hzbPreviewSize, 128f, 512f);
 
-                    var cams = UltraRenderPipelineCameraState.renderedGameCameras;
+                    var cams = GPUBatcherDebugCameras.renderedGameCameras;
                     if (cams.Count > 0)
                     {
                         for (int ci = 0; ci < cams.Count; ci++)

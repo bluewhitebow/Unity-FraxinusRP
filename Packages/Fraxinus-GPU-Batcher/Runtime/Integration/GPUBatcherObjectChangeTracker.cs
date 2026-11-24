@@ -33,7 +33,7 @@ namespace Fraxinus.GPUBatcher
     }
 
     /// <summary>Native ObjectDispatcher tracking through Core's engine-friend wrapper.</summary>
-    public static class GPUBatcherChangeTracker
+    public static class GPUBatcherObjectChangeTracker
     {
         static NativeObjectChangeTracker s_dispatcher;
         public static bool isInitialized => s_dispatcher != null;
@@ -49,13 +49,17 @@ namespace Fraxinus.GPUBatcher
 
         public static void TrackTransforms<T>() where T : UnityEngine.Object
         {
-            if (s_dispatcher == null) return;
+            if (s_dispatcher == null)
+                return;
+
             s_dispatcher.TrackTransforms(typeof(T));
         }
 
         public static void TrackType<T>() where T : UnityEngine.Object
         {
-            if (s_dispatcher == null) return;
+            if (s_dispatcher == null)
+                return;
+
             s_dispatcher.TrackType(typeof(T));
         }
 

@@ -1,8 +1,8 @@
 # Fraxinus GPU Batcher
 
 This package was synchronized from Duckov-Recovered commit
-`580583ccc4ffca8916109df06102348e17919ea6`
-on 2026-11-23. Recorded source tests and `SourceAudit.json` describe their captured
+`f48854aa6e2d7fbdb4d27236a4330fa2d3e1f7fa`
+on 2026-11-24. Recorded source tests and `SourceAudit.json` describe their captured
 snapshots, not a GPU/Player validation rerun of this checkout or its later changes.
 This suite retains `PrepareFrameResources(...)` and its existing Core/RP adaptations.
 
@@ -29,24 +29,41 @@ GameObject registration, baked groups, terrain trees/details and editor tools re
 the reference workflow.
 
 `Rendering.BatchDrawCommandIndirect` is our descriptor with Unity 6 field/flag
-semantics. Camera and shadow draws share `BRGIndirectSubmission.TrySubmit`, which
-calls the single synchronous `submitHandler`; `isAvailable` reflects whether a
-handler is installed. Stock Unity 6 enables `FRAXINUS_BRG_INDIRECT_API` through the
+semantics. An installed synchronous `BRGIndirectSubmission.submitHandler` takes
+precedence for camera and shadow draws. `BRGIndirectSubmission.isAvailable`
+reports that binding. Stock Unity 6 enables `FRAXINUS_BRG_INDIRECT_API` through the
 assembly definition and installs the built-in native writer. A custom engine can
 enable that symbol when it backports the complete matching bindings, or register its
 own `submitHandler` at startup for a different API. With no handler, `TrySubmit`
 returns false without allocating or modifying native output.
+
+Windows x64 Unity 2022 can also execute the package's indexed commands through
+the included Vulkan plugin. Start the editor or Player with `-force-vulkan`.
+`GPUBatcherRenderer.canSubmitDraws` includes this backend. Add
+`-disableFraxinusVulkanBRG` for a control run. Unity's BRG renderer lists select
+the Fraxinus DOTS material and shader passes. Each active view uses private mesh
+index buffers to associate those draws with the GPU's indirect arguments.
+The compatibility path copies instance data and GPU visibility into a per-view
+raw BRG buffer. Budget memory for mesh copies and these view buffers. The shader
+path requires the bundled Fraxinus DOTS includes. Its visibility offset limit is
+8,388,607 elements. The packaged binary targets Windows x64 Vulkan.
+Its [native source](https://github.com/zgsxof/Duckov-Recovered/blob/f48854aa6e2d7fbdb4d27236a4330fa2d3e1f7fa/Tools/Rendering/NativeBRGBridge/VulkanPlugin/FraxinusBrgVulkan.cpp)
+and [build script](https://github.com/zgsxof/Duckov-Recovered/blob/f48854aa6e2d7fbdb4d27236a4330fa2d3e1f7fa/Tools/Rendering/NativeBRGBridge/VulkanPlugin/Build-Windows.ps1)
+are retained at the synchronized source commit. Rebuilding requires the Unity
+Vulkan PluginAPI headers, Vulkan headers and the Visual Studio C++ toolchain.
 
 Edit the active configuration in **Edit > Project Settings > Graphics > Fraxinus GPU Batcher**.
 The page edits the same asset used by the Player. Configuration is discovered or created automatically under
 `Assets/FraxinusGPUBatcherData/FraxinusGPUBatcherConfig.asset`; existing project configs
 are found first. Shader references are repaired automatically and the config is added
 to Player Settings preloaded assets. Source renderers/terrain are taken over as in
-the reference, and Bake removes the baked source children. Registered objects need a
-submission handler to render indirectly; stock Unity 2022 has none by default.
+the reference, and Bake removes the baked source children. Check
+`GPUBatcherRenderer.canSubmitDraws` on the active graphics device before takeover.
 
 Open **Window > Analysis > Rendering Debugger** and select **GPU Batcher** in the sidebar for culling
 overrides, Scene view diagnostics and live instance, chunk and draw-command counts.
+Enable **Visualize Culling In Scene View** and use **Culling Reference Camera** to inspect a Game
+camera's visibility from another angle. Clear the selection to follow the current Main Camera.
 
 Fraxinus graph injection runs culling before depth/shadow rendering. History HZB is
 built after opaque rendering without requesting a full prepass. Current-frame retest
@@ -77,10 +94,15 @@ Install this suite through the [repository usage guide](../../docs/Usage.md).
 The source validation projects resolved the Duckov-Recovered package directories
 through local UPM `file:` dependencies. Recorded source regressions passed in both editors: the 2022 six-suite run and rebuilt Player's two
 GPU transform checks/30 wind frames, plus Unity 6's four algorithm suites, 28 native
-BRG checks and five actual graph image cases. These recorded runs used stock engines
+BRG checks and five actual graph image cases. Those pre-plugin runs used stock engines
 without a custom handler: submission was unavailable in 2022 and available in Unity 6.
 Recorded results are kept in the independent `Fraxinus-Unity6-Validation` project's
 `Validation/Results/UnifiedPackages`.
+
+The Windows Vulkan backend was subsequently tested on 2022.3.62f3 in the Editor
+and a Win64 Mono Player, including first-draw color, depth, directional shadows,
+GPU-driven 0/1/2 instance counts, and 289 independently placed/colored instances
+in one draw. The Fraxinus graph test also covered HZB history and retest.
 
 See [port notes](Documentation~/Port.md) and the
 [equivalence audit](Documentation~/EquivalenceAudit.md) for mapping, validation and

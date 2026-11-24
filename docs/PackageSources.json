@@ -34,21 +34,27 @@
       "sourceProject": "Duckov-Recovered",
       "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
       "sourcePath": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher",
-      "sourceCommit": "580583ccc4ffca8916109df06102348e17919ea6",
-      "sourceState": "Committed GPU Batcher project settings and Rendering Debugger integration; retains this suite's PrepareFrameResources hook. Source audit hashes describe their recorded snapshots."
+      "sourceCommit": "f48854aa6e2d7fbdb4d27236a4330fa2d3e1f7fa",
+      "sourceState": "Committed Windows x64 Vulkan submission, GPU-owned Hi-Z and debug-camera state, and instance tracking updates; retains this suite's PrepareFrameResources hook. Source audit hashes describe their recorded snapshots."
     }
   ],
   "latestSync": {
-    "date": "2026-11-23",
+    "date": "2026-11-24",
     "sourceProject": "Duckov-Recovered",
     "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
-    "sourceCommit": "580583ccc4ffca8916109df06102348e17919ea6",
-    "sourceBaselineCommit": "5494613cdff36fd003f0537a60fd0b1b5498060d",
-    "sourceState": "Merged committed GPU Batcher settings/diagnostics, shared editor camera state and Core debugger refresh fixes while retaining this suite's existing rendering hooks and light migration.",
+    "sourceCommit": "f48854aa6e2d7fbdb4d27236a4330fa2d3e1f7fa",
+    "sourceBaselineCommit": "580583ccc4ffca8916109df06102348e17919ea6",
+    "sourceState": "Merged committed GPU Batcher Vulkan backend and RP/Core DOTS changes; removed superseded RP Hi-Z and camera-state APIs and their distribution-only shader-stripping references. Retains this suite's rendering hooks and light migration.",
     "packages": [
       "Fraxinus-GPU-Batcher",
       "FraxinusRP",
       "Fraxinus-RPCore"
-    ]
+    ],
+    "nativePlugin": {
+      "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/x86_64/FraxinusBrgVulkan.dll",
+      "sha256": "8e9795a2d0c2746dac768762303e59b271ddc428b1b2ef6ce7321fda06a66270",
+      "sourcePath": "Tools/Rendering/NativeBRGBridge/VulkanPlugin/FraxinusBrgVulkan.cpp",
+      "buildScript": "Tools/Rendering/NativeBRGBridge/VulkanPlugin/Build-Windows.ps1"
+    }
   }
 }

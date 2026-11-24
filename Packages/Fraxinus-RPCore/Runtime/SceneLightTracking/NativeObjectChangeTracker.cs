@@ -16,7 +16,9 @@ namespace UnityEngine.Rendering
         internal NativeArray<Vector3> scales => m_Data.scales;
         public void Dispose()
         {
-            if (m_Data.transformedID.IsCreated) m_Data.Dispose();
+            if (m_Data.transformedID.IsCreated)
+                m_Data.Dispose();
+
             m_Data = default;
         }
     }
@@ -30,7 +32,9 @@ namespace UnityEngine.Rendering
         internal NativeArray<int> destroyedIDs => m_Data.destroyedID;
         public void Dispose()
         {
-            if (m_Data.changedID.IsCreated || m_Data.destroyedID.IsCreated) m_Data.Dispose();
+            if (m_Data.changedID.IsCreated || m_Data.destroyedID.IsCreated)
+                m_Data.Dispose();
+
             m_Data = default;
         }
     }
@@ -39,8 +43,7 @@ namespace UnityEngine.Rendering
     {
         readonly ObjectDispatcher m_Dispatcher = new ObjectDispatcher();
 
-        internal void TrackTransforms(Type type) =>
-            m_Dispatcher.EnableTransformTracking(ObjectDispatcher.TransformTrackingType.GlobalTRS, type);
+        internal void TrackTransforms(Type type) => m_Dispatcher.EnableTransformTracking(ObjectDispatcher.TransformTrackingType.GlobalTRS, type);
 
         internal void TrackType(Type type) => m_Dispatcher.EnableTypeTracking(type);
 

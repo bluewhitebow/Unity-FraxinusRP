@@ -130,7 +130,7 @@ namespace Fraxinus.GPUBatcher.Integration
                 var size = GPUBatcherCullingInjector.DepthDimensions(camera.cameraTargetDescriptor);
                 batcher.EnsureHZBAtlas(camera.camera, size.x, size.y);
             }
-            GPUBatcherRenderGraphPasses.RecordDeferredCullingPass(graph, batcher,
+            GPUBatcherRenderGraphPasses.RecordDeferredCullingPass(graph, context, batcher,
                 "FraxinusGPUBatcher.Culling", cameraId, batcher.isGPUOcclusionEnabled);
         }
         protected override void OnCameraCleanup(CommandBuffer cmd) { }
@@ -183,7 +183,7 @@ namespace Fraxinus.GPUBatcher.Integration
             return Requirements(retest);
         }
 
-        internal static void Record(RenderGraph graph, ContextContainer frame, bool retest)
+        internal static void Record(RenderGraph graph, ScriptableRenderContext context, ContextContainer frame, bool retest)
         {
             var camera = frame.Get<CameraData>();
             if (frame.GetOrCreate<ContextStateManager>().IsInSubContext() || !frame.Contains<HZBFrameData>() || !GPUBatcherRenderer.hasInstance) return;
@@ -216,7 +216,7 @@ namespace Fraxinus.GPUBatcher.Integration
             GPUBatcherRenderGraphPasses.RecordHZBBuildPass(graph, batcher, "FraxinusGPUBatcher.HZBBuild", cameraId, depth, width, height,
                 sourceTextureArray: sourceArray);
             if (retest)
-                GPUBatcherRenderGraphPasses.RecordHZBCullPass(graph, batcher, "FraxinusGPUBatcher.HZBRetest", cameraId);
+                GPUBatcherRenderGraphPasses.RecordHZBCullPass(graph, context, batcher, "FraxinusGPUBatcher.HZBRetest", cameraId);
         }
     }
 
@@ -225,7 +225,7 @@ namespace Fraxinus.GPUBatcher.Integration
     {
         public override void ResetFrame(RenderGraph graph, ContextContainer frame) => GPUBatcherHZBInjection.Reset(frame);
         public override RenderPassInputSummary PrepareFrameResources(RenderGraph graph, ContextContainer frame) => GPUBatcherHZBInjection.Prepare(frame, true);
-        public override void Execute(RenderGraph graph, ScriptableRenderContext context, ContextContainer frame) => GPUBatcherHZBInjection.Record(graph, frame, true);
+        public override void Execute(RenderGraph graph, ScriptableRenderContext context, ContextContainer frame) => GPUBatcherHZBInjection.Record(graph, context, frame, true);
         protected override void OnCameraCleanup(CommandBuffer cmd) { }
         protected override void OnDispose() { }
     }
@@ -241,7 +241,7 @@ namespace Fraxinus.GPUBatcher.Integration
             node == GPUBatcherCullingInjector.LastMainOpaquePass(frame.Get<CameraData>().renderer, frame);
         public override void ResetFrame(RenderGraph graph, ContextContainer frame) => GPUBatcherHZBInjection.Reset(frame);
         public override RenderPassInputSummary PrepareFrameResources(RenderGraph graph, ContextContainer frame) => GPUBatcherHZBInjection.Prepare(frame, false);
-        public override void Execute(RenderGraph graph, ScriptableRenderContext context, ContextContainer frame) => GPUBatcherHZBInjection.Record(graph, frame, false);
+        public override void Execute(RenderGraph graph, ScriptableRenderContext context, ContextContainer frame) => GPUBatcherHZBInjection.Record(graph, context, frame, false);
         protected override void OnCameraCleanup(CommandBuffer cmd) { }
         protected override void OnDispose() { }
     }

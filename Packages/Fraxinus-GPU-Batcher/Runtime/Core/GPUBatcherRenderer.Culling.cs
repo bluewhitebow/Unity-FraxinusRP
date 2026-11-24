@@ -1,5 +1,3 @@
-// Copyright (c) 2026 Milk_Drinker01. All rights reserved.
-
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -256,14 +254,12 @@ namespace Fraxinus.GPUBatcher
             {
                 set = pool[nextIndex];
                 if (set.generation != _bufferPoolGeneration)
-                    UpdateBufferSet(set, bucketCount, visCount, drawCmdCount, prefix,
-                        bucketTemplate, argsTemplate);
+                    UpdateBufferSet(set, bucketCount, visCount, drawCmdCount, prefix, bucketTemplate, argsTemplate);
             }
             else
             {
                 set = new CullingBufferSet();
-                UpdateBufferSet(set, bucketCount, visCount, drawCmdCount, prefix,
-                    bucketTemplate, argsTemplate);
+                UpdateBufferSet(set, bucketCount, visCount, drawCmdCount, prefix, bucketTemplate, argsTemplate);
                 pool.Add(set);
             }
             nextIndex++;
@@ -302,8 +298,7 @@ namespace Fraxinus.GPUBatcher
             if (set.drawBucketBuffer == null || set.drawBucketBuffer.count != bucketCount)
             {
                 set.drawBucketBuffer?.Dispose();
-                set.drawBucketBuffer = new GraphicsBuffer(
-                    GraphicsBuffer.Target.Structured, bucketCount, bucketStride);
+                set.drawBucketBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bucketCount, bucketStride);
 #if DEBUG
                 set.drawBucketBuffer.name = $"FraxinusGPUBatcher_{prefix}Buckets";
 #endif
@@ -312,8 +307,7 @@ namespace Fraxinus.GPUBatcher
             if (set.visibilityBuffer == null || set.visibilityBuffer.count < visCount)
             {
                 set.visibilityBuffer?.Dispose();
-                set.visibilityBuffer = new GraphicsBuffer(
-                    GraphicsBuffer.Target.Raw, visCount, sizeof(uint));
+                set.visibilityBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Raw, visCount, sizeof(uint));
 #if DEBUG
                 set.visibilityBuffer.name = $"FraxinusGPUBatcher_{prefix}Visibility";
 #endif
@@ -388,7 +382,9 @@ namespace Fraxinus.GPUBatcher
         // reset fade states for a slot range across all views to prevent stale data in new occupants
         private void ResetFadeStatesForSlots(int baseOffset, int count)
         {
-            if (count <= 0 || _viewFadeStates.Count == 0) return;
+            if (count <= 0 || _viewFadeStates.Count == 0)
+                return;
+
             AddStagedMerged(_stagedFadeResets, 0, baseOffset, count, matchStaging: false);
             _stagingDirty = true;
         }
@@ -1356,7 +1352,12 @@ namespace Fraxinus.GPUBatcher
 
                 // no visible chunks - reset zeroed the args, skip GPU culling
                 if (cpuVisCount == 0)
+                {
+#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
+                    VkStartView(cmd, viewSet);
+#endif
                     continue;
+                }
 
                 // bind per-split output buffers
                 cmd.SetComputeBufferParam(_cullingShader, _cullInstancesKernel, s_idDrawBuckets, viewSet.drawBucketBuffer);
@@ -1380,6 +1381,9 @@ namespace Fraxinus.GPUBatcher
                 CmdDispatchCullIndirect(cmd, "FraxinusGPUBatcher.CullInstances", _cullInstancesKernel, viewSet.visibleChunkCountBuffer);
 
                 DispatchFinalizeDrawArgs(cmd, viewSet);
+#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
+                VkStartView(cmd, viewSet);
+#endif
 
 #if UNITY_EDITOR
                 if (s == 0)
@@ -1489,6 +1493,9 @@ namespace Fraxinus.GPUBatcher
 #endif
 
                 DispatchFinalizeDrawArgs(cmd, viewSet);
+#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
+                VkStartView(cmd, viewSet);
+#endif
 
 #if UNITY_EDITOR
                 DispatchDebugSphereCompaction(cmd, viewSet);
@@ -2095,6 +2102,10 @@ namespace Fraxinus.GPUBatcher
                 return default;
 
             bool isDeferred = _deferredCullingCameras.Contains(viewID);
+#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
+            _vkCullingCamera = viewID;
+            _vkCameraDeferred = isDeferred;
+#endif
 
             // look up per-camera SRP data (populated in OnBeginCameraRendering)
             // non-SRP cameras (baked occlusion viz, etc.) won't have an entry - use defaults
@@ -2424,6 +2435,16 @@ namespace Fraxinus.GPUBatcher
                 };
             }
 
+#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
+            if (!BRGIndirectSubmission.isAvailable && VulkanCarrierAvailable)
+            {
+                VkEmit(viewSet, in cullingOutput,
+                    new ReadOnlySpan<BatchDrawCommandIndirect>(commands, totalCmdCount),
+                    new ReadOnlySpan<BatchDrawRange>(ranges, totalRangeCount),
+                    _cameraIndirectArgsTemplate, _vkCullingCamera, _vkCameraDeferred);
+                return;
+            }
+#endif
             BRGIndirectSubmission.TrySubmit(in cullingOutput,
                 new ReadOnlySpan<BatchDrawCommandIndirect>(commands, totalCmdCount),
                 new ReadOnlySpan<BatchDrawRange>(ranges, totalRangeCount));
@@ -2630,6 +2651,16 @@ namespace Fraxinus.GPUBatcher
                     }
                 };
             }
+#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
+            if (!BRGIndirectSubmission.isAvailable && VulkanCarrierAvailable)
+            {
+                VkEmit(shadowSet, in cullingOutput,
+                    new ReadOnlySpan<BatchDrawCommandIndirect>(outPtr, cmdIdx),
+                    new ReadOnlySpan<BatchDrawRange>(ranges, preparedRangeCount),
+                    _shadowIndirectArgsTemplate, _vkCullingCamera, false);
+                return;
+            }
+#endif
             BRGIndirectSubmission.TrySubmit(in cullingOutput,
                 new ReadOnlySpan<BatchDrawCommandIndirect>(outPtr, cmdIdx),
                 new ReadOnlySpan<BatchDrawRange>(ranges, preparedRangeCount));

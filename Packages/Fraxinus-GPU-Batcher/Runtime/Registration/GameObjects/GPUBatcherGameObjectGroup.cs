@@ -399,7 +399,8 @@ namespace Fraxinus.GPUBatcher
         // called by GPUBatcherGameObjectLink when mesh/material changes in editor
         internal void NotifySourceChanged()
         {
-            if (!_converted) return;
+            if (!_converted)
+                return;
             RebuildPrototypes();
         }
 

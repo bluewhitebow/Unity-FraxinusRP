@@ -4,7 +4,7 @@
 
 使用 **Unity 2022.3**，其中 **2022.3.62f3** 与源工程一致。本仓库是一组 UPM 包，使用它们的 Unity 工程自行提供 `Assets`、`ProjectSettings` 和 `Packages/manifest.json`。
 
-本仓库包含 **ScriptableNode / UltraRP** 的四个配套包：Core、Light Transport、Shader Graph 和 FraxinusRP，以及可选的 **Fraxinus GPU Batcher**。下方配置安装全部五个包。GPU Batcher 在 Unity 2022.3 与 Unity 6 共用一套实现，原版 Unity 6 默认启用原生间接提交，原版 Unity 2022 需要配置提交 handler。不需要 GPU Batcher 时，请省略 `com.bluewhitebow.fraxinus-gpu-batcher`。UltraRP 不依赖 URP。
+本仓库包含 **ScriptableNode / UltraRP** 的四个配套包：Core、Light Transport、Shader Graph 和 FraxinusRP，以及可选的 **Fraxinus GPU Batcher**。下方配置安装全部五个包。GPU Batcher 在 Unity 2022.3 与 Unity 6 共用一套实现，原版 Unity 6 默认启用原生间接提交，原版 Windows x64 Unity 2022 可使用包内 Vulkan 后端。不需要 GPU Batcher 时，请省略 `com.bluewhitebow.fraxinus-gpu-batcher`。UltraRP 不依赖 URP。
 
 四个配套包及选装的 GPU Batcher 请使用同一提交中的版本。BRG 移植依赖 Core 的原生对象变化追踪封装、UltraRP 的剔除与逐节点注入钩子，以及 Shader Graph 的 SpeedTree 适配，仅匹配包版本号不足以保证兼容。
 
@@ -69,7 +69,9 @@ UltraRP 的 Target 内部 API 需要配套 Shader Graph 分支。它的版本仍
 
 ## 可选 GPU Batcher
 
-[Fraxinus GPU Batcher](../Packages/Fraxinus-GPU-Batcher/README.md) 在 Unity 2022.3 与 Unity 6 共用实例注册、存储、变换上传、相机／阴影剔除、LOD 和间接参数生成实现。**原版 Unity 6 自动安装内置原生间接提交实现；原版 Unity 2022 默认没有提交 handler。** 相机与阴影输出都使用 `BRGIndirectSubmission.submitHandler`，引擎集成可在启动时注册同步 handler。`isAvailable` 表示是否已安装 handler；没有 handler 时，`TrySubmit` 返回 `false`，且不写入输出。注册会接管原 Renderer／Terrain，因此没有 handler 时，注册物体没有间接绘制输出。Bake 会删除源子 GameObject，评估这些流程时请使用可丢弃的场景副本。
+[Fraxinus GPU Batcher](../Packages/Fraxinus-GPU-Batcher/README.md) 在 Unity 2022.3 与 Unity 6 共用实例注册、存储、变换上传、相机／阴影剔除、LOD 和间接参数生成实现。**原版 Unity 6 自动安装内置原生间接提交实现；原版 Windows x64 Unity 2022 可使用包内 Vulkan 插件。** 用 `-force-vulkan` 启动 Editor 或 Player，添加 `-disableFraxinusVulkanBRG` 可进行禁用对照。已安装的同步 `BRGIndirectSubmission.submitHandler` 优先使用。`BRGIndirectSubmission.isAvailable` 仅表示是否已安装 handler，`GPUBatcherRenderer.canSubmitDraws` 还包含 Vulkan 后端；注册接管原 Renderer／Terrain 前，应检查后者。没有可用后端时，注册物体没有间接绘制输出。Bake 会删除源子 GameObject，评估这些流程时请使用可丢弃的场景副本。
+
+Vulkan 后端依赖同一修订 Core 与 FraxinusRP 中的 Fraxinus DOTS Shader includes。Unity BRG 选择材质和 Shader Pass，独立 mesh index buffer 将每次绘制关联到对应 GPU 参数；每个视图的 raw buffer 保存复制的实例数据和可见性。需要为这些网格副本及视图缓冲预留内存。visibility offset 上限为 8,388,607 个元素。包内二进制仅面向 Windows x64 Vulkan；其他图形 API 或平台使用的独立定制宿主 NativeContract 适配器不包含在本包分发中。
 
 BRG 实现替换了旧 GPUInstancer 代码、Profile、公开 API 和可导入示例，不提供自动迁移。已有项目数据需要按新组件与配置重建；UPM 标识和 `0.1.0` 版本号不变，不代表这些契约仍兼容。
 
@@ -86,7 +88,7 @@ Core、FraxinusRP 与 Shader Graph 必须使用同一修订的配套版本。Cor
 | 缺少 `ScopeData` 或类型化 RenderGraph API | 确认 UltraRP 与 Core 来自本仓库同一提交，并检查旧 embedded 副本是否优先生效。 |
 | UltraRP Shader Graph 内部访问或 Target 编译错误 | 确认 `com.unity.shadergraph` 解析到 `Fraxinus-ShaderGraph`，而不是官方包。 |
 | GPU Batcher 找不到原生追踪或注入 API | 将 Core、FraxinusRP、Shader Graph 与 GPU Batcher 一起更新到同一提交。 |
-| GPU Batcher 注册后物体消失 | 检查 `BRGIndirectSubmission.isAvailable` 与已安装的 handler。原版 Unity 2022 默认没有 handler，注册仍会接管原 Renderer／Terrain。 |
+| GPU Batcher 注册后物体消失 | 检查当前图形设备上的 `GPUBatcherRenderer.canSubmitDraws`。原版 Windows x64 Unity 2022 需使用 `-force-vulkan`、启用包内插件并安装配套 Fraxinus DOTS Shader。注册仍会接管原 Renderer／Terrain。 |
 | 找不到包或 Git 路径无效 | 检查 GitHub 连接、`?path=/Packages/...` 是否与目录名称一致、所有引用的修订是否存在。 |
 | 安装后仍使用原来的管线 | 检查 Graphics 与当前 Quality 的管线资产；安装包本身不会选择管线。 |
 | 材质变粉或 UltraRP 画面为空 | 检查材质对应的管线、Renderer Graph 连接及绘制标签。URP Renderer Feature 不是 UltraRP 图节点。 |

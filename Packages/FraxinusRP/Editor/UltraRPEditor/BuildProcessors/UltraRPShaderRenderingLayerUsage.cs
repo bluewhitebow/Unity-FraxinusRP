@@ -30,7 +30,7 @@ namespace FraxinusEditor.Rendering.Ultra
             => type == typeof(PRTRelightPass) || type == typeof(DeferredPass) || type == typeof(GBufferPass) ||
                 type == typeof(InvokeOnRenderObjectCallbackPass) || type == typeof(ProbeVolumeDebugPass) ||
                 type == typeof(MotionVectorRenderPass) || type == typeof(DrawScreenSpaceUIPass) ||
-                type == typeof(GroundTruthAmbientOcclusionPass) || type == typeof(ContactShadowsPass) || type == typeof(HiZDepthPass) ||
+                type == typeof(GroundTruthAmbientOcclusionPass) || type == typeof(ContactShadowsPass) ||
                 type == typeof(CapturePass) || type == typeof(AreaLightsPass) || type == typeof(APRTRelightPass) ||
                 type == typeof(APRTProbeDebugPass) || type == typeof(DepthCopyPass) ||
                 type == typeof(DepthNormalOnlyPass) || type == typeof(DepthOnlyPass) ||

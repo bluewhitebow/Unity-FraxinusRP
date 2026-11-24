@@ -540,7 +540,7 @@ namespace Fraxinus.GPUBatcher
         [Tooltip("Workaround for HDRP forward rendering bug: BRG instances with non-Object motion mode are incorrectly excluded from the depth prepass when their material has 'Motion Vectors For Vertex Animation' enabled. Forces HasMotion on affected draw commands so they render via the motion vector pass instead.")]
         public bool hdrpForwardDepthFix = false;
 
-        [Tooltip("Sample legacy light probes (SphericalHarmonicsL2) per instance. Adds 128 bytes/instance to the GPU matrix buffer (~65% total per-instance memory increase).")]
+        [Tooltip("Sample Light Probe Groups on the CPU and upload SH and occlusion per instance (128 bytes per slot). Fraxinus shaders sample APV and APRTV through the render pipeline independently of this setting.")]
         public bool supportLegacyLightProbes = false;
 
         [Header("Terrain")]

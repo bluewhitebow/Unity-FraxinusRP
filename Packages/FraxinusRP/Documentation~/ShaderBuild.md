@@ -44,7 +44,7 @@ UltraRP 的 `Strip Unused Variants` 同时控制提前关键词过滤、普通 S
 
 自动发现检查与运行时一致：`PostProcessPass` 会实例化全部具体 `BasePostPass` / `IUberEffectProcessor`，即使没有序列化到图中；`ScriptableRenderer` 会实例化具有公开无参构造函数的具体 `BuiltinPass` / `InjectPass`。未审查且未明确声明的类型阻止屏幕空间阴影裁剪。通用 Forward/Deferred 证明仍只接受已审查原生模块，屏幕空间阴影声明不能绕过它，因此不会据此删除自定义材质的 GBuffer、Deferred 或其它 Pass。
 
-`HiZDepthPass` 已登记到原生模块、Rendering Layers 和相机灯光/阴影契约清单。它只生成深度历史，不改变这些灯光关键字，也不请求 Rendering Layers 输出，因此不会阻止已有裁剪证明。
+旧的 `HiZDepthPass` 已移除；GPU Batcher 自己生成 history HZB 和当前帧重测所需的深度金字塔。GPU Batcher 注入模块仍沿用未评审模块的保守裁剪策略，安装该可选包时会保留它可能需要的变体。
 
 Duckov 宿主工程的历史集成审查了以下五个精确节点类型。这些项目节点、插件和游戏资产不随本包提供；其他宿主必须审查自己的实现：
 

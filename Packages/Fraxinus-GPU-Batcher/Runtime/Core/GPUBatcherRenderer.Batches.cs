@@ -385,9 +385,16 @@ namespace Fraxinus.GPUBatcher
                 {
                     Material mat = lodMaterials[sub];
                     if (mat == null) continue;
+#if (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN) && !UNITY_6000_0_OR_NEWER && !FRAXINUS_BRG_INDIRECT_API
+                    if (!Rendering.BRGIndirectSubmission.SupportsD3D11Material(mat))
+                        throw new NotSupportedException("Unregistered D3D11 indexed BRG shader layout: " + mat.shader.name);
+#endif
                     _meshRefCount[meshID] = _meshRefCount.GetValueOrDefault(meshID) + 1;
                     if (!_materialIdCache.TryGetValue(mat, out var materialID))
                     {
+#if UNITY_EDITOR_WIN && !UNITY_6000_0_OR_NEWER
+                        VkPrepareMaterial(mat);
+#endif
                         using (s_markerRegMat.Auto()) materialID = _brg.RegisterMaterial(mat);
                         _materialIdCache[mat] = materialID;
                         _materialIdReverse[materialID] = mat;
@@ -516,6 +523,9 @@ namespace Fraxinus.GPUBatcher
         private void RemoveAllBatchIds()
         {
             if (_brg == null) return;
+#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
+            VkDisposeSubmission();
+#endif
             if (_sharedBatchIDValid) { _brg.RemoveBatch(_sharedBatchID); _sharedBatchIDValid = false; }
             if (_speedTreeBatchIDs != null)
                 for (int i = 0; i < _speedTreeBatchIDs.Length; i++)
@@ -1281,6 +1291,13 @@ namespace Fraxinus.GPUBatcher
             _dirtyBufferBindings |= BufferBindingFlags.ArgsToBucket;
             _bufferPoolGeneration++;
             _rangesDirty = false;
+#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
+            if (!Rendering.BRGIndirectSubmission.isAvailable && VulkanCarrierAvailable && _allocatedCount > 0)
+            {
+                VkPrimePool(false);
+                VkPrimePool(true);
+            }
+#endif
         }
 
         private void IncFlush()

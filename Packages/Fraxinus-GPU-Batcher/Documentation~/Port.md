@@ -1,5 +1,11 @@
 # BRG implementation port
 
+Current update (2026-11-24): the package now includes a Windows x64 Vulkan
+submission backend for Unity 2022. `GPUBatcherRenderer.canSubmitDraws` includes
+this backend; `BRGIndirectSubmission.isAvailable` describes handler availability.
+See the [current package guide](../README.md) for setup, limits and source links.
+The snapshot-specific comparisons and test results below predate this addition.
+
 This package was synchronized from Duckov-Recovered commit
 `5494613cdff36fd003f0537a60fd0b1b5498060d`
 on 2026-11-22. Recorded source tests and `SourceAudit.json` describe their captured

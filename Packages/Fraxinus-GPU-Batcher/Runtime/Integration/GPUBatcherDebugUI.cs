@@ -26,6 +26,9 @@ namespace Fraxinus.GPUBatcher
             if (s_widgets != null || !(RenderPipelineManager.currentPipeline is UltraRenderPipeline))
                 return;
 
+#if UNITY_EDITOR
+            UltraRenderPipeline.beforeCameraCulling += GPUBatcherDebugCameras.OnBeforeCameraCulling;
+#endif
             var panel = GetPanel();
             panel.flags |= DebugUI.Flags.EditorForceUpdate;
             s_widgets = CreateWidgets();
@@ -34,6 +37,10 @@ namespace Fraxinus.GPUBatcher
 
         private static void UnregisterPanel()
         {
+#if UNITY_EDITOR
+            UltraRenderPipeline.beforeCameraCulling -= GPUBatcherDebugCameras.OnBeforeCameraCulling;
+            GPUBatcherDebugCameras.Clear();
+#endif
             if (s_widgets == null) return;
             var panel = DebugManager.instance.GetPanel(k_panelName);
             panel?.children.Remove(s_widgets);
@@ -98,6 +105,15 @@ namespace Fraxinus.GPUBatcher
             ConfigToggle("Visualize Culling In Scene View", "Show the reference Game camera's culling result in Scene view. Session only.",
                 config => config.debugVisualizeCullingInSceneView, (config, value) => config.debugVisualizeCullingInSceneView = value,
                 persistent: false, flags: DebugUI.Flags.EditorOnly),
+            new DebugUI.ObjectField
+            {
+                displayName = "Culling Reference Camera",
+                tooltip = "Select an enabled Game camera for Scene view culling visualization. None uses Camera.main automatically. Session only.",
+                flags = DebugUI.Flags.EditorOnly,
+                type = typeof(UnityEngine.Camera),
+                getter = () => GPUBatcherDebugCameras.selectedReferenceCamera,
+                setter = value => GPUBatcherDebugCameras.selectedReferenceCamera = value as UnityEngine.Camera
+            },
             ConfigToggle("Draw Bounding Spheres", "Draw visible instance bounding spheres by LOD. Session only.",
                 config => config.debugDrawBoundingSpheres, (config, value) => config.debugDrawBoundingSpheres = value,
                 persistent: false, flags: DebugUI.Flags.EditorOnly),
