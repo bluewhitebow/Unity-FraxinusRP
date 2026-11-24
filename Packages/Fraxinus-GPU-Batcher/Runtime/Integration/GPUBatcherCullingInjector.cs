@@ -41,10 +41,12 @@ namespace Fraxinus.GPUBatcher.Integration
                 if (node is ContextEndNode) { nesting = Mathf.Max(0, nesting - 1); continue; }
                 if (nesting != 0 || !(node is ScriptableRenderPassNode pass) || !pass.active ||
                     pass.computeOrder < 0 || !pass.canProcess || pass.graph == null || !pass.graph.IsInjectPassEnabled(injectionType)) continue;
-                foreach (var injection in pass.beforeRenderingPasses)
-                    if (injection.GetType() == injectionType) return true;
-                foreach (var injection in pass.afterRenderingPasses)
-                    if (injection.GetType() == injectionType) return true;
+                var before = pass.beforeRenderingPasses;
+                for (int i = 0; i < before.Count; i++)
+                    if (before[i].GetType() == injectionType) return true;
+                var after = pass.afterRenderingPasses;
+                for (int i = 0; i < after.Count; i++)
+                    if (after[i].GetType() == injectionType) return true;
             }
             return false;
         }

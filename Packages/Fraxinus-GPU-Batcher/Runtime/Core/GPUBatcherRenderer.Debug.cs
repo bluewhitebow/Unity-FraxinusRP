@@ -116,6 +116,12 @@ namespace Fraxinus.GPUBatcher
             if (_perCameraMeshStats.TryGetValue(cameraId, out var stats) && stats.cameraPending) return;
             stats.cameraPending = true;
             _perCameraMeshStats[cameraId] = stats;
+            EnqueueCameraReadbacks(cmd, viewSet, cameraId);
+        }
+
+        // Allocate callback state only when a readback is actually scheduled.
+        private void EnqueueCameraReadbacks(CommandBuffer cmd, CullingBufferSet viewSet, ViewID cameraId)
+        {
             cmd.RequestAsyncReadback(viewSet.indirectArgsBuffer, (req) =>
             {
                 ComputeReadbackTotals(req, false, out long tris, out long verts, out long inst);
@@ -144,6 +150,11 @@ namespace Fraxinus.GPUBatcher
             if (_perLightShadowStats.TryGetValue(lightId, out var stats) && stats.pending) return;
             stats.pending = true;
             _perLightShadowStats[lightId] = stats;
+            EnqueueShadowReadbacks(cmd, shadowSet, lightId);
+        }
+
+        private void EnqueueShadowReadbacks(CommandBuffer cmd, CullingBufferSet shadowSet, ViewID lightId)
+        {
             var cascades = new long[k_maxCascades];
             cmd.RequestAsyncReadback(shadowSet.indirectArgsBuffer, (req) =>
             {

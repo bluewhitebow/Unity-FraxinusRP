@@ -1,7 +1,7 @@
 # Fraxinus GPU Batcher
 
 This package was synchronized from Duckov-Recovered commit
-`75eb0a83bbbe5f7adf40ad48742365aebbc58440`
+`fc66753003cecfe9f630e84e70a1181e2f66447e`
 on 2026-11-24. Recorded source tests and `SourceAudit.json` describe their captured
 snapshots, not a GPU/Player validation rerun of this checkout or its later changes.
 This suite retains `PrepareFrameResources(...)` and its existing Core/RP adaptations.

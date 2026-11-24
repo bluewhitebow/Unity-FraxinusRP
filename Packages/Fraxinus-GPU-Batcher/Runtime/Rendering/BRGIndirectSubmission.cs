@@ -31,6 +31,7 @@ namespace Fraxinus.GPUBatcher.Rendering
         private delegate void Indexed2022Writer(IntPtr slot, IntPtr commands, int commandCount, IntPtr ranges, int rangeCount);
         private static readonly Indexed2022Writer s_indexed2022Writer;
         private static readonly Action<ScriptableRenderContext> s_refreshIndexedResources;
+        private static readonly SubmitHandler s_submit2022;
 
         static BRGIndirectSubmission()
         {
@@ -57,7 +58,8 @@ namespace Fraxinus.GPUBatcher.Rendering
             var refresh = translator?.GetMethod("RefreshIndexedWork", new[] { typeof(ScriptableRenderContext) });
             if (refresh != null)
                 s_refreshIndexedResources = (Action<ScriptableRenderContext>)Delegate.CreateDelegate(typeof(Action<ScriptableRenderContext>), refresh);
-            submitHandler = Submit2022;
+            s_submit2022 = Submit2022;
+            submitHandler = s_submit2022;
         }
 
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
@@ -102,7 +104,7 @@ namespace Fraxinus.GPUBatcher.Rendering
         // immediate DrawRenderers refresh therefore cannot see this graph dispatch.
         internal static void AfterGraphCull(ScriptableRenderContext context, CommandBuffer commands)
         {
-            if (s_refreshIndexedResources == null || submitHandler != Submit2022) return;
+            if (s_refreshIndexedResources == null || submitHandler != s_submit2022) return;
             context.ExecuteCommandBuffer(commands);
             commands.Clear();
             s_refreshIndexedResources(context);

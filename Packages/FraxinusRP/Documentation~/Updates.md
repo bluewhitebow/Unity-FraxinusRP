@@ -1,3 +1,22 @@
+# 2026-11-24 GPU Batcher allocation refinements
+
+Synchronizes five package changes from Duckov-Recovered `fc6675300`. Debug
+readback callbacks allocate their state only when a readback is scheduled;
+injection checks use indexed iteration and the Unity 2022 submit delegate is
+cached. Core caches its ObjectDispatcher callback while retaining owned copies
+of all six transform arrays and the caller-selected allocator.
+
+The Win64 managed NativeContract library is updated with submission/material
+cache changes; its bytes match the source Git LFS object. Platform and custom
+engine requirements remain unchanged. The merge preserves this suite's
+`PrepareFrameResources` interface. This synchronization does not establish
+measured allocation savings or validate native/Player rendering.
+
+Targeted ObjectTracking and GPU Runtime compilation passed in stock Unity
+2022.3.62f3 and Unity 6000.0.85f2: four assemblies, zero errors. The two existing
+Unity 6 DrawRenderers deprecation warnings remain. Core snapshot behavior was
+also compared against both engines' metadata without executing the plugin.
+
 # 2026-11-24 NativeContract package distribution
 
 Synchronizes 23 GPU Batcher package changes from Duckov-Recovered through

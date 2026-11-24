@@ -42,14 +42,48 @@ namespace UnityEngine.Rendering
     internal sealed class NativeObjectChangeTracker : IDisposable
     {
         readonly ObjectDispatcher m_Dispatcher = new ObjectDispatcher();
+        readonly Action<TransformDispatchData> m_CollectTransformChanges;
+        Allocator m_TransformAllocator;
+        TransformDispatchData m_TransformSnapshot;
+
+        internal NativeObjectChangeTracker() => m_CollectTransformChanges = CollectTransformChanges;
 
         internal void TrackTransforms(Type type) => m_Dispatcher.EnableTransformTracking(ObjectDispatcher.TransformTrackingType.GlobalTRS, type);
 
         internal void TrackType(Type type) => m_Dispatcher.EnableTypeTracking(type);
 
-        internal NativeTransformChanges GetTransformChanges(Type type, Allocator allocator) =>
-            new NativeTransformChanges(m_Dispatcher.GetTransformChangesAndClear(
-                type, ObjectDispatcher.TransformTrackingType.GlobalTRS, allocator));
+        internal NativeTransformChanges GetTransformChanges(Type type, Allocator allocator)
+        {
+            // The dispatcher borrows its arrays only for the synchronous callback.
+            // Transfer an owned snapshot to the caller without a closure per poll.
+            m_TransformAllocator = allocator;
+            try
+            {
+                m_Dispatcher.DispatchTransformChangesAndClear(type,
+                    ObjectDispatcher.TransformTrackingType.GlobalTRS, m_CollectTransformChanges);
+                var result = new NativeTransformChanges(m_TransformSnapshot);
+                m_TransformSnapshot = default;
+                return result;
+            }
+            finally
+            {
+                m_TransformAllocator = Allocator.Invalid;
+                if (m_TransformSnapshot.transformedID.IsCreated)
+                    m_TransformSnapshot.Dispose();
+                m_TransformSnapshot = default;
+            }
+        }
+
+        void CollectTransformChanges(TransformDispatchData changes)
+        {
+            // Keep all six arrays and their allocator identical to Unity's snapshot API.
+            m_TransformSnapshot.transformedID = new NativeArray<int>(changes.transformedID, m_TransformAllocator);
+            m_TransformSnapshot.parentID = new NativeArray<int>(changes.parentID, m_TransformAllocator);
+            m_TransformSnapshot.localToWorldMatrices = new NativeArray<Matrix4x4>(changes.localToWorldMatrices, m_TransformAllocator);
+            m_TransformSnapshot.positions = new NativeArray<Vector3>(changes.positions, m_TransformAllocator);
+            m_TransformSnapshot.rotations = new NativeArray<Quaternion>(changes.rotations, m_TransformAllocator);
+            m_TransformSnapshot.scales = new NativeArray<Vector3>(changes.scales, m_TransformAllocator);
+        }
 
         internal NativeTypeChanges GetTypeChanges(Type type, Allocator allocator) =>
             new NativeTypeChanges(m_Dispatcher.GetTypeChangesAndClear(type, allocator));
