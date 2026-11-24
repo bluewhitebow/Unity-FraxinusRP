@@ -71,7 +71,9 @@ UltraRP 的 Target 内部 API 需要配套 Shader Graph 分支。它的版本仍
 
 [Fraxinus GPU Batcher](../Packages/Fraxinus-GPU-Batcher/README.md) 在 Unity 2022.3 与 Unity 6 共用实例注册、存储、变换上传、相机／阴影剔除、LOD 和间接参数生成实现。**原版 Unity 6 自动安装内置原生间接提交实现；原版 Windows x64 Unity 2022 可使用包内 Vulkan 插件。** 用 `-force-vulkan` 启动 Editor 或 Player，添加 `-disableFraxinusVulkanBRG` 可进行禁用对照。已安装的同步 `BRGIndirectSubmission.submitHandler` 优先使用。`BRGIndirectSubmission.isAvailable` 仅表示是否已安装 handler，`GPUBatcherRenderer.canSubmitDraws` 还包含 Vulkan 后端；注册接管原 Renderer／Terrain 前，应检查后者。没有可用后端时，注册物体没有间接绘制输出。Bake 会删除源子 GameObject，评估这些流程时请使用可丢弃的场景副本。
 
-Vulkan 后端依赖同一修订 Core 与 FraxinusRP 中的 Fraxinus DOTS Shader includes。Unity BRG 选择材质和 Shader Pass，独立 mesh index buffer 将每次绘制关联到对应 GPU 参数；每个视图的 raw buffer 保存复制的实例数据和可见性。需要为这些网格副本及视图缓冲预留内存。visibility offset 上限为 8,388,607 个元素。包内二进制仅面向 Windows x64 Vulkan；其他图形 API 或平台使用的独立定制宿主 NativeContract 适配器不包含在本包分发中。
+Vulkan 后端依赖同一修订 Core 与 FraxinusRP 中的 Fraxinus DOTS Shader includes。Unity BRG 选择材质和 Shader Pass，独立 mesh index buffer 将每次绘制关联到对应 GPU 参数；每个视图的 raw buffer 保存复制的实例数据和可见性。需要为这些网格副本及视图缓冲预留内存。visibility offset 上限为 8,388,607 个元素。标准引擎使用的 Vulkan 插件面向 Windows x64。
+
+包现在也在 `Runtime/Plugins/FraxinusNativeContract` 中提供 Win64 和 Android ARM64 NativeContract 库。这些绑定需要配套的定制 Unity 2022.3.62f3 Editor 和 Player 模板；仅安装包不会为标准 Unity 增加对应引擎接口。升级时移除旧的 `Assets/Plugins/FraxinusNativeContract` 副本，避免重复导入插件。Android 构建检测到定制 writer 时，会使用包内链接描述文件保留 writer 和托管刷新入口。
 
 BRG 实现替换了旧 GPUInstancer 代码、Profile、公开 API 和可导入示例，不提供自动迁移。已有项目数据需要按新组件与配置重建；UPM 标识和 `0.1.0` 版本号不变，不代表这些契约仍兼容。
 

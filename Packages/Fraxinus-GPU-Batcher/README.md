@@ -1,7 +1,7 @@
 # Fraxinus GPU Batcher
 
 This package was synchronized from Duckov-Recovered commit
-`f48854aa6e2d7fbdb4d27236a4330fa2d3e1f7fa`
+`75eb0a83bbbe5f7adf40ad48742365aebbc58440`
 on 2026-11-24. Recorded source tests and `SourceAudit.json` describe their captured
 snapshots, not a GPU/Player validation rerun of this checkout or its later changes.
 This suite retains `PrepareFrameResources(...)` and its existing Core/RP adaptations.
@@ -37,7 +37,13 @@ enable that symbol when it backports the complete matching bindings, or register
 own `submitHandler` at startup for a different API. With no handler, `TrySubmit`
 returns false without allocating or modifying native output.
 
-Windows x64 Unity 2022 can also execute the package's indexed commands through
+The custom Unity 2022.3.62f3 Editor and its Player templates use the bindings
+in `Runtime/Plugins/FraxinusNativeContract`. Unity imports the Win64 and
+Android ARM64 libraries directly from the package. When upgrading an existing
+project, remove its previous `Assets/Plugins/FraxinusNativeContract` copy to
+avoid importing the same plugins twice.
+
+Stock Windows x64 Unity 2022 can also execute the package's indexed commands through
 the included Vulkan plugin. Start the editor or Player with `-force-vulkan`.
 `GPUBatcherRenderer.canSubmitDraws` includes this backend. Add
 `-disableFraxinusVulkanBRG` for a control run. Unity's BRG renderer lists select
@@ -49,7 +55,7 @@ path requires the bundled Fraxinus DOTS includes. Its visibility offset limit is
 8,388,607 elements. The packaged binary targets Windows x64 Vulkan.
 Its [native source](https://github.com/zgsxof/Duckov-Recovered/blob/f48854aa6e2d7fbdb4d27236a4330fa2d3e1f7fa/Tools/Rendering/NativeBRGBridge/VulkanPlugin/FraxinusBrgVulkan.cpp)
 and [build script](https://github.com/zgsxof/Duckov-Recovered/blob/f48854aa6e2d7fbdb4d27236a4330fa2d3e1f7fa/Tools/Rendering/NativeBRGBridge/VulkanPlugin/Build-Windows.ps1)
-are retained at the synchronized source commit. Rebuilding requires the Unity
+are retained at the earlier Vulkan-backend source commit linked above. Rebuilding requires the Unity
 Vulkan PluginAPI headers, Vulkan headers and the Visual Studio C++ toolchain.
 
 Edit the active configuration in **Edit > Project Settings > Graphics > Fraxinus GPU Batcher**.

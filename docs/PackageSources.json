@@ -34,27 +34,56 @@
       "sourceProject": "Duckov-Recovered",
       "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
       "sourcePath": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher",
-      "sourceCommit": "f48854aa6e2d7fbdb4d27236a4330fa2d3e1f7fa",
-      "sourceState": "Committed Windows x64 Vulkan submission, GPU-owned Hi-Z and debug-camera state, and instance tracking updates; retains this suite's PrepareFrameResources hook. Source audit hashes describe their recorded snapshots."
+      "sourceCommit": "75eb0a83bbbe5f7adf40ad48742365aebbc58440",
+      "sourceState": "NativeContract Win64 and Android ARM64 libraries are distributed inside the package with the Unity 2022 Android linker processor. Custom-engine bindings still require matching Editor and Player templates."
     }
   ],
   "latestSync": {
     "date": "2026-11-24",
     "sourceProject": "Duckov-Recovered",
     "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
-    "sourceCommit": "f48854aa6e2d7fbdb4d27236a4330fa2d3e1f7fa",
-    "sourceBaselineCommit": "580583ccc4ffca8916109df06102348e17919ea6",
-    "sourceState": "Merged committed GPU Batcher Vulkan backend and RP/Core DOTS changes; removed superseded RP Hi-Z and camera-state APIs and their distribution-only shader-stripping references. Retains this suite's rendering hooks and light migration.",
+    "sourceCommit": "75eb0a83bbbe5f7adf40ad48742365aebbc58440",
+    "sourceBaselineCommit": "f48854aa6e2d7fbdb4d27236a4330fa2d3e1f7fa",
+    "sourceState": "Merged packaged NativeContract plugin imports and Android linker preservation; retained existing suite adaptations. Binary bytes and sizes match the source Git LFS objects.",
     "packages": [
-      "Fraxinus-GPU-Batcher",
-      "FraxinusRP",
-      "Fraxinus-RPCore"
+      "Fraxinus-GPU-Batcher"
     ],
-    "nativePlugin": {
-      "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/x86_64/FraxinusBrgVulkan.dll",
-      "sha256": "8e9795a2d0c2746dac768762303e59b271ddc428b1b2ef6ce7321fda06a66270",
-      "sourcePath": "Tools/Rendering/NativeBRGBridge/VulkanPlugin/FraxinusBrgVulkan.cpp",
-      "buildScript": "Tools/Rendering/NativeBRGBridge/VulkanPlugin/Build-Windows.ps1"
-    }
+    "nativePlugins": [
+      {
+        "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/FraxinusNativeContract/Android/Fraxinus.BrgContract.Managed.dll",
+        "sha256": "bf651cf51e21b7fac6e46f45ac2800047be5ca046e212ea8010ef7bef6895a68",
+        "size": 18432
+      },
+      {
+        "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/FraxinusNativeContract/Android/arm64-v8a/libFraxinusBrgContractNative.so",
+        "sha256": "33d09e75e14431811d96f17b488cf3d9932ea37580e0071d9f344b09fba6c9a4",
+        "size": 287688
+      },
+      {
+        "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/FraxinusNativeContract/Android/arm64-v8a/libFraxinusBrgVulkanContract.so",
+        "sha256": "b8c8b425f4b5d5abbb8112b9ab23463ce0c195bd83147810e932fe208c9ef80d",
+        "size": 363528
+      },
+      {
+        "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/FraxinusNativeContract/x86_64/Fraxinus.BrgContract.Managed.dll",
+        "sha256": "e40a4a57865ec1b564434ea42779856ae28b61d8f1f0d962ab7669b831ad4953",
+        "size": 24576
+      },
+      {
+        "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/FraxinusNativeContract/x86_64/FraxinusBrgContractNative.dll",
+        "sha256": "b43b1d3bc23e6f8658632ac57c32d20e815273fbe570eb149c85595308f44321",
+        "size": 104448
+      },
+      {
+        "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/FraxinusNativeContract/x86_64/FraxinusBrgVulkanContract.dll",
+        "sha256": "b90cf97632bbfde52348ec1bc5d6c794005eddbdfb111950adae794c77f6b1a9",
+        "size": 337920
+      },
+      {
+        "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/FraxinusNativeContract/x86_64/GfxPluginBrgEvents.dll",
+        "sha256": "eec6cb1825d80a3a4b32187eacf664e48ad554b5a98fba9fb630cf75c3b3d0cf",
+        "size": 138240
+      }
+    ]
   }
 }

@@ -1,3 +1,24 @@
+# 2026-11-24 NativeContract package distribution
+
+Synchronizes 23 GPU Batcher package changes from Duckov-Recovered through
+`75eb0a83b`. Win64 and Android ARM64 NativeContract libraries now ship inside
+the package, with their platform-specific import settings. Existing projects
+should remove the former `Assets/Plugins/FraxinusNativeContract` copy to avoid
+duplicate imports. These libraries require matching custom Unity 2022.3.62f3
+Editor/Player templates; stock Windows Vulkan retains its separate plugin path.
+
+A Unity 2022.3 Android build processor supplies the package linker descriptor
+when the engine exposes `IndexedBrgOutputWriter`. It preserves the writer and
+the managed refresh entry point, and reports a missing descriptor as a build
+error. All seven plugin files match the source Git LFS hashes and sizes.
+See the [usage guide](../../../docs/Usage.md) and
+[plugin provenance](../../../docs/PackageSources.json).
+
+Targeted GPU Editor compilation passed in stock Unity 2022.3.62f3 and
+Unity 6000.0.85f2 with zero errors or warnings. The linker XML and preservation
+rules passed static checks. This sync did not run Android builds/linking, Player
+execution or native plugin rendering.
+
 # 2026-11-24 Windows Vulkan GPU Batcher and Hi-Z consolidation
 
 Synchronizes Duckov-Recovered through `f48854aa6`, including the Windows x64
