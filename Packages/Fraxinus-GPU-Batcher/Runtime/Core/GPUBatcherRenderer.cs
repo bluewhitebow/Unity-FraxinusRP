@@ -60,11 +60,7 @@ namespace Fraxinus.GPUBatcher
 
         public bool isInitialized => _initialized;
 
-        public static bool canSubmitDraws => Rendering.BRGIndirectSubmission.isAvailable
-#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
-            || VulkanCarrierAvailable
-#endif
-            ;
+        public static bool canSubmitDraws => Rendering.BRGIndirectSubmission.isAvailable;
 
         public static void Shutdown()
         {
@@ -601,24 +597,7 @@ namespace Fraxinus.GPUBatcher
             DrainOrphanedDeferredContexts();
 
 #if UNITY_EDITOR
-            // reset readback pending flags so one readback fires per view per frame
-            if (_computeRenderedTriangles)
-            {
-                var keys = new List<ViewID>(_perCameraMeshStats.Keys);
-                foreach (var k in keys)
-                {
-                    var s = _perCameraMeshStats[k];
-                    s.cameraPending = false;
-                    _perCameraMeshStats[k] = s;
-                }
-                var lightKeys = new List<ViewID>(_perLightShadowStats.Keys);
-                foreach (var k in lightKeys)
-                {
-                    var s = _perLightShadowStats[k];
-                    s.pending = false;
-                    _perLightShadowStats[k] = s;
-                }
-            }
+            ResetReadbackPendingFlags();
 #endif
 
             // evict stale per-view fade states
@@ -854,9 +833,6 @@ namespace Fraxinus.GPUBatcher
         private void OnEndCameraRendering(ScriptableRenderContext ctx, Camera camera)
         {
             ViewID viewID = GPUBatcherHelpers.GetViewID(camera);
-#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
-            if (_vkViews.Count > 0) VkEndViews(viewID);
-#endif
             if (_cameraRenderData.TryGetValue(viewID, out var camData))
             {
                 _cameraPoolNextIndex = camData.cameraPoolSnapshot;
@@ -928,9 +904,6 @@ namespace Fraxinus.GPUBatcher
             GPUBatcherObjectChangeTracker.Dispose();
             CleanupBakedOcclusion();
 
-#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
-            VkDisposeSubmission();
-#endif
             _brg?.Dispose();
             _brg = null;
             _sharedBatchIDValid = false;

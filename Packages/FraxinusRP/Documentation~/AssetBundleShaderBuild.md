@@ -1,12 +1,10 @@
 # Player、AssetBundle 与 Addressables 的 Shader 构建
 
-本文的 Unity 2022.3.62f3 / SBP 1.23.1 实测来自 Duckov 宿主工程的历史验证；该工程、测试 Shader 和构建产物不随本包提供。其他宿主应按自己的 Unity/SBP 版本与构建入口验证过滤时机。
-
 `UltraRPShaderBuildSession` 统一管理构建数据。Player 在 `IPreprocessBuildWithReport` 中创建会话，正常结束时根据 BuildReport 清理。Shader 与 Compute 回调共用一个最早执行的预处理器；已知构建边界会提前准备关键字过滤字段。每次准备重新收集目标平台的 Graphics/Quality 管线资产，不能沿用上次构建的功能结论。字段已准备不代表所有 Unity 构建 API 都会消费原生过滤规则，应以实际日志为准。
 
 实际 Unity 2022.3 原生 `BuildPipeline.BuildAssetBundles` 验证发现：连续同步调用可以复用 Shader 回调对象，也不提供独立 begin/end 回调。因此无显式范围的原生 Bundle 仅使用 managed stripping：派生的 native filter 字段置为保留所有状态，每个 Shader/Compute 批次重新检查当前项目配置哈希，需求变化时更新会话和规则。这样 OFF→ON→OFF 不会保留上次快照，也不会在下一次 native 展开之前误删新需要的状态。相同配置且没有 Editor update 的连续原生构建可能合并在同一诊断会话内；需要准确的逐构建报告和提前过滤时使用下方显式范围。
 
-当时验证使用的 SBP 1.23.1 会创建并清理 Unity Shader 回调。平台切换还会触发 `activeBuildTargetChanged`，用于在 Unity 因 callback flags 相同而复用回调对象时提前重新准备过滤。不能只等第一个 `OnProcessShader`：那时原生变体展开已经开始。
+当前安装的 SBP 1.23.1 会创建并清理 Unity Shader 回调。平台切换还会触发 `activeBuildTargetChanged`，用于在 Unity 因 callback flags 相同而复用回调对象时提前重新准备过滤。不能只等第一个 `OnProcessShader`：那时原生变体展开已经开始。
 
 可选 SBP 集成还接入标准 `PostScriptsCallback`：每次构建在目标切换/脚本编译之后、依赖计算之前重新准备，覆盖同一帧连续构建和 callback flags 相同的情况；`PostWritingCallback` 结束会话并恢复字段。显式范围拥有者保持会话直到范围释放。Core 的 Shader/Compute stripper 在管线匹配时始终注册，实际开关在每个会话中重新判断，避免第一次关闭裁剪使 Core 缓存永久排除该 stripper。
 

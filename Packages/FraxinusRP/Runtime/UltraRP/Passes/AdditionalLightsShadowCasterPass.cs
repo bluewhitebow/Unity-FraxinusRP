@@ -823,7 +823,13 @@ namespace FraxinusEngine.Rendering.Ultra
                 int additionalLightIndex = _shadowSliceToAdditionalLightIndex[globalShadowSliceIndex];
                 int visibleLightIndex = _additionalLightIndexToVisibleLightIndex[additionalLightIndex];
 
+#if UNITY_6000_0_OR_NEWER
+                // Unity 6 consumes projection and all point/spot splits from
+                // CullShadowCasters; leave the draw settings at their defaults.
+                ShadowDrawingSettings settings = new(cullResults, visibleLightIndex)
+#else
                 ShadowDrawingSettings settings = new(cullResults, visibleLightIndex, BatchCullingProjectionType.Perspective)
+#endif
                 {
                     useRenderingLayerMaskTest = UltraRenderPipeline.asset.useRenderingLayers,
 #if !UNITY_6000_0_OR_NEWER

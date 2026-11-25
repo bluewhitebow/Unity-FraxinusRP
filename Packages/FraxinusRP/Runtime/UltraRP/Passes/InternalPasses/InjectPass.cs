@@ -16,7 +16,7 @@ namespace FraxinusEngine.Rendering.Ultra
         public Type targetPassType;
         public InjectionPoint point;
         public bool finalInjectPostPass;
-
+        
         /// <summary>
         /// 作用域过滤器：控制此InjectPass在哪些作用域中注入
         /// 默认为All（所有作用域）
@@ -68,7 +68,7 @@ namespace FraxinusEngine.Rendering.Ultra
         /// Return default to request no resources. The renderer merges the requirements
         /// and determines the final output path.
         /// </summary>
-        public virtual RenderPassInputSummary PrepareFrameResources(RenderGraph renderGraph, ContextContainer frameData) => default;
+        public virtual RenderPassInputSummary PrepareFrame(RenderGraph renderGraph, ContextContainer frameData) => default;
 
         public virtual bool IsEligibleToInject(ScriptableRenderer renderer, ScriptableRenderPassNode node)
         {

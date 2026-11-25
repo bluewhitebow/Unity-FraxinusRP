@@ -1352,12 +1352,7 @@ namespace Fraxinus.GPUBatcher
 
                 // no visible chunks - reset zeroed the args, skip GPU culling
                 if (cpuVisCount == 0)
-                {
-#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
-                    VkStartView(cmd, viewSet);
-#endif
                     continue;
-                }
 
                 // bind per-split output buffers
                 cmd.SetComputeBufferParam(_cullingShader, _cullInstancesKernel, s_idDrawBuckets, viewSet.drawBucketBuffer);
@@ -1381,9 +1376,6 @@ namespace Fraxinus.GPUBatcher
                 CmdDispatchCullIndirect(cmd, "FraxinusGPUBatcher.CullInstances", _cullInstancesKernel, viewSet.visibleChunkCountBuffer);
 
                 DispatchFinalizeDrawArgs(cmd, viewSet);
-#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
-                VkStartView(cmd, viewSet);
-#endif
 
 #if UNITY_EDITOR
                 if (s == 0)
@@ -1493,9 +1485,6 @@ namespace Fraxinus.GPUBatcher
 #endif
 
                 DispatchFinalizeDrawArgs(cmd, viewSet);
-#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
-                VkStartView(cmd, viewSet);
-#endif
 
 #if UNITY_EDITOR
                 DispatchDebugSphereCompaction(cmd, viewSet);
@@ -2102,10 +2091,6 @@ namespace Fraxinus.GPUBatcher
                 return default;
 
             bool isDeferred = _deferredCullingCameras.Contains(viewID);
-#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
-            _vkCullingCamera = viewID;
-            _vkCameraDeferred = isDeferred;
-#endif
 
             // look up per-camera SRP data (populated in OnBeginCameraRendering)
             // non-SRP cameras (baked occlusion viz, etc.) won't have an entry - use defaults
@@ -2394,8 +2379,10 @@ namespace Fraxinus.GPUBatcher
 
         private unsafe void EmitCameraDrawCommands(BatchCullingOutput cullingOutput, CullingBufferSet viewSet)
         {
+            if (!BRGIndirectSubmission.isAvailable) return;
             int totalCmdCount = _drawCommandCount;
-            int totalRangeCount = _cameraDrawRangeTemplate.IsCreated && _cameraDrawRangeCount > 0 ? _cameraDrawRangeCount : 1;
+            bool hasRanges = _cameraDrawRangeTemplate.IsCreated && _cameraDrawRangeCount > 0;
+            int totalRangeCount = hasRanges ? _cameraDrawRangeCount : 1;
             EnsureIndirectSubmissionCapacity(viewSet, totalCmdCount, totalRangeCount);
             var commands = (BatchDrawCommandIndirect*)viewSet.cpuDrawCommands.GetUnsafePtr();
             var ranges = (BatchDrawRange*)viewSet.cpuDrawRanges.GetUnsafePtr();
@@ -2411,44 +2398,30 @@ namespace Fraxinus.GPUBatcher
                 commands[i].indirectArgsBufferHandle = argsHandle;
             }
 
-            if (_cameraDrawRangeTemplate.IsCreated && _cameraDrawRangeCount > 0)
+            if (hasRanges)
             {
                 UnsafeUtility.MemCpy(ranges, _cameraDrawRangeTemplate.GetUnsafeReadOnlyPtr(),
                     _cameraDrawRangeCount * UnsafeUtility.SizeOf<BatchDrawRange>());
             }
             else
             {
-                ranges[0] = new BatchDrawRange
-                {
-                    drawCommandsBegin = 0,
-                    drawCommandsCount = (uint)totalCmdCount,
-                    filterSettings = new BatchFilterSettings
-                    {
-                        renderingLayerMask = 0xffffffff,
-                        layer = 0,
-                        motionMode = MotionVectorGenerationMode.Camera,
-                        shadowCastingMode = ShadowCastingMode.Off,
-                        receiveShadows = true,
-                        staticShadowCaster = false,
-                        allDepthSorted = false
-                    }
-                };
+                ranges[0] = DefaultDrawRange(totalCmdCount, shadow: false);
             }
 
-#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
-            if (!BRGIndirectSubmission.isAvailable && VulkanCarrierAvailable)
-            {
-                VkEmit(viewSet, in cullingOutput,
-                    new ReadOnlySpan<BatchDrawCommandIndirect>(commands, totalCmdCount),
-                    new ReadOnlySpan<BatchDrawRange>(ranges, totalRangeCount),
-                    _cameraIndirectArgsTemplate, _vkCullingCamera, _vkCameraDeferred);
-                return;
-            }
-#endif
-            BRGIndirectSubmission.TrySubmit(in cullingOutput,
-                new ReadOnlySpan<BatchDrawCommandIndirect>(commands, totalCmdCount),
-                new ReadOnlySpan<BatchDrawRange>(ranges, totalRangeCount));
+            BRGIndirectSubmission.TrySubmit(in cullingOutput, new(commands, totalCmdCount), new(ranges, totalRangeCount));
         }
+
+        private static BatchDrawRange DefaultDrawRange(int commandCount, bool shadow) => new()
+        {
+            drawCommandsCount = (uint)commandCount,
+            filterSettings = new BatchFilterSettings
+            {
+                renderingLayerMask = uint.MaxValue,
+                motionMode = MotionVectorGenerationMode.Camera,
+                shadowCastingMode = shadow ? ShadowCastingMode.On : ShadowCastingMode.Off,
+                receiveShadows = !shadow
+            }
+        };
 
         private unsafe JobHandle OnPerformCullingShadow(
             BatchCullingContext cullingContext,
@@ -2517,6 +2490,7 @@ namespace Fraxinus.GPUBatcher
             BatchCullingOutput cullingOutput,
             CullingBufferSet shadowSet)
         {
+            if (!BRGIndirectSubmission.isAvailable) return;
             int totalCmdCount = _shadowDrawCommandCount;
 
             // determine cascade count for this light
@@ -2530,12 +2504,11 @@ namespace Fraxinus.GPUBatcher
                 applyProtoCascadeLimit = m0[15] == 1f && m0[11] == 0f && m0[7] == 0f && m0[3] == 0f;
             }
 
-            int maxRanges = _shadowDrawRangeTemplate.IsCreated && _shadowDrawRangeCount > 0
-                ? _shadowDrawRangeCount : 1;
+            bool hasRanges = _shadowDrawRangeTemplate.IsCreated && _shadowDrawRangeCount > 0;
+            int maxRanges = hasRanges ? _shadowDrawRangeCount : 1;
             EnsureIndirectSubmissionCapacity(shadowSet, totalCmdCount, maxRanges);
             var ranges = (BatchDrawRange*)shadowSet.cpuDrawRanges.GetUnsafePtr();
-            int preparedRangeCount = 1;
-
+            int emittedRangeCount = 0;
             int cmdIdx = 0;
 
             // combined camera+light layer mask
@@ -2548,77 +2521,17 @@ namespace Fraxinus.GPUBatcher
             var filterPtr = (ShadowCommandFilterInfo*)_shadowCommandFilterInfo.GetUnsafeReadOnlyPtr();
             var outPtr = (BatchDrawCommandIndirect*)shadowSet.cpuDrawCommands.GetUnsafePtr();
 
-            // emit shadow commands using pre-built templates
-            // ranges iterated for layer mask early-out and cascade filtering
-            if (_shadowDrawRangeTemplate.IsCreated && _shadowDrawRangeCount > 0)
+            for (int r = 0; r < maxRanges; r++)
             {
-                int emittedRangeCount = 0;
+                // Without layer-sorted templates, process all commands as one unfiltered range.
+                var range = hasRanges ? _shadowDrawRangeTemplate[r] : DefaultDrawRange(totalCmdCount, shadow: true);
+                if (hasRanges && (cullingLayerMask & (1UL << range.filterSettings.layer)) == 0)
+                    continue;
 
-                for (int r = 0; r < _shadowDrawRangeCount; r++)
-                {
-                    var rangeTemplate = _shadowDrawRangeTemplate[r];
-
-                    // skip entire range if its layer isn't in the culling mask
-                    if ((cullingLayerMask & (1UL << rangeTemplate.filterSettings.layer)) == 0)
-                        continue;
-
-                    int rangeBeginEmitted = cmdIdx;
-                    int srcBegin = (int)rangeTemplate.drawCommandsBegin;
-                    int srcEnd = srcBegin + (int)rangeTemplate.drawCommandsCount;
-
-                    for (int i = srcBegin; i < srcEnd; i++)
-                    {
-                        var filter = filterPtr[i];
-
-                        // skip commands for cascades beyond this view's or prototype's limit
-                        int cascadeLimit = applyProtoCascadeLimit ? math.min(cascadeCount, filter.protoMaxCascades) : cascadeCount;
-                        if (filter.cascadeIndex >= cascadeLimit)
-                            continue;
-
-                        // copy pre-built command and patch per-view fields
-                        outPtr[cmdIdx] = templatePtr[i];
-                        outPtr[cmdIdx].splitVisibilityMask = (ushort)(1 << filter.cascadeIndex);
-                        outPtr[cmdIdx].visibleInstancesBufferHandle = visHandle;
-                        outPtr[cmdIdx].indirectArgsBufferHandle = argsHandle;
-                        cmdIdx++;
-                    }
-
-                    int rangeEmittedCount = cmdIdx - rangeBeginEmitted;
-                    if (rangeEmittedCount > 0)
-                    {
-                        ranges[emittedRangeCount] = rangeTemplate;
-                        ranges[emittedRangeCount].drawCommandsBegin = (uint)rangeBeginEmitted;
-                        ranges[emittedRangeCount].drawCommandsCount = (uint)rangeEmittedCount;
-                        emittedRangeCount++;
-                    }
-                }
-
-                preparedRangeCount = math.max(1, emittedRangeCount);
-
-                // if all ranges were empty, emit a single empty range
-                if (emittedRangeCount == 0)
-                {
-                    ranges[0] = new BatchDrawRange
-                    {
-                        drawCommandsBegin = 0,
-                        drawCommandsCount = 0,
-                        filterSettings = new BatchFilterSettings
-                        {
-                            renderingLayerMask = 0xffffffff,
-                            layer = 0,
-                            motionMode = MotionVectorGenerationMode.Camera,
-                            shadowCastingMode = ShadowCastingMode.On,
-                            receiveShadows = false,
-                            staticShadowCaster = false,
-                            allDepthSorted = false
-                        }
-                    };
-                }
-            }
-            else
-            {
-                // fallback: single range (no layer sorting), iterate all template commands
-                for (int i = 0; i < totalCmdCount; i++)
+                int rangeBegin = cmdIdx;
+                int srcBegin = (int)range.drawCommandsBegin;
+                int srcEnd = srcBegin + (int)range.drawCommandsCount;
+                for (int i = srcBegin; i < srcEnd; i++)
                 {
                     var filter = filterPtr[i];
 
@@ -2633,37 +2546,19 @@ namespace Fraxinus.GPUBatcher
                     cmdIdx++;
                 }
 
-                preparedRangeCount = 1;
+                if (cmdIdx == rangeBegin) continue;
+                range.drawCommandsBegin = (uint)rangeBegin;
+                range.drawCommandsCount = (uint)(cmdIdx - rangeBegin);
+                ranges[emittedRangeCount++] = range;
+            }
 
-                ranges[0] = new BatchDrawRange
-                {
-                    drawCommandsBegin = 0,
-                    drawCommandsCount = (uint)cmdIdx,
-                    filterSettings = new BatchFilterSettings
-                    {
-                        renderingLayerMask = 0xffffffff,
-                        layer = 0,
-                        motionMode = MotionVectorGenerationMode.Camera,
-                        shadowCastingMode = ShadowCastingMode.On,
-                        receiveShadows = false,
-                        staticShadowCaster = false,
-                        allDepthSorted = false
-                    }
-                };
-            }
-#if !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN)
-            if (!BRGIndirectSubmission.isAvailable && VulkanCarrierAvailable)
+            // BRG receives one empty range when every command was filtered out.
+            if (emittedRangeCount == 0)
             {
-                VkEmit(shadowSet, in cullingOutput,
-                    new ReadOnlySpan<BatchDrawCommandIndirect>(outPtr, cmdIdx),
-                    new ReadOnlySpan<BatchDrawRange>(ranges, preparedRangeCount),
-                    _shadowIndirectArgsTemplate, _vkCullingCamera, false);
-                return;
+                ranges[0] = DefaultDrawRange(0, shadow: true);
+                emittedRangeCount = 1;
             }
-#endif
-            BRGIndirectSubmission.TrySubmit(in cullingOutput,
-                new ReadOnlySpan<BatchDrawCommandIndirect>(outPtr, cmdIdx),
-                new ReadOnlySpan<BatchDrawRange>(ranges, preparedRangeCount));
+            BRGIndirectSubmission.TrySubmit(in cullingOutput, new(outPtr, cmdIdx), new(ranges, emittedRangeCount));
         }
 
         #endregion

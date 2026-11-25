@@ -69,8 +69,7 @@ namespace FraxinusEditor.Rendering.Ultra
             this.serializedObject = serializedObject;
 
             lightsAdditionalData = CoreEditorUtils
-                .GetAdditionalData<UltraAdditionalLightData>(serializedObject.targetObjects,
-                    UltraAdditionalLightData.InitializeFromUniversalLightData);
+                .GetAdditionalData<UltraAdditionalLightData>(serializedObject.targetObjects);
             serializedAdditionalDataObject = new SerializedObject(lightsAdditionalData);
 
             intensity = serializedObject.FindProperty("_intensity");

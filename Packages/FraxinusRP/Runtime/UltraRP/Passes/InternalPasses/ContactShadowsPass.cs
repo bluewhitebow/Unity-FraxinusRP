@@ -52,7 +52,7 @@ namespace FraxinusEngine.Rendering.Ultra
             ResetGlobals(graph);
         }
 
-        public override RenderPassInputSummary PrepareFrameResources(RenderGraph graph, ContextContainer frame)
+        public override RenderPassInputSummary PrepareFrame(RenderGraph graph, ContextContainer frame)
         {
             var data = frame.GetOrCreate<ContactShadowsData>();
             var camera = frame.Get<CameraData>();

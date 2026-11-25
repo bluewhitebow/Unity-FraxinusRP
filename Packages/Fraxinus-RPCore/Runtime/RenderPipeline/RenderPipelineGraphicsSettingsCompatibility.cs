@@ -485,8 +485,6 @@ namespace UnityEngine.Rendering
                     "Packages/com.unity.render-pipelines.core",
                     "Packages/FraxinusRP",
                     "Packages/com.bluewhitebow.fraxinus-rp",
-                    "Packages/Fraxinus-URPExtensions",
-                    "Packages/com.unity.render-pipelines.universal",
                 };
             var changed = false;
             const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;

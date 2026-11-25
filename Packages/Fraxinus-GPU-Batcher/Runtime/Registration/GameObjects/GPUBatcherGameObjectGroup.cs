@@ -326,6 +326,8 @@ namespace Fraxinus.GPUBatcher
 
         void HideSourceRenderers(GameObject go, bool hidden)
         {
+            // A culling-only registration never owns the source renderers or their LOD state.
+            if (!GPUBatcherRenderer.canSubmitDraws) return;
             var lodGroup = go.GetComponent<LODGroup>();
             if (lodGroup != null)
             {

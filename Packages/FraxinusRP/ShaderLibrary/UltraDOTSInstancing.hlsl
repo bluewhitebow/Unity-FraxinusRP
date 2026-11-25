@@ -19,47 +19,7 @@ UNITY_DOTS_INSTANCING_START(BuiltinPropertyMetadata)
     UNITY_DOTS_INSTANCED_PROP_OVERRIDE_SUPPORTED(float3x4, unity_MatrixPreviousMI)
     UNITY_DOTS_INSTANCED_PROP_OVERRIDE_SUPPORTED(SH,       unity_SHCoefficients)
     UNITY_DOTS_INSTANCED_PROP_OVERRIDE_SUPPORTED(uint2,    unity_EntityId)
-#if UNITY_VERSION < 600000 && defined(SHADER_API_VULKAN) && !defined(UNITY_DOTS_INSTANCING_UNIFORM_BUFFER)
-    UNITY_DOTS_INSTANCED_PROP_OVERRIDE_SUPPORTED(uint, _FraxinusVkVisibilityByteBase)
-#endif
 UNITY_DOTS_INSTANCING_END(BuiltinPropertyMetadata)
-
-#if UNITY_VERSION < 600000 && defined(SHADER_API_VULKAN) && !defined(UNITY_DOTS_INSTANCING_UNIFORM_BUFFER)
-#if defined(FRAXINUS_BRG_NATIVE_INDIRECT)
-// This material variant is selected by the extended 2022 engine for its indexed draws.
-// Use the standard Unity 6 header and the caller's original visibility buffer.
-#undef UNITY_SETUP_DOTS_VISIBLE_INSTANCING_DATA
-#define UNITY_SETUP_DOTS_VISIBLE_INSTANCING_DATA() SetupDOTSVisibleInstancingData()
-#else
-void SetupFraxinusVulkanVisibleInstances()
-{
-    // The normal BRG batch leaves this metadata at the Unity default of zero.
-    uint visibilityBase = UNITY_DOTS_INSTANCED_METADATA_NAME(uint, _FraxinusVkVisibilityByteBase);
-    [branch] if (visibilityBase == 0)
-    {
-        uint4 visible = unity_DOTSVisibleInstances[unity_InstanceID].VisibleData;
-        unity_SampledDOTSIndirectVisibleIndex = unity_InstanceID;
-        unity_SampledDOTSInstanceIndex = visible.x;
-        unity_SampledLODCrossfade = asint(visible.y); // native Unity 2022 direct layout
-    }
-    else
-    {
-        // One direct placeholder supplies the token in entry 0 for the entire indirect draw.
-        // The raw buffer contains the batch's regular instance data followed by this view's GPU list.
-        uint token = unity_DOTSVisibleInstances[0].VisibleData.x;
-        uint listIndex = (token & 0x007fffffu) + unity_InstanceID;
-        uint packedID = unity_DOTSInstanceData.Load(visibilityBase + (listIndex << 2));
-        unity_SampledDOTSIndirectVisibleIndex = listIndex;
-        bool usePackedFade = (token & 0x00800000u) != 0;
-        unity_SampledDOTSInstanceIndex = usePackedFade ? (packedID & 0x00ffffffu) : packedID;
-        unity_SampledLODCrossfade = usePackedFade ? (asint(packedID) >> 24) : 0;
-    }
-    SetupDOTSInstanceSelectMasks();
-}
-#undef UNITY_SETUP_DOTS_VISIBLE_INSTANCING_DATA
-#define UNITY_SETUP_DOTS_VISIBLE_INSTANCING_DATA() SetupFraxinusVulkanVisibleInstances()
-#endif
-#endif
 
 #define unity_LODFade               LoadDOTSInstancedData_LODFade()
 #define unity_SpecCube0_HDR         UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_CUSTOM_DEFAULT(float4, unity_SpecCube0_HDR, unity_DOTS_SpecCube0_HDR)

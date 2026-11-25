@@ -57,6 +57,10 @@ namespace Fraxinus.GPUBatcher.Editor
 
             EditorGUILayout.Space();
 
+            if (!GPUBatcherRenderer.canSubmitDraws)
+                EditorGUILayout.HelpBox("This Unity version supports registration and culling only. Baked instances have no source renderers. " +
+                    "Use a GameObject Group to keep originals visible, or expand an existing bake for regular rendering.", MessageType.Warning);
+
             if (!group.isBaked)
             {
                 EditorGUILayout.HelpBox(

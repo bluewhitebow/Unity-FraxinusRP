@@ -37,19 +37,14 @@ unlisted pipeline assets used at runtime must be registered as build consumers.
 
 All serialized nodes are inspected, including inactive/disconnected nodes,
 and the actual nested postprocess providers are checked. The native provider
-list uses exact types. In the Duckov host's historical integration, five bridge
-classes declared this contract after review of their normal drawing, FOW,
-Shapes, ALINE and UIBlur paths. Those project classes and plugins are not
-included in this package; a plugin upgrade or added callback that changes
-these globals requires reviewing the declaration.
+list uses exact types. The five Duckov bridge classes explicitly declare this
+contract after review of their normal drawing, FOW, Shapes, ALINE and UIBlur
+paths; a plugin upgrade or added callback that changes these globals requires
+reviewing that declaration.
 
-Shadow preservation requires the separate
-`[PreservesCameraLightingKeywords(preservesShadowKeywords: true)]` opt-in;
-the parameter defaults to false. Main/additional shadow OFF variants can be
-removed only when all build consumers enable the capability and every declared
-graph proves that the corresponding shadow pass runs before receiver draws,
-including empty-shadow-map setup. Unknown providers or execution order retain
-OFF. Ordinary soft-shadow ON/OFF and cascade selection remain dynamic.
+Main/additional shadows and soft-shadow ON/OFF remain independent runtime
+states. This change does not force shadow passes to run, change shadow quality
+or remove their OFF variants. No cascade count is frozen.
 
 For a pass that actually declares both required binary axes, candidates along
 those axes reduce from four combinations to one. A pass with only the

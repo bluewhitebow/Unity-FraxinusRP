@@ -173,6 +173,7 @@ namespace FraxinusEngine.Rendering.Ultra
             s_passToInjectorMap = new Dictionary<Type, List<InjectPassInfo>>();
             s_fallbackInjectors = new List<InjectPassInfo>();
             var injectTypes = new List<Type>();
+
             var passTypes = AppDomain.CurrentDomain.GetAllTypes()
                 .Where(t => (typeof(BuiltinPass).IsAssignableFrom(t) || typeof(InjectPass).IsAssignableFrom(t))
                             && !t.IsAbstract && !t.ContainsGenericParameters
@@ -183,8 +184,8 @@ namespace FraxinusEngine.Rendering.Ultra
             {
                 if (type.GetConstructor(Type.EmptyTypes) == null)
                     continue;
-
                 s_moduleTypes.Add(type);
+
                 if (typeof(InjectPass).IsAssignableFrom(type))
                 {
                     var attributes = type.GetCustomAttributes(typeof(InjectPassAttribute), true);
@@ -225,7 +226,6 @@ namespace FraxinusEngine.Rendering.Ultra
                     }
                 }
             }
-
             s_injectPassTypes = injectTypes.AsReadOnly();
         }
 
@@ -467,7 +467,7 @@ namespace FraxinusEngine.Rendering.Ultra
             return false;
         }
 
-        public override void UpdateComputeOrder(IEnumerable<BaseNode> computedNodes)
+        public override void UpdateComputeOrder(IEnumerable<BaseNode> computedNodes) 
         {
             _sortedNodes.Clear();
 
@@ -479,7 +479,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 targetNodes.Add(graph.postNode);
             if (graph.drivenNode != null)
                 targetNodes.Add(graph.drivenNode);
-
+            
             AddPairedContextNodesToTargets(targetNodes);
 
             HashSet<BaseNode> finalNodes = new HashSet<BaseNode>();
@@ -491,7 +491,7 @@ namespace FraxinusEngine.Rendering.Ultra
                         finalNodes.Add(dep);
                 }
             }
-
+            
             RemoveUnpairedContextNodes(finalNodes);
 
             _sortedNodes = finalNodes
@@ -506,7 +506,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
             InjectPassToRenderPassNode();
         }
-
+        
 
         private void AddPairedContextNodesToTargets(HashSet<BaseNode> targetNodes)
         {
@@ -520,7 +520,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 }
             }
         }
-
+        
         private ContextBeginNode FindPairedContextBegin(ContextEndNode endNode)
         {
             var visited = new HashSet<BaseNode>();
@@ -550,7 +550,7 @@ namespace FraxinusEngine.Rendering.Ultra
         private void RemoveUnpairedContextNodes(HashSet<BaseNode> nodes)
         {
             var toRemove = new List<BaseNode>();
-
+            
             foreach (var node in nodes)
             {
                 if (node is ContextEndNode endNode)
@@ -574,7 +574,7 @@ namespace FraxinusEngine.Rendering.Ultra
                         toRemove.Add(beginNode);
                 }
             }
-
+            
             foreach (var node in toRemove)
                 nodes.Remove(node);
         }
@@ -612,25 +612,20 @@ namespace FraxinusEngine.Rendering.Ultra
             _primaryInjectionContexts.Clear();
             _boundInjectPasses.Clear();
             foreach (var node in graph.nodes)
-            {
                 if (node is ScriptableRenderPassNode passNode)
                     passNode.ClearAllInjectPasses();
-            }
-
 
             var scopes = new Stack<ContextBeginNode>();
             foreach (var item in _sortedNodes)
             {
                 if (!(item is ScriptableRenderPassNode pass)) continue;
                 _nodeContexts[pass] = scopes.Count > 0 ? scopes.Peek() : null;
-                if (pass is ContextBeginNode begin)
-                    scopes.Push(begin);
-                else if (pass is ContextEndNode && scopes.Count > 0)
-                    scopes.Pop();
-
+                if (pass is ContextBeginNode begin) scopes.Push(begin);
+                else if (pass is ContextEndNode && scopes.Count > 0) scopes.Pop();
                 _nodeAfterContexts[pass] = scopes.Count > 0 ? scopes.Peek() : null;
             }
 
+            // Candidate selection is cached here; execution is deduplicated per scope each frame.
 
             foreach (var node in _sortedNodes)
             {
@@ -690,27 +685,26 @@ namespace FraxinusEngine.Rendering.Ultra
 
         internal void RefreshInjectPassSettings()
         {
+            // Undo and deserialization update serialized fields without invoking
+            // the setter. Compare exact values before camera requirements are
+            // collected, and only rebuild bindings when the settings changed.
             var disabled = graph.disabledInjectPasses;
             if (disabled.Count == _appliedDisabledInjectPasses.Count)
             {
                 bool matches = true;
                 for (int i = 0; i < disabled.Count; ++i)
-                {
                     if (disabled[i] != _appliedDisabledInjectPasses[i])
                     {
                         matches = false;
                         break;
                     }
-                }
-
                 if (matches)
                     return;
             }
-
             InjectPassToRenderPassNode();
         }
 
-        internal void PrepareInjectPassResources(RenderGraph renderGraph, ContextContainer frameData)
+        internal void PrepareInjectPasses(RenderGraph renderGraph, ContextContainer frameData)
         {
             foreach (var module in _moduleContainer.Values)
             {
@@ -722,7 +716,7 @@ namespace FraxinusEngine.Rendering.Ultra
             foreach (var module in _moduleContainer.Values)
             {
                 if (module is InjectPass pass && _boundInjectPasses.Contains(pass) && graph.IsInjectPassEnabled(pass.GetType()))
-                    rendering.renderPassInputs.MergeFrom(pass.PrepareFrameResources(renderGraph, frameData));
+                    rendering.renderPassInputs.MergeFrom(pass.PrepareFrame(renderGraph, frameData));
             }
 
             rendering.renderPassInputs.requiresDepthTexture |= rendering.renderPassInputs.requiresMotionVectors;
@@ -807,7 +801,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 var child = inputNodes.Pop();
                 if (!dependencies.Add(child))
                     continue;
-
+                
                 if (child.computeOrder >= 0)
                 {
                     foreach (var parent in child.GetInputNodes())
@@ -859,7 +853,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 });
             }
         }
-
+       
         internal void SetupRenderGraphCameraProperties(RenderGraph renderGraph, bool isTargetBackbuffer)
         {
             using (var builder = renderGraph.AddRasterRenderPass<PassData>("SetupCameraProperties", out var passData, Profiling.setupCamera))

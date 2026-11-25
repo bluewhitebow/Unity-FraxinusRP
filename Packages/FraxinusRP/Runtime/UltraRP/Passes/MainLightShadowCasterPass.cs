@@ -281,7 +281,12 @@ namespace FraxinusEngine.Rendering.Ultra
             int shadowLightIndex = passData.lightData.mainLightIndex;
             if (!_createEmptyShadowmap && shadowLightIndex != -1)
             {
+#if UNITY_6000_0_OR_NEWER
+                // CullShadowCasters already owns projection and split culling.
+                ShadowDrawingSettings settings = new(passData.renderingData.cullResults, shadowLightIndex)
+#else
                 ShadowDrawingSettings settings = new(passData.renderingData.cullResults, shadowLightIndex, BatchCullingProjectionType.Orthographic)
+#endif
                 {
                     useRenderingLayerMaskTest = UltraRenderPipeline.asset.useRenderingLayers
                 };

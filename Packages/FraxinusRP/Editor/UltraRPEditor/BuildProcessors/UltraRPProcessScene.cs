@@ -64,7 +64,6 @@ namespace FraxinusEditor.Rendering.Ultra
                             if (!light.TryGetComponent<UltraAdditionalLightData>(out var data))
                             {
                                 data = light.gameObject.AddComponent<UltraAdditionalLightData>();
-                                UltraAdditionalLightData.InitializeFromUniversalLightData(data);
                             }
                             data.InitializeAreaSizeFromLight();
                         }

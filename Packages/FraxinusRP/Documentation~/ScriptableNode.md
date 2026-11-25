@@ -45,62 +45,6 @@ Graph deserialization rebuilds GUID indexes and explicitly binds each edge to th
 
 Deleting a node removes incident edges and group membership. GraphView's explicit save marks the graph dirty and saves that persistent asset. Window disable, close, graph switch and domain reload release old view callbacks before rebuilding. Node inspectors belong to each view; node-menu caches count active graph users so closing one window does not invalidate another window's cache.
 
-## UltraRP lighting modes
-
-In Renderer Graph, select a `Deferred Object` node and set its `Lighting Mode`:
-
-| Mode | Light lists and lighting pass |
-| --- | --- |
-| `Stencil` | Draws light volumes using the existing stencil deferred path. |
-| `Deferred+` | Reuses Forward+'s CPU Jobs light bins and screen tiles for fullscreen raster lighting, classified by material stencil. |
-| `GPU Cluster` | Builds GPU light lists and uses the selected `Cluster Lighting Mode`: Auto, Compute or Raster. |
-
-`Cluster Lighting Mode` applies only to GPU Cluster. Deferred+ uses the camera's Forward+ lists for subsequent forward draws without requiring a separate Forward+ toggle on each DrawObjects node. Deferred lighting is a camera-wide choice; keep its nodes consistent. Deferred+ uses the existing GBuffer layout. All UltraRP camera paths, including Forward and Forward+, use one sample; legacy MSAA settings are ignored. Shared Core and RenderGraph utilities retain multisample support. Old graphs migrate `_cluster: false` to Stencil and `_cluster: true` to GPU Cluster.
-
-Declare every rendering mode needed at runtime in the build's Renderer Graph configurations, or disable unused-variant stripping. Changing modes at runtime cannot restore shaders removed from the build. See [Shader build filtering](ShaderBuild.md).
-
-## Injected pass controls
-
-Open the graph's `Inject Passes` panel and toggle a pass type to enable or disable its injections throughout that Renderer Graph, including fallback injections. The panel lists discovered pass types even when disabled; node binding lists reflect the current state. Changes support Undo/Redo and mark the graph dirty. Save the graph asset to retain them; old graphs and newly discovered pass types start enabled.
-
-The next render updates bindings and input texture requirements. Disabling a pass removes requirements contributed only by that pass; other enabled consumers retain their shared resources. Explicit graph nodes and child-context injection policies remain separate controls. Scripts can use `graph.SetInjectPassEnabled(typeof(MyInjectPass), enabled)` and `graph.IsInjectPassEnabled(typeof(MyInjectPass))` on a `ScriptableRendererGraph`.
-
-Before allocating camera textures, the renderer calls `ResetFrame` on all
-injectors, including disabled ones, then `PrepareFrameResources` once on each
-enabled, bound injector. Store activation and resource snapshots in `frameData`,
-and return a `RenderPassInputSummary` describing this pass's requirements.
-Return `default` when no resources are needed. The renderer combines these
-summaries with `MergeFrom`, preserving other consumers' requests, then applies
-dependencies such as Motion requiring Depth. Do not modify
-`RenderingData.renderPassInputs` directly. `Execute` consumes the prepared
-state after the requested textures are available.
-
-Ordinary nodes contribute their `input` and `requiresIntermediateTexture`
-through the same summary. Set `requiresIntermediateTexture` only when a pass
-needs intermediate camera color; participating in the graph alone does not
-request it. GTAO and Contact Shadows request the depth, normals and prepasses
-they use without forcing intermediate color. Decal nodes request the camera
-attachments used by their implementation. `CopyFromMain` contexts and
-`beforeFinalResolve` callbacks request sampleable camera color through their
-own nodes.
-
-The renderer decides the final output path. After the last camera in a stack
-records its passes, it resolves color that remains in an intermediate target.
-It adds no extra Blit when post-processing has already resolved the output.
-The Base camera allocates the stack's intermediate color attachments; Overlay
-cameras reuse those attachments and preserve the Base camera's draws and
-post-processing result. Hi-Z and probe sampling debug may request depth without
-requiring intermediate color. Query consumable requests, such as a single
-probe-debug sample, once during preparation and save the result for execution.
-
-Custom injectors that previously overrode `bool PrepareFrame(...)` must override
-`RenderPassInputSummary PrepareFrameResources(...)` instead. Replace direct
-input mutations and the old boolean return with a summary of the resources
-actually used; return `default` on inactive paths. If the effect samples or
-otherwise requires intermediate camera color, set `requiresIntermediateTexture`
-in that summary. The old boolean return did not enable or disable injection;
-activation still belongs to the prepared per-camera state.
-
 ## UltraRP render contexts
 
 `ContextBeginNode` and `ContextEndNode` delimit a render scope within an UltraRP graph. Keep the camera's `RenderDriven` setup before the first Begin, and connect camera-target ports in execution order. For a simple scope, connect the parent target to `Begin.inCameraTarget`, `Begin.outCameraTarget` through the child rendering passes, and the last child target to `End.inCameraTarget`. Continue parent rendering from `End.outCameraTarget`.
@@ -127,7 +71,7 @@ Module types and injection attributes are discovered once per scripting domain; 
 
 Camera histories remain owned by the main camera. Children have no history manager, TAA history or STP history, and use no temporal jitter or camera antialiasing. They do not update the main GPU-occlusion history, capture camera output, or resolve a final presentation target. Put main-camera temporal processing and presentation after the outer End. Supporting temporal effects independently inside a child would require history allocated and updated for that scope and its dimensions.
 
-Begin and End record the current camera matrices and screen dimensions, and bind the scope's depth, normal, rendering-layer, motion and DBuffer textures. Missing textures are rebound to the graph's black fallback to avoid retaining a completed child's resources. GPU Cluster, Forward+ and Deferred+ scopes build their light lists for their own target dimensions and projection while reusing the same view's light inputs; End restores the parent's buffers and constants. Decal passes read the current scope, and End restores the parent's DBuffer bindings, DBuffer MRT keywords and decal-layer keyword. These rules apply at each nested boundary, including a parent with no DBuffer resources.
+Begin and End record the current camera matrices and screen dimensions, and bind the scope's depth, normal, rendering-layer, motion and DBuffer textures. Missing textures are rebound to the graph's black fallback to avoid retaining a completed child's resources. Clustered deferred scopes build their own light grid at their target dimensions while reusing the same view's light inputs; End restores the parent's light-grid buffers and constants. Decal passes read the current scope, and End restores the parent's DBuffer bindings, DBuffer MRT keywords and decal-layer keyword. These rules apply at each nested boundary, including a parent with no DBuffer resources.
 
 Historical context-storage and nested-rendering results are recorded in [Validation.md](Validation.md). The DBuffer scenario covered target dimensions and restored keywords, not every decal-projector or material appearance.
 

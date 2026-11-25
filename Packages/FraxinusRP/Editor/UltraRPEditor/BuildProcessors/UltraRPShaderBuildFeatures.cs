@@ -416,9 +416,8 @@ namespace FraxinusEditor.Rendering.Ultra
             if (renderingLayersUnused)
                 disabled |= DisabledCapabilities.RenderingLayerOutput;
 
-            // Auto depends on the player's platform and XR state. The Editor's
-            // cached detection cannot prove which SH variants a build will need.
-            ShEvalMode mode = asset.shEvalMode;
+            // Use Fraxinus runtime helpers, not URP's different mobile SH policy.
+            ShEvalMode mode = PlatformAutoDetect.ShAutoDetect(asset.shEvalMode);
             bool quality = ShadowUtils.SupportsPerLightSoftShadowQuality();
             bool? forwardPlus = GetForwardPlusRequirement(asset, out string graphReason);
             DBufferModes? dbufferModes = GetDBufferRequirements(asset.rendererGraphList, out string decalReason);

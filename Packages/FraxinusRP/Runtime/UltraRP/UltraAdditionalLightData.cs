@@ -32,23 +32,16 @@ namespace FraxinusEngine.Rendering.Ultra
     {
         public static UltraAdditionalLightData GetUltraAdditionalLightData(this Light light)
         {
-            var lightData = light.GetOrMigrateAdditionalLightData();
+            var lightData = light.GetExistingAdditionalLightData();
             return lightData != null ? lightData : light.gameObject.AddComponent<UltraAdditionalLightData>();
         }
 
-        // Preserve existing Ultra settings. Only create data here when migrating an old URP light.
-        internal static UltraAdditionalLightData GetOrMigrateAdditionalLightData(this Light light)
+        internal static UltraAdditionalLightData GetExistingAdditionalLightData(this Light light)
         {
             if (light.TryGetComponent<UltraAdditionalLightData>(out var lightData))
                 return lightData;
 
-            var legacyData = UltraAdditionalLightData.ReadUniversalLightData(light.gameObject);
-            if (legacyData == null)
-                return null;
-
-            lightData = light.gameObject.AddComponent<UltraAdditionalLightData>();
-            lightData.ApplyUniversalLightData(legacyData);
-            return lightData;
+            return null;
         }
     }
 

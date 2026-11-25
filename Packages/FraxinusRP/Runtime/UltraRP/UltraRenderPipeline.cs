@@ -1479,7 +1479,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 Light light = vl.light;
                 UltraAdditionalLightData data = null;
                 if (light != null)
-                    data = light.GetOrMigrateAdditionalLightData();
+                    data = light.GetExistingAdditionalLightData();
 
                 if (data && !data.usePipelineSettings)
                     s_shadowBiasData.Add(new Vector4(light.shadowBias, light.shadowNormalBias, 0.0f, 0.0f));

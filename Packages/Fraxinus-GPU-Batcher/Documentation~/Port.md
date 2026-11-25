@@ -1,17 +1,5 @@
 # BRG implementation port
 
-Current update (2026-11-24): the package now includes a Windows x64 Vulkan
-submission backend for Unity 2022. `GPUBatcherRenderer.canSubmitDraws` includes
-this backend; `BRGIndirectSubmission.isAvailable` describes handler availability.
-See the [current package guide](../README.md) for setup, limits and source links.
-The snapshot-specific comparisons and test results below predate this addition.
-
-This package was synchronized from Duckov-Recovered commit
-`5494613cdff36fd003f0537a60fd0b1b5498060d`
-on 2026-11-22. Recorded source tests and `SourceAudit.json` describe their captured
-snapshots, not a GPU/Player validation rerun of this checkout or its later changes.
-This suite retains `PrepareFrameResources(...)` and its existing Core/RP adaptations.
-
 Source: `D:/projects/unityProjects/BRGInstance/Assets/BRGInstancedRenderer`, version 1.2.0.
 The original copyright notices are retained in adapted source files.
 
@@ -29,22 +17,13 @@ The original copyright notices are retained in adapted source files.
 The instance storage, CPU/GPU layouts and command-generation contracts are retained.
 HZB depth normalization and the native compatibility bridges adapt the reference
 algorithms to the APIs and depth inputs available in Unity 2022.
-Config discovery/creation/resource repair/preloading, renderer/terrain takeover,
-destructive Bake and Expand follow the reference. The default config location is
-writable project data instead of the immutable package directory.
+Config discovery, resource repair, preloading, Bake and Expand follow the reference.
+Live registration takes over source rendering only when native indirect drawing is
+available. The default config location is writable project data.
 
-Draw templates and per-view scratch data remain renderer-owned. Camera and shadow
-submission both call the single synchronous `BRGIndirectSubmission.submitHandler`
-through `TrySubmit`. Its `public static SubmitHandler submitHandler { get; set; }`
-property can be assigned at startup; `isAvailable` is true whenever a handler is installed. Without one,
-`TrySubmit` returns false without allocating or writing native output.
-
-The assembly definition automatically enables `FRAXINUS_BRG_INDIRECT_API` on stock
-Unity 6 to install the built-in writer. A Unity 2022 engine backport with the complete
-matching bindings can define the same symbol; different bindings require a custom
-handler. The built-in writer copies descriptor fields into engine-owned allocations
-and marks ranges as indirect, never casting the package descriptor to the native ABI.
-Handlers must finish synchronously rather than retain borrowed spans for later work.
+Draw templates and per-view scratch data remain renderer-owned. Both versions run
+camera and shadow culling. `FRAXINUS_BRG_INDIRECT_API` enables native output on
+Unity 6. Without the API, `TrySubmit` returns false and leaves BRG output untouched.
 Editor picking retains its direct-command path.
 
 ObjectDispatcher tracking uses the same GlobalTRS and type-change queries as the source.
@@ -93,16 +72,15 @@ its first native simulation update. The suite accepts that initial state and che
 complete current/history parameter families after ten frames; this does not promise
 fully animated branch values on the first draw.
 
-These compatibility paths are shared by both editor versions. They do not add or
-impersonate missing engine bindings. Submission availability follows the installed
-handler, not the editor version alone. Stock Unity 2022 has no handler by default.
+Baked occlusion and SpeedTree wind capture use the same code in both versions.
 
-## Source validation layout
+## One maintained package source
 
-The recorded Unity 2022 and Unity 6 validation projects referenced
-`Duckov-Recovered/ExportedProject/Packages` through local UPM `file:` dependencies;
-their `Assets` contain independent fixtures and project data. Consumers of this
-checkout should use the [suite installation guide](../../../docs/Usage.md). Former embedded validation copies are reviewable archives
+The canonical source directory is
+`D:/projects/unityProjects/Duckov-Recovered/ExportedProject/Packages`. The Unity 2022
+and Unity 6 validation projects reference it through local UPM `file:` dependencies;
+their `Assets` contain independent fixtures and project data. Edit package code only
+in that source directory. Former embedded validation copies are reviewable archives
 under `Validation/Backups/BeforeSharedPackages-*`, not active package sources.
 
 Fraxinus shadow culling and drawing use `UNITY_6000_0_OR_NEWER` for Unity 6's native
@@ -130,10 +108,6 @@ and URP/HDRP package patchers are omitted; Fraxinus integration replaces those p
 Shaders use Fraxinus tags/includes. The debug sphere retains Lit surface defaults and
 alpha 0.5 through a Fraxinus shader; generated URP/HDRP auxiliary passes are omitted.
 Disposal guards and explicit graph-context lifetimes prevent released storage reuse.
-
-The automatically discovered BRG injectors retain this suite's conservative
-shader-stripping behavior for modules without reviewed stripping contracts.
-UltraRP can be used without this optional package.
 
 The [equivalence audit](EquivalenceAudit.md) separates implementation from validation.
 After consolidation, both stock editors verified their canonical package paths and

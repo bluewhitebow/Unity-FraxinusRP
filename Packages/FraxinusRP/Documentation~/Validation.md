@@ -7,10 +7,6 @@ regression's local evidence is under `Logs/FraxinusRP/AssetInspector-2026-10-22`
 Commands and source paths below describe the tested snapshots, not current
 package entry points. Summary JSON files retain their original evidence hashes.
 
-Current UltraRP cameras use one sample in every rendering path and reject
-multisampled output RenderTextures. The MSAA camera results below describe
-earlier versions; shared Core and RenderGraph MSAA support remains available.
-
 Example scenes and their Editor generators were also removed from the published
 package on 2026-10-29. Earlier source checkpoints retain the corresponding test
 fixtures; use [Installation.md](Installation.md) for current asset-creation steps.

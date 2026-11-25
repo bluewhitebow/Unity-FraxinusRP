@@ -1,31 +1,55 @@
 {
   "suite": "Unity-FraxinusRP",
-  "sourceProject": "HybirdFraxinusRP",
+  "sourceProject": "Duckov-Recovered",
   "unity": "2022.3.62f3",
   "packages": [
     {
       "folder": "Fraxinus-Light-Transport",
       "name": "com.fraxinus.rendering.light-transport",
       "version": "1.0.1",
-      "sourceCommit": "43aa6bdedbe20762defd2b97cdc49aad035d11f5"
+      "sourceCommit": "97771f07980978f62834d5caf41a909a112c2811",
+      "sourceProject": "Duckov-Recovered",
+      "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
+      "sourcePath": "ExportedProject/Packages/com.fraxinus.rendering.light-transport",
+      "sourceState": "Exact source working-tree snapshot; package files are copied without content or line-ending transformations.",
+      "fileCount": 186,
+      "manifestSha256": "008918eb22cfe26906792b7e58829ca951c3843bfd865b476b6cb073a5ed9a54"
     },
     {
       "folder": "Fraxinus-RPCore",
       "name": "com.unity.render-pipelines.core",
       "version": "14.0.99",
-      "sourceCommit": "5a7a0c68efae9e2c527332c15349227077326679"
+      "sourceCommit": "97771f07980978f62834d5caf41a909a112c2811",
+      "sourceProject": "Duckov-Recovered",
+      "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
+      "sourcePath": "ExportedProject/Packages/com.unity.render-pipelines.core",
+      "sourceState": "Exact source working-tree snapshot; package files are copied without content or line-ending transformations.",
+      "fileCount": 2425,
+      "manifestSha256": "d74eec8813a35a38294fc068e75554baf975e1b9d1c86514e695be9f414e0163"
     },
     {
       "folder": "Fraxinus-ShaderGraph",
       "name": "com.unity.shadergraph",
       "version": "14.0.12",
-      "sourceCommit": "ac5b57a251cf2bf170baca4c8a08c6bc08ccc87d"
+      "sourceCommit": "97771f07980978f62834d5caf41a909a112c2811",
+      "sourceProject": "Duckov-Recovered",
+      "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
+      "sourcePath": "ExportedProject/Packages/com.unity.shadergraph",
+      "sourceState": "Exact source working-tree snapshot; package files are copied without content or line-ending transformations.",
+      "fileCount": 4252,
+      "manifestSha256": "03238240e2b45cb076ec44d4f74ff3b5dfad51aaf6dba0eb2a5157b3f864ad07"
     },
     {
       "folder": "FraxinusRP",
       "name": "com.bluewhitebow.fraxinus-rp",
       "version": "0.1.0",
-      "sourceCommit": "6e23ebef02e036c432edca96cb339cd4ee1d668a"
+      "sourceCommit": "97771f07980978f62834d5caf41a909a112c2811",
+      "sourceProject": "Duckov-Recovered",
+      "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
+      "sourcePath": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp",
+      "sourceState": "Exact source working-tree snapshot; package files are copied without content or line-ending transformations.",
+      "fileCount": 2195,
+      "manifestSha256": "73e0f756123d0cbb514d472f6f829fa2638e3b2b8a89de96c0c1dc85e1c86f5e"
     },
     {
       "folder": "Fraxinus-GPU-Batcher",
@@ -34,57 +58,34 @@
       "sourceProject": "Duckov-Recovered",
       "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
       "sourcePath": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher",
-      "sourceCommit": "fc66753003cecfe9f630e84e70a1181e2f66447e",
-      "sourceState": "Committed hot-path allocation reductions and updated Win64 managed NativeContract library. Existing platform and custom-engine requirements are unchanged."
+      "sourceCommit": "97771f07980978f62834d5caf41a909a112c2811",
+      "sourceState": "Exact source working-tree snapshot; package files are copied without content or line-ending transformations.",
+      "fileCount": 185,
+      "manifestSha256": "0d01ea0191fcbc098cb9d50caf3004f5bd9a2488a62aca198bb6733c321b28bd"
     }
   ],
   "latestSync": {
-    "date": "2026-11-24",
+    "date": "2026-11-25",
     "sourceProject": "Duckov-Recovered",
     "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
-    "sourceCommit": "fc66753003cecfe9f630e84e70a1181e2f66447e",
-    "sourceBaselineCommit": "75eb0a83bbbe5f7adf40ad48742365aebbc58440",
-    "sourceState": "Merged GPU Batcher readback/delegate/enumeration allocation changes, Core owned transform snapshots with a cached callback, and the Win64 managed NativeContract update. Retains PrepareFrameResources and existing suite adaptations.",
+    "sourceCommit": "97771f07980978f62834d5caf41a909a112c2811",
+    "previousSourceCommit": "fc66753003cecfe9f630e84e70a1181e2f66447e",
+    "mode": "exact-package-mirror",
+    "sourceState": "All five suite packages match the source working-tree file sets and bytes. Existing distribution-only adaptations were replaced by the source versions; repository-level installation documentation is maintained separately.",
+    "fileCount": 9243,
     "packages": [
       "Fraxinus-GPU-Batcher",
-      "Fraxinus-RPCore"
+      "FraxinusRP",
+      "Fraxinus-RPCore",
+      "Fraxinus-ShaderGraph",
+      "Fraxinus-Light-Transport"
     ],
-    "nativePlugins": [
-      {
-        "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/FraxinusNativeContract/Android/Fraxinus.BrgContract.Managed.dll",
-        "sha256": "bf651cf51e21b7fac6e46f45ac2800047be5ca046e212ea8010ef7bef6895a68",
-        "size": 18432
-      },
-      {
-        "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/FraxinusNativeContract/Android/arm64-v8a/libFraxinusBrgContractNative.so",
-        "sha256": "33d09e75e14431811d96f17b488cf3d9932ea37580e0071d9f344b09fba6c9a4",
-        "size": 287688
-      },
-      {
-        "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/FraxinusNativeContract/Android/arm64-v8a/libFraxinusBrgVulkanContract.so",
-        "sha256": "b8c8b425f4b5d5abbb8112b9ab23463ce0c195bd83147810e932fe208c9ef80d",
-        "size": 363528
-      },
-      {
-        "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/FraxinusNativeContract/x86_64/Fraxinus.BrgContract.Managed.dll",
-        "sha256": "d8b0d9313e68e8ea59e1f7d4b5781b0f6036ac1df8c34a8e4bacb926f3a2fe6f",
-        "size": 25600
-      },
-      {
-        "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/FraxinusNativeContract/x86_64/FraxinusBrgContractNative.dll",
-        "sha256": "b43b1d3bc23e6f8658632ac57c32d20e815273fbe570eb149c85595308f44321",
-        "size": 104448
-      },
-      {
-        "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/FraxinusNativeContract/x86_64/FraxinusBrgVulkanContract.dll",
-        "sha256": "b90cf97632bbfde52348ec1bc5d6c794005eddbdfb111950adae794c77f6b1a9",
-        "size": 337920
-      },
-      {
-        "path": "Packages/Fraxinus-GPU-Batcher/Runtime/Plugins/FraxinusNativeContract/x86_64/GfxPluginBrgEvents.dll",
-        "sha256": "eec6cb1825d80a3a4b32187eacf664e48ad554b5a98fba9fb630cf75c3b3d0cf",
-        "size": 138240
-      }
-    ]
-  }
+    "manifestAlgorithm": "SHA-256 of sorted relative paths, NUL, per-file SHA-256, and LF; file content is hashed as raw bytes.",
+    "validation": {
+      "unity2022": "9 assemblies compiled with stock 2022.3.62f3; 0 errors, 60 warnings",
+      "unity6": "10 assemblies compiled with 6000.0.85f2; 0 errors, 47 warnings",
+      "renderingRerun": false
+    }
+  },
+  "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git"
 }

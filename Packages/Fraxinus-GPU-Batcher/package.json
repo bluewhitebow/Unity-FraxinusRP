@@ -2,7 +2,7 @@
   "name": "com.bluewhitebow.fraxinus-gpu-batcher",
   "version": "0.1.0",
   "displayName": "Fraxinus GPU Batcher",
-  "description": "GPU instance storage, registration, culling and LOD for Fraxinus. Native BRG indirect submission is under development.",
+  "description": "GPU instance registration, culling and LOD for Fraxinus, with native BRG indirect drawing on Unity 6.",
   "unity": "2022.3",
   "dependencies": {
     "com.unity.burst": "1.8.28",

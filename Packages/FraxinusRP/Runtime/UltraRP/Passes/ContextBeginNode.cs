@@ -16,11 +16,11 @@ namespace FraxinusEngine.Rendering.Ultra
     {
         /// <summary>自动：使用InjectPass声明的scopeFilter</summary>
         Auto,
-
+        
         /// <summary>禁用：子作用域不注入任何InjectPass</summary>
         Disabled
     }
-
+    
     /// <summary>
     /// 分辨率模式
     /// 控制子作用域的分辨率计算方式
@@ -29,7 +29,7 @@ namespace FraxinusEngine.Rendering.Ultra
     {
         ScaleFactor
     }
-
+    
     /// <summary>
     /// 子上下文初始化模式
     /// </summary>
@@ -38,26 +38,26 @@ namespace FraxinusEngine.Rendering.Ultra
         Clear,
         CopyFromMain
     }
-
+    
     [Serializable, NodeMenuItem("Context/ContextBegin")]
     public class ContextBeginNode : ScriptableRenderPassNode
     {
         [Header("Resolution Settings")]
         [SerializeField, Range(0.1f, 1.0f)] private float _scaleFactor = 0.5f;
-
+        
         [Header("Initialization")]
         [SerializeField] private SubContextInitMode _initMode = SubContextInitMode.Clear;
-
+        
         [Header("InjectPass Control")]
         [SerializeField] private InjectPassFilterMode _injectPassMode = InjectPassFilterMode.Auto;
-
+        
         [Input("From Main CameraTarget")]
         public CameraTargetBufferNodeParameter inCameraTarget;
-
+        
         [Output("To Sub CameraTarget", allowMultiple = true)]
         public CameraTargetBufferNodeParameter outCameraTarget;
-
-
+        
+        
         public InjectPassFilterMode injectPassMode => _injectPassMode;
 
         public override bool requiresIntermediateTexture
@@ -66,7 +66,7 @@ namespace FraxinusEngine.Rendering.Ultra
             get => base.requiresIntermediateTexture || _initMode == SubContextInitMode.CopyFromMain;
             set => base.requiresIntermediateTexture = value;
         }
-
+        
         // 缓存 ResourceData 和 CameraData 实例，避免每帧分配
         private ResourceData _cachedSubResourceData;
         private CameraData _cachedSubCameraData;
@@ -75,12 +75,12 @@ namespace FraxinusEngine.Rendering.Ultra
         private readonly CpuLightListFrameData _subCpuLightLists = new();
         private readonly DeferredClassifyDebugBuffersData _subClassifyDebug = new();
         private readonly ContextData _subContextData = new();
-
+        
         public ContextBeginNode() : base()
         {
             profilingSampler = new ProfilingSampler(nameof(ContextBeginNode));
         }
-
+        
         public override void Execute(RenderGraph renderGraph, ScriptableRenderContext context, ContextContainer frameData)
         {
             var state = frameData.GetOrCreate<ContextStateManager>();
@@ -186,32 +186,32 @@ namespace FraxinusEngine.Rendering.Ultra
         }
 
         private class ClearPassData { }
-
+        
         private class CopyPassData
         {
             internal TextureHandle srcColor;
             internal TextureHandle dstColor;
             internal TextureHandle dstDepth;
         }
-
+        
         private void ClearSubContextTextures(RenderGraph renderGraph, ResourceData subResourceData, CameraData cameraData)
         {
             using (var builder = renderGraph.AddRasterRenderPass<ClearPassData>(
                 "Clear SubContext Textures", out var passData, profilingSampler))
             {
-
+                
                 builder.SetRenderAttachment(subResourceData.cameraColor, 0, AccessFlags.Write);
                 builder.SetRenderAttachmentDepth(subResourceData.cameraDepth, AccessFlags.Write);
-
+                
                 builder.AllowPassCulling(false);
-
+                
                 builder.SetRenderFunc((ClearPassData data, RasterGraphContext context) =>
                 {
-
+                    
                 });
             }
         }
-
+        
         private void CopyFromParentContext(RenderGraph renderGraph, TextureHandle parentColor, ResourceData subResourceData)
         {
             using (var builder = renderGraph.AddRasterRenderPass<CopyPassData>(
@@ -220,20 +220,20 @@ namespace FraxinusEngine.Rendering.Ultra
                 passData.srcColor = parentColor;
                 passData.dstColor = subResourceData.cameraColor;
                 passData.dstDepth = subResourceData.cameraDepth;
-
+                
                 builder.UseTexture(parentColor, AccessFlags.Read);
                 builder.SetRenderAttachment(subResourceData.cameraColor, 0, AccessFlags.Write);
                 builder.SetRenderAttachmentDepth(subResourceData.cameraDepth, AccessFlags.Write); // 清除深度
-
+                
                 builder.AllowPassCulling(false);
-
+                
                 builder.SetRenderFunc((CopyPassData data, RasterGraphContext context) =>
                 {
                     Blitter.BlitTexture(context.cmd, data.srcColor, new Vector4(1, 1, 0, 0), 0, false);
                 });
             }
         }
-
+        
         private static TextureHandle CreateScaledTexture(RenderGraph graph, TextureHandle parent, int width, int height, string name)
         {
             if (!parent.IsValid())
@@ -309,15 +309,15 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             target.Reset();
             target.isSubContext = true;
-
+            
             // 基础Camera引用（不克隆Unity Camera对象本身）
             target.camera = source.camera;
             target.historyManager = null;
-
+            
             // 渲染类型
             target.renderType = source.renderType;
             target.targetTexture = null;
-
+            
             // 修改分辨率相关字段
             target.cameraTargetDescriptor = source.cameraTargetDescriptor;
             target.cameraTargetDescriptor.width = newWidth;
@@ -329,12 +329,12 @@ namespace FraxinusEngine.Rendering.Ultra
             target.pixelWidth = newWidth;
             target.pixelHeight = newHeight;
             target.aspectRatio = (float)newWidth / newHeight;
-
+            
             // 屏幕坐标
             target.useScreenCoordOverride = source.useScreenCoordOverride;
             target.screenSizeOverride = source.screenSizeOverride;
             target.screenCoordScaleBias = source.screenCoordScaleBias;
-
+            
             // 渲染缩放
             target.renderScale = source.renderScale;
             target.imageScalingMode = ImageScalingMode.None;
@@ -342,7 +342,7 @@ namespace FraxinusEngine.Rendering.Ultra
             target.fsrOverrideSharpness = source.fsrOverrideSharpness;
             target.fsrSharpness = source.fsrSharpness;
             target.hdrColorBufferPrecision = source.hdrColorBufferPrecision;
-
+            
             // 清除和类型
             target.clearDepth = source.clearDepth;
             target.cameraType = source.cameraType;
@@ -350,15 +350,15 @@ namespace FraxinusEngine.Rendering.Ultra
             target.isHdrEnabled = source.isHdrEnabled;
             target.allowHDROutput = false;
             target.isAlphaOutputEnabled = source.isAlphaOutputEnabled;
-
+            
             // 排序
             target.defaultOpaqueSortFlags = source.defaultOpaqueSortFlags;
-
+            
             // 纹理需求
             target.requiresDepthTexture = source.requiresDepthTexture;
             target.requiresOpaqueTexture = source.requiresOpaqueTexture;
             target.useGPUOcclusionCulling = false;
-
+            
             // 阴影和后处理
             target.maxShadowDistance = source.maxShadowDistance;
             target.postProcessEnabled = source.postProcessEnabled;
@@ -370,31 +370,31 @@ namespace FraxinusEngine.Rendering.Ultra
             target.isDitheringEnabled = source.isDitheringEnabled;
             target.antialiasing = AntialiasingMode.None;
             target.antialiasingQuality = source.antialiasingQuality;
-
+            
             // 最终目标
             target.resolveFinalTarget = false;
-
+            
             // 世界空间位置和颜色
             target.worldSpaceCameraPos = source.worldSpaceCameraPos;
             target.backgroundColor = source.backgroundColor;
-
+            
             // TAA历史（引用共享，不深度克隆）
             target.taaHistory = null;
             target.stpHistory = null;
             target.sgsr2History = null;
             target.sgsr2Enabled = false;
             target.taaSettings = source.taaSettings;
-
+            
             // Renderer引用
             target.renderer = source.renderer;
-
+            
             // 视图和投影矩阵
             target.SetViewProjectionAndJitterMatrix(
                 source.GetViewMatrix(),
                 source.GetProjectionMatrixNoJitter(),
                 Matrix4x4.identity  // 子作用域暂不使用jitter
             );
-
+            
             target.stackLastCameraOutputToHDR = false;
         }
     }

@@ -44,9 +44,6 @@ Shader "Hidden/FraxinusGPUBatcher/TerrainTextureGrass"
             #pragma multi_compile_instancing
             #pragma instancing_options renderinglayer
             #pragma multi_compile _ DOTS_INSTANCING_ON
-            #if UNITY_VERSION < 600000
-            #pragma multi_compile_local _ FRAXINUS_BRG_NATIVE_INDIRECT
-            #endif
             #pragma multi_compile_local _ _BILLBOARD
 
             // grass is dynamic detail, never lightmapped: SH / APV probes only, no lightmap keywords
@@ -86,9 +83,6 @@ Shader "Hidden/FraxinusGPUBatcher/TerrainTextureGrass"
 
             #pragma multi_compile_instancing
             #pragma multi_compile _ DOTS_INSTANCING_ON
-            #if UNITY_VERSION < 600000
-            #pragma multi_compile_local _ FRAXINUS_BRG_NATIVE_INDIRECT
-            #endif
             #pragma multi_compile_local _ _BILLBOARD
 
             #include "FraxinusGPUBatcherTerrainTextureGrass.hlsl"
@@ -110,9 +104,6 @@ Shader "Hidden/FraxinusGPUBatcher/TerrainTextureGrass"
 
             #pragma multi_compile_instancing
             #pragma multi_compile _ DOTS_INSTANCING_ON
-            #if UNITY_VERSION < 600000
-            #pragma multi_compile_local _ FRAXINUS_BRG_NATIVE_INDIRECT
-            #endif
             #pragma multi_compile_local _ _BILLBOARD
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
 
@@ -134,9 +125,6 @@ Shader "Hidden/FraxinusGPUBatcher/TerrainTextureGrass"
 
             #pragma multi_compile_instancing
             #pragma multi_compile _ DOTS_INSTANCING_ON
-            #if UNITY_VERSION < 600000
-            #pragma multi_compile_local _ FRAXINUS_BRG_NATIVE_INDIRECT
-            #endif
             #pragma multi_compile_local _ _BILLBOARD
             #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
 

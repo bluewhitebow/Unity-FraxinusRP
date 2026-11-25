@@ -1,17 +1,5 @@
 # Reference equivalence audit
 
-Current update (2026-11-24): the package now includes a Windows x64 Vulkan
-submission backend for Unity 2022. `GPUBatcherRenderer.canSubmitDraws` includes
-this backend; `BRGIndirectSubmission.isAvailable` describes handler availability.
-See the [current package guide](../README.md) for setup, limits and source links.
-The snapshot-specific comparisons and test results below predate this addition.
-
-This package was synchronized from Duckov-Recovered commit
-`5494613cdff36fd003f0537a60fd0b1b5498060d`
-on 2026-11-22. Recorded source tests and `SourceAudit.json` describe their captured
-snapshots, not a GPU/Player validation rerun of this checkout or its later changes.
-This suite retains `PrepareFrameResources(...)` and its existing Core/RP adaptations.
-
 Reference: `D:/projects/unityProjects/BRGInstance/Assets/BRGInstancedRenderer`,
 rechecked on 2026-11-22. The 74 reference code/shader assets matched the original
 import hashes. The port retains the managed registration/storage workflows and
@@ -31,8 +19,8 @@ code also requires runtime checks beyond the reference-file comparison.
 
 - Config discovery/creation, shader resource repair and Player Settings preloading.
   Project config storage uses writable `Assets/FraxinusGPUBatcherData`.
-- GameObject/terrain renderer takeover, including when no submission handler is installed;
-  destructive Bake, reconstructed Expand and the source matrix decomposition.
+- GameObject/Terrain registration takes over source rendering when indirect drawing is
+  available. Explicit Bake and Expand retain their reference authoring behavior.
 - Native ObjectDispatcher GlobalTRS/type tracking, including assets, through Core's
   existing engine-friend assembly. The former scene polling implementation is removed.
 - History HZB after opaque rendering, without forcing a full prepass. Current-frame
@@ -64,7 +52,7 @@ field equality does not permit casting the descriptor to Unity's native ABI.
 
 | Area | Port behavior / reason |
 | --- | --- |
-| Indirect native output | Camera/shadow share one synchronous `submitHandler`; `isAvailable` follows its presence. `FRAXINUS_BRG_INDIRECT_API` installs the built-in writer, enabled automatically on stock Unity 6 or explicitly for matching backported bindings. Other APIs can register a handler at startup. No handler means false with no allocations/output writes. CPU templates stay renderer-owned. |
+| Indirect native output | Unity 6 enables `FRAXINUS_BRG_INDIRECT_API` and writes native camera and shadow draws. Unity 2022 builds visibility and arguments and skips submission. |
 | SpeedTree native wind | Available Unity 2022 `Tree` rendering captures current/history constants through two private native capture passes and GPU copy. Source mesh and Tree/LOD hierarchy are preserved. The original managed wind-manager binding remains absent. |
 | SpeedTree initialization/cost | Native branch/leaf values can remain zero before the first engine wind update; full parameter families are checked after simulation advances. Each distinct retained native source/prototype adds two capture passes per rendering context plus the slot copy. |
 | Baked Umbra query | Available native `CullingGroup` queries enclosing spheres after the current camera cull. Spheres can retain more chunks than the original native AABB query. Camera results do not filter shadow candidates. |
@@ -85,8 +73,9 @@ BRG AABB bindings that are absent in that engine. The compatibility paths use
 
 ## Shared-source validation status
 
-The recorded validation projects resolved
-`Duckov-Recovered/ExportedProject/Packages` through local UPM `file:` references. Validation checked the actual resolved
+All maintained package files now live in
+`D:/projects/unityProjects/Duckov-Recovered/ExportedProject/Packages`. Both validation
+projects use local UPM `file:` references. Validation checked the actual resolved
 paths for GPU Batcher, Fraxinus RP, Core and Shader Graph. The recorded stock-engine
 runs had no custom handler: submission was unavailable in 2022 and available in Unity 6.
 These results do not validate a custom engine backport or a newly registered handler.

@@ -1,6 +1,6 @@
 # URP6 / Fraxinus shader stripping 对照（2026-11-11）
 
-这是 2026-11-11 在 Duckov 宿主工程进行的历史审计，基准为 URP 17.0.3 的 `Editor/ShaderScriptableStripper.cs` 全部 **49 个叶子规则**。下文的“当前”“本轮”、配置读数、源码行号和测试结果均指该次审计，不代表本包当前默认配置；后续规则以 [ShaderBuild.md](ShaderBuild.md) 为准。Duckov 的游戏 Assets、测试资源和历史报告不随本包提供。此表记录源码覆盖，不把理论组合数量当成实测编译加速。
+审计基准是 `D:/Unity/URP6/Packages/com.unity.render-pipelines.universal/Editor/ShaderScriptableStripper.cs` 的全部 **49 个叶子规则**。配置读数来自 Duckov 主工程。此表是源码覆盖审计，不把理论组合数量当成实测编译加速；本轮实际验证证据由宿主工程 `RecoveryReports/ShaderBuildRules/CoverageAuditValidation` 保存。
 
 状态：**已有** = 本轮前已实现等效或保守规则；**本轮** = 本轮补齐；**可补** = 尚未实现，有明确适配方向，仍需对应测试；**保留** = FRP 动态行为或语义不同，不能直接移植 URP 的判断。部分覆盖明确列出保留范围。
 
@@ -58,7 +58,7 @@
 
 ## Fast sRGB、HDR Grading、APV band 的实际条件
 
-- **Fast sRGB**：`Shaders/PostProcessing/UberPost.shader:11` 和 `BokehDepthOfField.shader:4` 为 `multi_compile_local_fragment`；运行时 `UltraRenderPipeline.cs:1528` 从 asset 复制到 frame，`PostProcessPass.cs:612` 和 `DepthOfFieldPass.cs:378` 控制关键词。当时 DuckovUltraRP `_useFastSRGBLinearConversion: 1`，因此只补“全关闭删 ON”对该宿主配置没有收益；若实现全 true 删 OFF，必须建立 canonical/local/stage/program 声明和所有 build consumers 并集测试。混合 true/false 必须保留两者。普通 global feature stripper 不处理这个 local-only 轴。
+- **Fast sRGB**：`Shaders/PostProcessing/UberPost.shader:11` 和 `BokehDepthOfField.shader:4` 为 `multi_compile_local_fragment`；运行时 `UltraRenderPipeline.cs:1528` 从 asset 复制到 frame，`PostProcessPass.cs:612` 和 `DepthOfFieldPass.cs:378` 控制关键词。当前 DuckovUltraRP `_useFastSRGBLinearConversion: 1`，因此只补“全关闭删 ON”对现项目没有收益；若实现全 true 删 OFF，必须建立 canonical/local/stage/program 声明和所有 build consumers 并集测试。混合 true/false 必须保留两者。普通 global feature stripper 不处理这个 local-only 轴。
 - **HDR Grading**：`UltraRenderPipeline.cs:1520-1525` 先依据 `supportsHDR && colorGradingMode`，随后 HDR 输出还能强制 HDR；`PostProcessPass.cs:1412` 控制 `_HDR_GRADING`，与 SDR tonemap 位于同一关键字轴。当前 `_supportsHDR: 1`、`_colorGradingMode: 0`、Player `allowHDRDisplaySupport: 0`，静态状态是 LDR。但 `colorGradingMode` 有 public setter（Asset:878），需要显式声明运行时 HDR 调色不可用或涵盖可能配置，不能仅见屏幕 HDR 关闭便裁。当前保留是明确保守策略。
 - **APV band**：`ForwardLights.cs:458-461` 根据 `probeVolumeSHBands` 选择 L1/L2。当前 `_lightProbeSystem: 0` 已禁 APV，两种 named 状态已删除，因此增加 band 细分对当前项目没有增量收益。对启用 APV 的其他消费者，正确模型是每资产得到允许的 L1/L2，再跨 Player/质量/Bundle 声明求并集并继续保留 OFF；不能用单个活动 asset 的 band 过滤所有消费者。未知 band/未知 asset 保留。
 
@@ -66,15 +66,15 @@
 
 - 修改 `UltraRPShaderPassRules.cs`：增加 `LightmapRulesTag`、`Capabilities.LightmapCombinations`、三 Lightmap keyword、`DirectionalLightmapWithoutLightmap`；新增 `ResolveCapabilities(..., string lightmapRulesTag, Capabilities legacy=None)` 和 `IsAuditedShader(shader,out terrain,out lightmaps)` 重载。旧 bool API 只保留原三能力。
 - 仅给 `Lit.shader`、`TerrainLit.shader`、`TerrainLitAdd.shader`、`TerrainLitBase.shader`、`Assets/Game/Shader/SodaTerrain.shader` 加声明；未变任何 pragma，没有给 Grass 的 SH 路径授权。
-- 历史 Pass 规则验证包含 72 个 NUnit 用例，覆盖八种三轴状态、dynamic-only、每个 missing declaration、policy disabled、wrong pipeline/stage、独立能力/unknown tag veto、实际 D3D/Vulkan Fragment 声明、Terrain Add 缺 dynamic 保留、旧 Particle/SimpleLit 不扩权、Grass 保护。临时测试源码已清理，结果由 Duckov 宿主另行保存。
+- 历史 Pass 规则验证包含 72 个 NUnit 用例，覆盖八种三轴状态、dynamic-only、每个 missing declaration、policy disabled、wrong pipeline/stage、独立能力/unknown tag veto、实际 D3D/Vulkan Fragment 声明、Terrain Add 缺 dynamic 保留、旧 Particle/SimpleLit 不扩权、Grass 保护。测试源码已清理，结果保存在宿主工程 `RecoveryReports`。
 - 静态检查覆盖 15 个 keyword 名称与 bit 索引、重复测试方法和尾空白。Unity EditMode/真实 Vulkan Bundle 的结果、源码哈希和限制见宿主工程本轮验证证据。
 
 所有条目都应服从 shared build consumer 并集、strip 总开关和 shader 语义授权。仅有 shader/pass 名称相似，或者关键字在当前 Vertex 回调中缺席，都不是裁掉另一条程序路径的依据。
 
 ## 额外核对的边界
 
-- 当时 Duckov 主工程启用 `stripUnusedVariants`，但 `stripUnusedPostProcessingVariants=0`；因此 VolumeProfile 效果裁剪未执行，不能把 UberPost 数量不变归为该规则失效。
-- `FastSRGB` 当时全 true 的内置路径可以仅保留 ON；实现仍需独立扩展声明/证明，不能复用屏幕阴影或 Rendering Layers 的声明。
+- 主项目启用 `stripUnusedVariants`，但 `stripUnusedPostProcessingVariants=0`；因此 VolumeProfile 效果裁剪未执行，不能把 UberPost 数量不变归为该规则失效。
+- `FastSRGB` 当前全 true 的内置路径可以仅保留 ON；实现仍需独立扩展声明/证明，不能复用屏幕阴影或 Rendering Layers 的声明。详见宿主验证目录 `fast-srgb-audit.md`。
 - 原生 `ShaderKeywordFilter` 按名称匹配，普通 managed 规则则保护同名 local 关键词。自定义 local shader 不应复用保留的管线全局名字来表达另一种含义；本轮未新增对此扩展情形的真实构建覆盖。
 - Core stripper 的初始化缓存依赖活动管线。同一 Editor 跨不同 RP 的构建序列尚未专项验证；本轮仅验证同 FRP 连续配置切换，不据缓存实现推断一定发生漏裁。
 - 构建报告观察 managed 回调。原生阶段已全部裁掉或直接命中构建缓存的 Shader 可能没有报告行；缺行不能直接解释为规则没有覆盖。

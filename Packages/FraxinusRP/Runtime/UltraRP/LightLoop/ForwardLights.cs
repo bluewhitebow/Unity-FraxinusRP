@@ -809,7 +809,7 @@ namespace FraxinusEngine.Rendering.Ultra
         {
             if (index < 0 || lights[index].light == null)
                 return new Vector4(1f, 0f, 0f, 0f);
-            var additional = lights[index].light.GetOrMigrateAdditionalLightData();
+            var additional = lights[index].light.GetExistingAdditionalLightData();
             if (additional == null)
                 return new Vector4(1f, 0f, 0f, 0f);
             bool directional = lights[index].lightType == LightType.Directional;

@@ -60,7 +60,7 @@ namespace FraxinusEngine.Rendering.Ultra
             {
 #if (DEVELOPMENT_BUILD || UNITY_EDITOR)
                 return _profingSampler;
-#else
+#else 
                 //We only remove the sampler in release build to reduce overhead
                 return null;
 #endif

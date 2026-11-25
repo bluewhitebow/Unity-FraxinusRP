@@ -10,7 +10,7 @@ UltraRP 的 `Strip Unused Variants` 同时控制提前关键词过滤、普通 S
 
 ## 当前能力规则
 
-- SH Auto 在构建分析时保持未解析，因为 Editor 的平台与 XR 缓存不能证明 Player 的实际需求。运行时仍由 `PlatformAutoDetect.ShAutoDetect` 选择模式；Mixed、PerVertex 及不同质量档的组合均保留各自需要的状态与 OFF 状态。
+- 调用 Fraxinus 自身的 `PlatformAutoDetect.ShAutoDetect` 解析 SH 模式。当前 Auto 在普通 Android 构建中是 PerPixel；不复制 URP 17 的不同移动端判定。Mixed、PerVertex 及不同质量档的组合均保留各自需要的状态与 OFF 状态。
 - 调用运行时的 `SupportsPerLightSoftShadowQuality` 判定阴影质量模式。使用动态质量时过滤静态 LOW/MEDIUM/HIGH；普通 `_SHADOWS_SOFT` 的开关状态始终保留，因为游戏可以在运行中调整阴影画质。
 - Forward Plus 单独检查每个声明节点的 `RequestRenderingMode` 虚方法实现和 DrawObjects 配置。检查包含禁用、断开的节点。未知图、缺失类型、未知重写或不同的虚方法槽保持保守，不执行自定义节点代码。后处理节点继承默认 None 实现，不会阻止独立的 Forward Plus 判断。
 - 按资产能力过滤未启用的 LOD Cross Fade、APV、APRT、Light Layers、Light Cookies、Mixed Lighting 和反射探针混合/盒投影；这些能力仍合并所有构建质量档。
@@ -20,7 +20,7 @@ UltraRP 的 `Strip Unused Variants` 同时控制提前关键词过滤、普通 S
 - 普通 Shader 的 `DEBUG_DISPLAY`、`SCREEN_COORD_OVERRIDE` 同时由预过滤和脚本裁剪处理，遵守各自显式开关以及 `Strip Unused Variants`。后处理的这些构建级规则和 HDR 显示输出规则不依赖 VolumeProfile 效果裁剪开关；Profile 扫描失败也不会禁用已启用的构建级规则。Bloom 等效果和整张后处理 Shader 的裁剪仍需独立启用且扫描成功。
 - 关闭 HDR 显示输出时，预过滤同时删除 `_EASU_RCAS_AND_HDR_INPUT`、`_GAMMA_20_AND_HDR_INPUT` 两个复合关键词；保留普通 FSR/RCAS、Gamma 和内部 HDR 颜色分级状态。
 - `LutBuilderHdr`、`BlitHDROverlay`、`HDRDebugView`、`XRMirrorView` 的 HDR 输出轴也有 managed 后备规则，覆盖未提前启用 native 过滤的隐式 Bundle 入口。按精确路径、名称、实际 Pass/Fragment/平台声明授权，不因缺少 VolumeProfile 删除这些整张 Shader。
-- DBuffer 独立检查每个资产全部声明图中的贴花节点，包括禁用或断开的节点；不依赖整图 Pass 类型白名单，也不把 Forward-only 当成没有贴花。显式 DBuffer 按 Albedo / AlbedoNormal / AlbedoNormalMAOS 分别保留 MRT1 / MRT2 / MRT3。各图和质量档需要的模式取并集，OFF 始终保留；例如，全部配置仅需要 MRT3 时，可以过滤 MRT1/MRT2。
+- DBuffer 独立检查每个资产全部声明图中的贴花节点，包括禁用或断开的节点；不依赖整图 Pass 类型白名单，也不把 Forward-only 当成没有贴花。显式 DBuffer 按 Albedo / AlbedoNormal / AlbedoNormalMAOS 分别保留 MRT1 / MRT2 / MRT3。各图和质量档需要的模式取并集，OFF 始终保留；当前六图均为 MRT3，所以仅过滤 MRT1/MRT2。
 - Automatic 按实际运行时代码保守保留 MRT3 和 OFF：`DecalRenderPassNode.GetDBufferSettings` 对 Automatic 新建 AlbedoNormalMAOS 配置，不使用序列化的 surfaceData；`GetTechnique` 也可能选择不使用 DBuffer 的 ScreenSpace/GBuffer。显式 ScreenSpace 在延迟路径变为 GBuffer，仍不使用 DBuffer。分析不调用依赖编辑器平台的 `GetTechnique`。
 - 缺失、派生或无法解析的图，缺失节点，派生贴花提供者、未知 technique、缺失实际使用的 settings 或无效显式 DBuffer surfaceData，都保守保留 DBuffer 全部模式。无关的合法自定义 Pass 不被视为贴花提供者，也不会执行其渲染回调。
 
@@ -44,17 +44,15 @@ UltraRP 的 `Strip Unused Variants` 同时控制提前关键词过滤、普通 S
 
 自动发现检查与运行时一致：`PostProcessPass` 会实例化全部具体 `BasePostPass` / `IUberEffectProcessor`，即使没有序列化到图中；`ScriptableRenderer` 会实例化具有公开无参构造函数的具体 `BuiltinPass` / `InjectPass`。未审查且未明确声明的类型阻止屏幕空间阴影裁剪。通用 Forward/Deferred 证明仍只接受已审查原生模块，屏幕空间阴影声明不能绕过它，因此不会据此删除自定义材质的 GBuffer、Deferred 或其它 Pass。
 
-旧的 `HiZDepthPass` 已移除；GPU Batcher 自己生成 history HZB 和当前帧重测所需的深度金字塔。GPU Batcher 注入模块仍沿用未评审模块的保守裁剪策略，安装该可选包时会保留它可能需要的变体。
-
-Duckov 宿主工程的历史集成审查了以下五个精确节点类型。这些项目节点、插件和游戏资产不随本包提供；其他宿主必须审查自己的实现：
+当前游戏的五个精确节点类型已经审查并声明：
 
 - `DuckovUltraTransparentPass` 仅将输入需求改为 Depth/Color，继续使用内置 DrawObjects。
 - `DuckovUltraLegacyObjectsPass` 仅控制已有 DrawObjects 的执行和附加绘制剔除掩码。
 - `DuckovUltraFogOfWarPass` 仅增加相机筛选；其 `FOW.FogOfWarPass` 基类设置 FOW 材质参数、`_BlitTexture`、`_BlitScaleBias`，然后执行合成 Blit。
-- `DuckovUltraLegacyFullscreenPass` 设置 Blit 输入并使用声明材质合成；当时审查的材质和游戏代码没有启用屏幕空间主灯阴影的状态。
+- `DuckovUltraLegacyFullscreenPass` 设置 Blit 输入并使用声明材质合成；当前材质和游戏代码没有启用屏幕空间主灯阴影的状态。
 - `DuckovUltraPluginPass` 的 Shapes DLL 调用链经 Mono.Cecil 检查：`DrawCommand.AppendToBuffer` 只枚举 `ShapeDrawCall.AddToCommandBuffer`，后者仅调用 `DrawMesh` / `DrawMeshInstanced`；ALINE 的提交路径最终仅调用 `DrawMesh`。其最终合成回调包含的 TranslucentImage 使用 `ScalableBlur`，DLL 中实际切换的材质关键字只有 `BACKGROUND_FILL_NONE` / `BACKGROUND_FILL_COLOR`，没有主灯阴影关键字。
 
-该次 Duckov 审查的 Assets 代码以及材质、ShaderVariantCollection、序列化资产中均未发现 `_MAIN_LIGHT_SHADOWS_SCREEN` 的启用或保存状态。后续若给这些节点加入屏幕空间主灯阴影提供者，需要删除或更新声明；单纯调整软阴影、Contact Shadows、SSAO 或 DBuffer 不影响这项独立声明。SSAO 的 `GroundTruthAmbientOcclusionPass` 会实际开启 `_SCREEN_SPACE_OCCLUSION`，因此仍保留该功能的 ON/OFF 状态。
+当前 Assets 代码以及材质、ShaderVariantCollection、序列化资产中均未发现 `_MAIN_LIGHT_SHADOWS_SCREEN` 的启用或保存状态。后续若给这些节点加入屏幕空间主灯阴影提供者，需要删除或更新声明；单纯调整软阴影、Contact Shadows、SSAO 或 DBuffer 不影响这项独立声明。SSAO 的 `GroundTruthAmbientOcclusionPass` 会实际开启 `_SCREEN_SPACE_OCCLUSION`，因此仍保留该功能的 ON/OFF 状态。
 
 ## Rendering Layers 输出需求
 
@@ -62,7 +60,7 @@ Duckov 宿主工程的历史集成审查了以下五个精确节点类型。这�
 
 自定义扩展可以使用独立的 `[RenderingLayerUsage(false)]`，声明覆盖自身输入、委托材质与回调；它不授予屏幕阴影或整 Pass 裁剪权限，也不从基类继承。序列化输入可用 `[RenderingLayerUsage(false, nameof(requirements))]` 指定字段，分析读取字段而不执行 getter。所有序列化 `ScriptableRenderPassInput` 字段均检查，出现未审查的新位时仍保留。直接改变管线保留关键词的代码必须声明对应需求。
 
-上述 Duckov 宿主的五种扩展节点也曾单独审查 Rendering Layers 需求；Fullscreen 的 `requirements` 逐实例读取。此证明依据声明的管线需求，不依赖当前 `RenderingLayerUtils.RequireRenderingLayers` 返回 false 的实现缺口。未来增加提供者或委托行为时必须更新声明。
+当前游戏五种 Duckov 扩展节点已经独立审查；Fullscreen 的 `requirements` 逐实例读取。此证明依据声明的管线需求，不依赖当前 `RenderingLayerUtils.RequireRenderingLayers` 返回 false 的实现缺口。未来增加提供者或委托行为时必须更新声明。
 
 ## Pass 与无效组合
 
@@ -117,6 +115,6 @@ Duckov 宿主工程的历史集成审查了以下五个精确节点类型。这�
 
 URP 49 项规则的逐项覆盖、仍可补的优化及 FRP 动态语义差异见 [StrippingCoverageAudit.md](StrippingCoverageAudit.md)。已实现 strip 不等于所有无用维度都已消除。
 
-Duckov 宿主的历史 EditMode 验证覆盖多质量档交集、未知配置、SH 运行策略、动态软阴影和贴花保留、DBuffer 多模式与未知提供者、OFF/MRT3 保留、真实 Soda/粒子关键词、Shader scope 切换、字段恢复及注册者组合。相关临时测试入口已清理；历史结果由 Duckov 宿主另行保存，测试资产和报告不随本包提供。
+历史 EditMode 验证覆盖多质量档交集、未知配置、SH 运行策略、动态软阴影和贴花保留、DBuffer 多模式与未知提供者、OFF/MRT3 保留、真实 Soda/粒子关键词、Shader scope 切换、字段恢复及注册者组合。相关测试源码、程序集和辅助入口已从当前工作区移除，验证结果保存在宿主工程 `RecoveryReports`。
 
 编译检查和规则测试不等同于实际 Android 构建或真机画面验证。实际剩余变体数应检查构建日志中的 `After settings filtering`、`After scriptable stripping`，以及缓存命中、新编译数量和耗时。保留 `Library/ShaderCache`，无需为启用新规则清空已有缓存。

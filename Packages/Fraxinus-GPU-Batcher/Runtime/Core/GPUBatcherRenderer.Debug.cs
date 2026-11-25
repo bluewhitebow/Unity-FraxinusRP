@@ -70,6 +70,32 @@ namespace Fraxinus.GPUBatcher
         internal IReadOnlyDictionary<ViewID, PerCameraMeshStats> perCameraMeshStatsMap => _perCameraMeshStats;
         private readonly Dictionary<ViewID, PerLightShadowStats> _perLightShadowStats = new();
         internal IReadOnlyDictionary<ViewID, PerLightShadowStats> perLightShadowStatsMap => _perLightShadowStats;
+        private readonly List<ViewID> _readbackStatKeyScratch = new();
+
+        // Reset once per frame; snapshot keys before writing values back to each dictionary.
+        private void ResetReadbackPendingFlags()
+        {
+            if (!_computeRenderedTriangles) return;
+
+            _readbackStatKeyScratch.Clear();
+            _readbackStatKeyScratch.AddRange(_perCameraMeshStats.Keys);
+            foreach (var key in _readbackStatKeyScratch)
+            {
+                var stats = _perCameraMeshStats[key];
+                stats.cameraPending = false;
+                _perCameraMeshStats[key] = stats;
+            }
+
+            _readbackStatKeyScratch.Clear();
+            _readbackStatKeyScratch.AddRange(_perLightShadowStats.Keys);
+            foreach (var key in _readbackStatKeyScratch)
+            {
+                var stats = _perLightShadowStats[key];
+                stats.pending = false;
+                _perLightShadowStats[key] = stats;
+            }
+            _readbackStatKeyScratch.Clear();
+        }
 
         private int GetVertexCountForCommand(Unity.Collections.NativeArray<BatchDrawCommandIndirect> templates, int cmdIdx)
         {

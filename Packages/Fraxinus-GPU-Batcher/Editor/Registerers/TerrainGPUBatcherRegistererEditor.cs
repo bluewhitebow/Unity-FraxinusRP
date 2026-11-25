@@ -9,7 +9,7 @@ namespace Fraxinus.GPUBatcher.Editor
     [CanEditMultipleObjects]
     internal class TerrainGPUBatcherRegistererEditor : UnityEditor.Editor
     {
-        static readonly GUIContent s_disableBuiltIn = new GUIContent("Disable Built-in Rendering", "Disable Unity's built-in tree and detail rendering (sets drawTreesAndFoliage = false).");
+        static readonly GUIContent s_disableBuiltIn = new GUIContent("Disable Built-in Rendering", "Disable Unity's built-in tree and detail rendering when BRG indirect draws are available.");
         static readonly GUIContent s_treeCullDistance = new GUIContent("Cull Distance", "Read from Terrain > Tree Distance");
         static readonly GUIContent s_chunkSize = new GUIContent("Chunk Size (m)", "World-space size of each grid cell.");
         static readonly GUIContent s_showTreeChunkGizmos = new GUIContent("Show Chunk Gizmos");

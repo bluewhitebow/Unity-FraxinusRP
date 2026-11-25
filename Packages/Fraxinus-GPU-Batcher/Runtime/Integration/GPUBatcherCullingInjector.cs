@@ -132,7 +132,7 @@ namespace Fraxinus.GPUBatcher.Integration
                 var size = GPUBatcherCullingInjector.DepthDimensions(camera.cameraTargetDescriptor);
                 batcher.EnsureHZBAtlas(camera.camera, size.x, size.y);
             }
-            GPUBatcherRenderGraphPasses.RecordDeferredCullingPass(graph, context, batcher,
+            GPUBatcherRenderGraphPasses.RecordDeferredCullingPass(graph, batcher,
                 "FraxinusGPUBatcher.Culling", cameraId, batcher.isGPUOcclusionEnabled);
         }
         protected override void OnCameraCleanup(CommandBuffer cmd) { }
@@ -218,7 +218,7 @@ namespace Fraxinus.GPUBatcher.Integration
             GPUBatcherRenderGraphPasses.RecordHZBBuildPass(graph, batcher, "FraxinusGPUBatcher.HZBBuild", cameraId, depth, width, height,
                 sourceTextureArray: sourceArray);
             if (retest)
-                GPUBatcherRenderGraphPasses.RecordHZBCullPass(graph, context, batcher, "FraxinusGPUBatcher.HZBRetest", cameraId);
+                GPUBatcherRenderGraphPasses.RecordHZBCullPass(graph, batcher, "FraxinusGPUBatcher.HZBRetest", cameraId);
         }
     }
 
@@ -226,7 +226,7 @@ namespace Fraxinus.GPUBatcher.Integration
     public sealed class GPUBatcherHZBPass : InjectPass
     {
         public override void ResetFrame(RenderGraph graph, ContextContainer frame) => GPUBatcherHZBInjection.Reset(frame);
-        public override RenderPassInputSummary PrepareFrameResources(RenderGraph graph, ContextContainer frame) => GPUBatcherHZBInjection.Prepare(frame, true);
+        public override RenderPassInputSummary PrepareFrame(RenderGraph graph, ContextContainer frame) => GPUBatcherHZBInjection.Prepare(frame, true);
         public override void Execute(RenderGraph graph, ScriptableRenderContext context, ContextContainer frame) => GPUBatcherHZBInjection.Record(graph, context, frame, true);
         protected override void OnCameraCleanup(CommandBuffer cmd) { }
         protected override void OnDispose() { }
@@ -242,7 +242,7 @@ namespace Fraxinus.GPUBatcher.Integration
         public override bool ShouldExecute(ScriptableRenderPassNode node, ContextContainer frame) =>
             node == GPUBatcherCullingInjector.LastMainOpaquePass(frame.Get<CameraData>().renderer, frame);
         public override void ResetFrame(RenderGraph graph, ContextContainer frame) => GPUBatcherHZBInjection.Reset(frame);
-        public override RenderPassInputSummary PrepareFrameResources(RenderGraph graph, ContextContainer frame) => GPUBatcherHZBInjection.Prepare(frame, false);
+        public override RenderPassInputSummary PrepareFrame(RenderGraph graph, ContextContainer frame) => GPUBatcherHZBInjection.Prepare(frame, false);
         public override void Execute(RenderGraph graph, ScriptableRenderContext context, ContextContainer frame) => GPUBatcherHZBInjection.Record(graph, context, frame, false);
         protected override void OnCameraCleanup(CommandBuffer cmd) { }
         protected override void OnDispose() { }

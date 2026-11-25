@@ -54,7 +54,7 @@ namespace FraxinusEngine.Rendering.Ultra
             frameData.GetOrCreate<PreparedSampling>().Reset();
         }
 
-        public override RenderPassInputSummary PrepareFrameResources(RenderGraph renderGraph, ContextContainer frameData)
+        public override RenderPassInputSummary PrepareFrame(RenderGraph renderGraph, ContextContainer frameData)
         {
             var pipeline = UltraRenderPipeline.asset;
             if (pipeline == null || !pipeline.supportProbeVolume || _computeShader == null)

@@ -816,7 +816,7 @@ namespace FraxinusEngine.Rendering.Ultra
             Profiler.EndSample();
         }
 
-        void RenderStencilDirectionalLights(RasterCommandBuffer cmd, bool stripShadowsOffVariants, LightData lightData, ShadowData shadowData,
+        void RenderStencilDirectionalLights(RasterCommandBuffer cmd, bool stripShadowsOffVariants, LightData lightData, ShadowData shadowData, 
             NativeArray<VisibleLight> visibleLights, bool hasLightCookieManager, int mainLightIndex)
         {
             if (_fullscreenMesh == null)

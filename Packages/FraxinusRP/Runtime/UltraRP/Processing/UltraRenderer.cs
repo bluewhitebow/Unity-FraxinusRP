@@ -16,7 +16,7 @@ namespace FraxinusEngine.Rendering.Ultra
         Deferred = 1 << 1,
         ForwardPlus = 1 << 2,
         DeferredPlus = 1 << 3,
-        DeferredCluster = 1 << 4,
+        DeferredCluster = 1 << 4, 
     };
 
     public enum RenderOrder
@@ -379,8 +379,8 @@ namespace FraxinusEngine.Rendering.Ultra
             useRenderPassEnabled = renderGraph.nativeRenderPassesEnabled;
 
             CollectRenderingData(cameraData.IsTemporalJitterEnabled(), cameraData.postProcessEnabled, cameraData.isSceneViewCamera, ref internalData, renderingData);
-            PrepareInjectPassResources(renderGraph, frameData);
-            GetModule<AreaLightsPass>().PrepareFrameResources(renderGraph, frameData);
+            PrepareInjectPasses(renderGraph, frameData);
+            GetModule<AreaLightsPass>().PrepareFrame(renderGraph, frameData);
 
             if (cameraData.isSceneViewCamera)
                 renderingData.opaqueLayerMask = -1;
@@ -532,7 +532,7 @@ namespace FraxinusEngine.Rendering.Ultra
             }
         }
 
-        public override bool isForwardPlus => (_renderingMode & RenderingMode.ForwardPlus) != 0;
+        public override bool isForwardPlus => (_renderingMode & RenderingMode.ForwardPlus) != 0; 
         public override bool usesCpuLightLists => (_renderingMode & (RenderingMode.ForwardPlus | RenderingMode.DeferredPlus)) != 0;
 
         private void SetupRenderGraphLights(RenderGraph renderGraph, RenderingData renderingData, CameraData cameraData, LightData lightData)
@@ -704,7 +704,7 @@ namespace FraxinusEngine.Rendering.Ultra
             // Finally for non-base cameras the backbuffer should never be cleared. (Note that there might still be two base cameras
             // rendering to the same screen. See e.g. test foundation 014 that renders a minimap)
             bool clearBackbufferOnFirstUse = (cameraData.renderType == CameraRenderType.Base) && !requiresIntermediateAttachments;
-
+            
             // force the clear if we are rendering to an offscreen depth texture
             clearBackbufferOnFirstUse |= isCameraTargetOffscreenDepth;
 

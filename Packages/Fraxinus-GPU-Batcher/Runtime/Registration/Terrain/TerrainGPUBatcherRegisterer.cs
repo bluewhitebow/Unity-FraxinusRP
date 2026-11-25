@@ -17,7 +17,7 @@ namespace Fraxinus.GPUBatcher
 
         [FormerlySerializedAs("disableBuiltInRendering")]
         [Header("Settings")]
-        [Tooltip("Disable Unity's built-in tree and detail rendering (sets drawTreesAndFoliage = false).")]
+        [Tooltip("Disable Unity's built-in tree and detail rendering when BRG indirect draws are available.")]
         [SerializeField] private bool _disableBuiltInRendering = true;
 
         [FormerlySerializedAs("snapCrossfadeOnStart")]
@@ -37,6 +37,7 @@ namespace Fraxinus.GPUBatcher
 
         private Terrain _terrain;
         private TerrainData _terrainData;
+        private bool _ownsFoliageRendering;
 
         #endregion
 
@@ -72,8 +73,6 @@ namespace Fraxinus.GPUBatcher
                 GPUBatcherTerrainDetailOverride.onAnyOverrideChanged += OnAnyDetailOverrideChanged;
 #endif
             _terrain = GetComponent<Terrain>();
-            if (_terrain != null && _disableBuiltInRendering && _terrain.drawTreesAndFoliage)
-                _terrain.drawTreesAndFoliage = false;
             base.OnEnable(); // triggers Initialize -> OnInitialize, or deferred in editor
         }
 
@@ -82,6 +81,7 @@ namespace Fraxinus.GPUBatcher
             RefreshTerrainDataCaches();
             InitializeTrees();
             InitializeDetails();
+            SetFoliageTakeover(_disableBuiltInRendering);
 
             if (_snapCrossfadeOnStart)
                 GPUBatcherSystem.RequestSnapAllViews();
@@ -99,6 +99,7 @@ namespace Fraxinus.GPUBatcher
 
         protected override void OnShutdown()
         {
+            SetFoliageTakeover(false);
             ShutdownDetails();
 
             ShutdownTrees();
@@ -114,10 +115,21 @@ namespace Fraxinus.GPUBatcher
             UnityEditor.SceneView.duringSceneGui -= OnSceneGUI;
 #endif
             base.OnDisable();
-            if (_terrain != null && _disableBuiltInRendering && !_terrain.drawTreesAndFoliage
-                && gameObject.scene.isLoaded)
+        }
+
+        private void SetFoliageTakeover(bool requested)
+        {
+            if (_terrain == null) return;
+            if (requested && GPUBatcherRenderer.canSubmitDraws)
             {
-                _terrain.drawTreesAndFoliage = true;
+                if (!_terrain.drawTreesAndFoliage) return;
+                _terrain.drawTreesAndFoliage = false;
+                _ownsFoliageRendering = true;
+            }
+            else if (_ownsFoliageRendering)
+            {
+                if (gameObject.scene.isLoaded) _terrain.drawTreesAndFoliage = true;
+                _ownsFoliageRendering = false;
             }
         }
 

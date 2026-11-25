@@ -3,7 +3,7 @@
   "description": "Unofficial Fraxinus Unity 2022.3 backport of the Unity Light Transport library for ray tracing and light transport algorithms.",
   "version": "1.0.1",
   "unity": "2022.3",
-  "displayName": "Fraxinus Light Transport (Unity 2022 backport)",
+  "displayName": "Fraxinus Light Transport",
   "documentationUrl": "https://github.com/bluewhitebow/Fraxinus-Light-Transport/blob/main/README.md",
   "changelogUrl": "https://github.com/bluewhitebow/Fraxinus-Light-Transport/blob/main/CHANGELOG.md",
   "licensesUrl": "https://github.com/bluewhitebow/Fraxinus-Light-Transport/blob/main/LICENSE.md",

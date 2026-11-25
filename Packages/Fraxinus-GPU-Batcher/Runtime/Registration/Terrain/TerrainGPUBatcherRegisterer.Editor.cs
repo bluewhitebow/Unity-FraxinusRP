@@ -11,7 +11,6 @@ namespace Fraxinus.GPUBatcher
         #region OnValidate
 
         // cached previous values for change detection
-        private bool _prevDisableBuiltIn;
         private int _prevSettingsHash = int.MinValue;
         private bool _refreshScheduled;
 
@@ -38,19 +37,9 @@ namespace Fraxinus.GPUBatcher
         {
             if (_treeChunkSize < 1f) _treeChunkSize = 1f;
 
-            // handle drawTreesAndFoliage toggle immediately
-            if (_terrain != null)
-            {
-                bool shouldDisable = _disableBuiltInRendering && enabled;
-                if (shouldDisable != _prevDisableBuiltIn)
-                {
-                    _terrain.drawTreesAndFoliage = !shouldDisable;
-                    _prevDisableBuiltIn = shouldDisable;
-                }
-            }
-
             // don't refresh if not initialized yet
             if (!_registered) return;
+            SetFoliageTakeover(_disableBuiltInRendering && isActiveAndEnabled);
 
             // check if any setting that affects registration changed
             int currentHash = ComputeSettingsHash();

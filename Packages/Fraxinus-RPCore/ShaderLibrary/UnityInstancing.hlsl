@@ -276,9 +276,6 @@
     #define UNITY_ACCESS_INSTANCED_PROP(arr, var)   var
 
     #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/UnityDOTSInstancing.hlsl"
-    #ifndef UNITY_SETUP_DOTS_VISIBLE_INSTANCING_DATA
-        #define UNITY_SETUP_DOTS_VISIBLE_INSTANCING_DATA() SetupDOTSVisibleInstancingData()
-    #endif
 #if defined(UNITY_SETUP_DOTS_RENDER_BOUNDS)
     #define UNITY_SETUP_DOTS_RENDER_BOUNDS_COMPAT UNITY_SETUP_DOTS_RENDER_BOUNDS
 #else
@@ -288,7 +285,7 @@
         #undef UNITY_SETUP_INSTANCE_ID
         #define UNITY_SETUP_INSTANCE_ID(input) {\
             DEFAULT_UNITY_SETUP_INSTANCE_ID(input);\
-            UNITY_SETUP_DOTS_VISIBLE_INSTANCING_DATA();\
+            SetupDOTSVisibleInstancingData();\
             UNITY_SETUP_DOTS_MATERIAL_PROPERTY_CACHES();\
             UNITY_SETUP_DOTS_SH_COEFFS;\
             UNITY_SETUP_DOTS_RENDER_BOUNDS_COMPAT; }

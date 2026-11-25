@@ -5,141 +5,24 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using NativeCommand = UnityEngine.Rendering.BatchDrawCommandIndirect;
 #endif
-#if !FRAXINUS_BRG_INDIRECT_API && !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN || (UNITY_ANDROID && !UNITY_EDITOR && FRAXINUS_BRG_ANDROID_PREVIEW))
-using Unity.Collections.LowLevel.Unsafe;
-using UnityEngine;
-#endif
 
 namespace Fraxinus.GPUBatcher.Rendering
 {
     public static class BRGIndirectSubmission
     {
-        /// <summary>Submit synchronously. The caller owns the spans and GPU buffers. A false return must leave output untouched.</summary>
-        public delegate bool SubmitHandler(
-            in BatchCullingOutput output,
-            ReadOnlySpan<BatchDrawCommandIndirect> commands,
-            ReadOnlySpan<BatchDrawRange> ranges);
-
-        /// <summary>Engine binding used by both camera and shadow culling. Set during engine integration startup.</summary>
-        public static SubmitHandler submitHandler { get; set; }
-
-        public static bool isAvailable => submitHandler != null;
-
 #if FRAXINUS_BRG_INDIRECT_API
-        static BRGIndirectSubmission() => submitHandler = SubmitNative;
-#elif !UNITY_6000_0_OR_NEWER && (UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN || (UNITY_ANDROID && !UNITY_EDITOR && FRAXINUS_BRG_ANDROID_PREVIEW))
-        private delegate void Indexed2022Writer(IntPtr slot, IntPtr commands, int commandCount, IntPtr ranges, int rangeCount);
-        private static readonly Indexed2022Writer s_indexed2022Writer;
-        private static readonly Action<ScriptableRenderContext> s_refreshIndexedResources;
-        private static readonly SubmitHandler s_submit2022;
-
-        static BRGIndirectSubmission()
-        {
-            bool enabled = SystemInfo.graphicsDeviceType == GraphicsDeviceType.Vulkan;
-#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D11)
-                enabled = D3D11ReceiverReady();
-#endif
-            if (!enabled)
-                return;
-
-            var writer = typeof(BatchRendererGroup).Assembly.GetType("UnityEngine.Rendering.IndexedBrgOutputWriter")
-                ?.GetMethod("Write", new[] {typeof(IntPtr), typeof(IntPtr), typeof(int), typeof(IntPtr), typeof(int)});
-            if (writer == null) return;
-#if UNITY_ANDROID && !UNITY_EDITOR
-            if (IntPtr.Size != 8 || BatchRendererGroup.BufferTarget != BatchBufferTarget.RawBuffer ||
-                !SystemInfo.supportsComputeShaders || !AndroidReceiverReady()) return;
-#endif
-            if (UnsafeUtility.SizeOf<BatchDrawCommandIndirect>() != 52 || UnsafeUtility.SizeOf<BatchDrawRange>() != 40 ||
-                UnsafeUtility.SizeOf<BatchCullingOutputDrawCommands>() != 96)
-                throw new InvalidOperationException("Indexed BRG runtime and package outputs have incompatible layouts.");
-            s_indexed2022Writer = (Indexed2022Writer)Delegate.CreateDelegate(typeof(Indexed2022Writer),writer);
-            var translator = Type.GetType("Fraxinus.BrgContract.Managed.PlayerOutputTranslator, Fraxinus.BrgContract.Managed", false);
-            var refresh = translator?.GetMethod("RefreshIndexedWork", new[] { typeof(ScriptableRenderContext) });
-            if (refresh != null)
-                s_refreshIndexedResources = (Action<ScriptableRenderContext>)Delegate.CreateDelegate(typeof(Action<ScriptableRenderContext>), refresh);
-            s_submit2022 = Submit2022;
-            submitHandler = s_submit2022;
-        }
-
-#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-        [System.Runtime.InteropServices.DllImport("GfxPluginBrgEvents")]
-        private static extern int BrgD3D11Capabilities();
-        private static Func<Material, bool> s_supportsD3D11Material;
-
-        private static bool D3D11ReceiverReady()
-        {
-            if (IntPtr.Size != 8 || BatchRendererGroup.BufferTarget != BatchBufferTarget.RawBuffer ||
-                !SystemInfo.supportsComputeShaders) return false;
-            var translator = Type.GetType("Fraxinus.BrgContract.Managed.PlayerOutputTranslator, Fraxinus.BrgContract.Managed", false);
-            var supports = translator?.GetMethod("SupportsD3D11IndexedMaterial", new[] { typeof(Material) });
-            if (supports == null) return false;
-            try
-            {
-                if (BrgD3D11Capabilities() != 1) return false;
-            }
-            catch (DllNotFoundException) { return false; }
-            catch (EntryPointNotFoundException) { return false; }
-            s_supportsD3D11Material = (Func<Material, bool>)Delegate.CreateDelegate(typeof(Func<Material, bool>), supports);
-            return true;
-        }
-
-        internal static bool SupportsD3D11Material(Material material) =>
-            s_supportsD3D11Material == null || s_supportsD3D11Material(material);
+        public static bool isAvailable => true;
+#else
+        public static bool isAvailable => false;
 #endif
 
-#if UNITY_ANDROID && !UNITY_EDITOR
-        [System.Runtime.InteropServices.DllImport("FraxinusBrgVulkanContract")]
-        static extern int FxVkIsContractEnabled();
-
-        static bool AndroidReceiverReady()
-        {
-            try { return FxVkIsContractEnabled() == 1; }
-            catch (DllNotFoundException) { return false; }
-            catch (EntryPointNotFoundException) { return false; }
-        }
-#endif
-
-        // RendererList draws are recorded in a command buffer. The 2022 host's
-        // immediate DrawRenderers refresh therefore cannot see this graph dispatch.
-        internal static void AfterGraphCull(ScriptableRenderContext context, CommandBuffer commands)
-        {
-            if (s_refreshIndexedResources == null || submitHandler != s_submit2022) return;
-            context.ExecuteCommandBuffer(commands);
-            commands.Clear();
-            s_refreshIndexedResources(context);
-        }
-
-        private static unsafe bool Submit2022(in BatchCullingOutput output, ReadOnlySpan<BatchDrawCommandIndirect> commands,
-            ReadOnlySpan<BatchDrawRange> ranges)
-        {
-            if (!output.drawCommands.IsCreated || output.drawCommands.Length == 0)
-                throw new ArgumentException("Expected a BRG callback output slot.", nameof(output));
-            foreach (ref readonly var command in commands)
-                if ((command.flags & IndirectDrawCommandFlags.HasSortingPosition) != 0)
-                    throw new NotSupportedException("This adapter accepts opaque commands without per-instance sorting positions.");
-            fixed (BatchDrawCommandIndirect* cmd = commands)
-            fixed (BatchDrawRange* range = ranges)
-                s_indexed2022Writer((IntPtr)output.drawCommands.GetUnsafePtr(), (IntPtr)cmd, commands.Length, (IntPtr)range, ranges.Length);
-            return true;
-        }
-#endif
-
-        public static bool TrySubmit(
+        /// <summary>Copies camera or shadow commands to BRG-owned memory when native indirect draws are available.</summary>
+        public static unsafe bool TrySubmit(
             in BatchCullingOutput output,
             ReadOnlySpan<BatchDrawCommandIndirect> commands,
             ReadOnlySpan<BatchDrawRange> ranges)
         {
-            var submit = submitHandler;
-            return submit != null && submit(in output, commands, ranges);
-        }
-
 #if FRAXINUS_BRG_INDIRECT_API
-        private static unsafe bool SubmitNative(
-            in BatchCullingOutput output,
-            ReadOnlySpan<BatchDrawCommandIndirect> commands,
-            ReadOnlySpan<BatchDrawRange> ranges)
-        {
             if (!output.drawCommands.IsCreated || output.drawCommands.Length == 0)
                 throw new ArgumentException("A native BRG output slot is required.", nameof(output));
             for (int i = 0; i < commands.Length; ++i)
@@ -221,7 +104,9 @@ namespace Fraxinus.GPUBatcher.Rendering
                 if (nativeCommands != null) UnsafeUtility.Free(nativeCommands, Allocator.TempJob);
                 if (nativeRanges != null) UnsafeUtility.Free(nativeRanges, Allocator.TempJob);
             }
-        }
+#else
+            return false;
 #endif
+        }
     }
 }

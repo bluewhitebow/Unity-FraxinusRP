@@ -11,7 +11,6 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("Unity.GraphicTests.Performance.Universal.Runtime")] // access to internal ProfileIds
 [assembly: InternalsVisibleTo("Fraxinus.Runtime")]
 [assembly: InternalsVisibleTo("Unity.RenderPipelines.Universal.Editor")]
-[assembly: InternalsVisibleTo("Unity.RenderPipelines.Universal.Runtime")]
 
 // Smoke test project visibility
 [assembly: InternalsVisibleTo("SRPSmoke.Runtime.Tests")]

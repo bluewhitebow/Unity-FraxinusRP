@@ -74,7 +74,7 @@ namespace FraxinusEngine.Rendering.Ultra
             Publish(graph, TextureHandle.nullHandle, false, 0f);
         }
 
-        public override RenderPassInputSummary PrepareFrameResources(RenderGraph graph, ContextContainer frame)
+        public override RenderPassInputSummary PrepareFrame(RenderGraph graph, ContextContainer frame)
         {
             var data = frame.GetOrCreate<AmbientOcclusionData>();
             var camera = frame.Get<CameraData>();

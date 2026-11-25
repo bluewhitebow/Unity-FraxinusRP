@@ -31,7 +31,7 @@ namespace FraxinusEngine.Rendering.Ultra
         protected override void OnCameraCleanup(CommandBuffer cmd) { }
         protected override void OnDispose() { }
 
-        internal void PrepareFrameResources(RenderGraph graph, ContextContainer frame)
+        internal void PrepareFrame(RenderGraph graph, ContextContainer frame)
         {
             var resources = frame.GetOrCreate<AreaLightFrameData>();
             resources.Reset();

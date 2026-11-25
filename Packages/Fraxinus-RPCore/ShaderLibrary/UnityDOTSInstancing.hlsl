@@ -292,6 +292,7 @@ void SetupDOTSInstanceSelectMasks() {}
 
 #endif
 
+#if UNITY_VERSION >= 600000
 #ifdef UNITY_DOTS_INSTANCING_UNIFORM_BUFFER
 CBUFFER_START(unity_DOTSInstancing_IndirectInstanceVisibility)
     float4 unity_DOTSInstancing_IndirectInstanceVisibilityRaw[4096];
@@ -310,9 +311,11 @@ uint LoadDOTSIndirectInstanceIndex(uint indirectIndex)
     return unity_DOTSInstancing_IndirectInstanceVisibility.Load(indirectIndex << 2);
 #endif
 }
+#endif
 
 void SetupDOTSVisibleInstancingData()
 {
+#if UNITY_VERSION >= 600000
     uint packedIndirectVisibleOffset = unity_DOTSVisibleInstances[0].VisibleData.y;
     uint crossFadeValuePacked = unity_DOTSVisibleInstances[0].VisibleData.w & kDOTSInstancingFlagLODCrossFadeValuePacked;
     unity_SampledDOTSIndirectVisibleIndex = (packedIndirectVisibleOffset & ~kIndirectVisibleOffsetEnabledBit) + unity_InstanceID;
@@ -331,6 +334,13 @@ void SetupDOTSVisibleInstancingData()
     {
         unity_SampledLODCrossfade = 0;
     }
+#else
+    // Unity 2022 direct draws store the instance index and LOD fade in each visible entry.
+    uint4 visible = unity_DOTSVisibleInstances[unity_InstanceID].VisibleData;
+    unity_SampledDOTSIndirectVisibleIndex = unity_InstanceID;
+    unity_SampledDOTSInstanceIndex = visible.x;
+    unity_SampledLODCrossfade = asint(visible.y);
+#endif
 
     SetupDOTSInstanceSelectMasks();
 }

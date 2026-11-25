@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Removed the Unity 2022 indirect draw adapters, Vulkan carrier, native plugins
+  and shader variants. Registration, GPU culling and argument generation run on
+  both versions. Live sources keep rendering on 2022 and Unity 6 submits native
+  camera and shadow commands.
+
+## Earlier port revisions
+
 - Unified field, property, event and constant naming with Fraxinus RP. Shared
   constants now use private values and read-only properties; serialized field
   aliases preserve existing configuration and prefab data.

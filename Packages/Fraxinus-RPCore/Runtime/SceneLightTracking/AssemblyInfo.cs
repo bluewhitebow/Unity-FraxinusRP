@@ -6,6 +6,5 @@ using System.Runtime.CompilerServices;
 // The previous Universal.2D friend name differs between those engines. This common
 // engine bridge keeps one native implementation; recheck InternalsVisibleTo when
 // adopting another Unity version. It lives in Core so both consumers share tracking.
-[assembly: InternalsVisibleTo("Unity.RenderPipelines.Universal.Runtime")]
 [assembly: InternalsVisibleTo("Fraxinus.Runtime")]
 [assembly: InternalsVisibleTo("Fraxinus.GPUBatcher.Runtime")]
