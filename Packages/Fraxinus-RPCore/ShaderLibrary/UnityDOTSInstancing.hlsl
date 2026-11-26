@@ -215,6 +215,16 @@ CBUFFER_START(UnityInstancingDOTS_InstanceVisibility)
     DOTSVisibleData unity_DOTSVisibleInstances[256];	// warning: if you change this value you should also change kBRGVisibilityUBOShaderArraySize in c++ code base
 CBUFFER_END
 
+// Only the opted-in desktop Vulkan carrier variant binds this material-owned 64-byte buffer.
+#if UNITY_VERSION < 600000 && defined(SHADER_API_VULKAN) && defined(SHADER_API_DESKTOP) && defined(FRAXINUS_BRG_NATIVE_INDIRECT) && defined(FRAXINUS_BRG_MATERIAL_HEADER_V1)
+CBUFFER_START(FraxinusBrgIndirectVisibilityHeader)
+    uint4 fraxinus_BrgIndirectHeaderRows[4];
+CBUFFER_END
+#define FRAXINUS_DOTS_DRAW_HEADER(row) fraxinus_BrgIndirectHeaderRows[row]
+#else
+#define FRAXINUS_DOTS_DRAW_HEADER(row) unity_DOTSVisibleInstances[row].VisibleData
+#endif
+
 // Keep these in sync with SRP Batcher DOTSInstancingFlags
 static const uint kDOTSInstancingFlagFlipWinding      = (1 << 0); // Flip triangle winding when rendering, e.g. when the scale is negative
 static const uint kDOTSInstancingFlagForceZeroMotion  = (1 << 1); // Object should produce zero motion vectors when rendered in the motion pass
@@ -292,7 +302,7 @@ void SetupDOTSInstanceSelectMasks() {}
 
 #endif
 
-#if UNITY_VERSION >= 600000
+#if UNITY_VERSION >= 600000 || defined(FRAXINUS_BRG_NATIVE_INDIRECT)
 #ifdef UNITY_DOTS_INSTANCING_UNIFORM_BUFFER
 CBUFFER_START(unity_DOTSInstancing_IndirectInstanceVisibility)
     float4 unity_DOTSInstancing_IndirectInstanceVisibilityRaw[4096];
@@ -315,11 +325,13 @@ uint LoadDOTSIndirectInstanceIndex(uint indirectIndex)
 
 void SetupDOTSVisibleInstancingData()
 {
-#if UNITY_VERSION >= 600000
-    uint packedIndirectVisibleOffset = unity_DOTSVisibleInstances[0].VisibleData.y;
-    uint crossFadeValuePacked = unity_DOTSVisibleInstances[0].VisibleData.w & kDOTSInstancingFlagLODCrossFadeValuePacked;
+#if UNITY_VERSION >= 600000 || defined(FRAXINUS_BRG_NATIVE_INDIRECT)
+    uint packedIndirectVisibleOffset = FRAXINUS_DOTS_DRAW_HEADER(0).y;
+    uint crossFadeValuePacked = FRAXINUS_DOTS_DRAW_HEADER(0).w & kDOTSInstancingFlagLODCrossFadeValuePacked;
     unity_SampledDOTSIndirectVisibleIndex = (packedIndirectVisibleOffset & ~kIndirectVisibleOffsetEnabledBit) + unity_InstanceID;
 
+    // Keep the stock visibility block reflected for the SRP Batcher validation.
+    // Indirect carriers take the first branch because Bind() sets its enable bit.
     if (packedIndirectVisibleOffset != 0)
         unity_SampledDOTSInstanceIndex = LoadDOTSIndirectInstanceIndex(unity_SampledDOTSIndirectVisibleIndex);
     else
@@ -674,36 +686,36 @@ float2x4 LoadDOTSInstancedData_float2x4(float2x4 default_value, uint metadata)
 
 float4 LoadDOTSInstancedData_RenderingLayer()
 {
-    return float4(asfloat(unity_DOTSVisibleInstances[0].VisibleData.z), 0,0,0);
+    return float4(asfloat(FRAXINUS_DOTS_DRAW_HEADER(0).z), 0,0,0);
 }
 
 float3 LoadDOTSInstancedData_MeshLocalBoundCenter()
 {
-    return float3(asfloat(unity_DOTSVisibleInstances[1].VisibleData.z), asfloat(unity_DOTSVisibleInstances[1].VisibleData.w), asfloat(unity_DOTSVisibleInstances[2].VisibleData.z));
+    return float3(asfloat(FRAXINUS_DOTS_DRAW_HEADER(1).z), asfloat(FRAXINUS_DOTS_DRAW_HEADER(1).w), asfloat(FRAXINUS_DOTS_DRAW_HEADER(2).z));
 }
 
 float3 LoadDOTSInstancedData_MeshLocalBoundExtent()
 {
-    return float3(asfloat(unity_DOTSVisibleInstances[2].VisibleData.w), asfloat(unity_DOTSVisibleInstances[3].VisibleData.z), asfloat(unity_DOTSVisibleInstances[3].VisibleData.w));
+    return float3(asfloat(FRAXINUS_DOTS_DRAW_HEADER(2).w), asfloat(FRAXINUS_DOTS_DRAW_HEADER(3).z), asfloat(FRAXINUS_DOTS_DRAW_HEADER(3).w));
 }
 
 float4 LoadDOTSInstancedData_MotionVectorsParams()
 {
     // See MotionVectorRendererLoop.cpp
     static const float s_bias = -0.001;
-    uint flags = unity_DOTSVisibleInstances[0].VisibleData.w;
+    uint flags = FRAXINUS_DOTS_DRAW_HEADER(0).w;
     return float4(0, flags & kDOTSInstancingFlagForceZeroMotion ? 0.0f : 1.0f, s_bias, flags & kDOTSInstancingFlagCameraMotion ? 0.0f : 1.0f);
 }
 
 float4 LoadDOTSInstancedData_WorldTransformParams()
 {
-    uint flags = unity_DOTSVisibleInstances[0].VisibleData.w;
+    uint flags = FRAXINUS_DOTS_DRAW_HEADER(0).w;
     return float4(0, 0, 0, flags & kDOTSInstancingFlagFlipWinding ? -1.0f : 1.0f);
 }
 
 float4 LoadDOTSInstancedData_LightData()
 {
-    uint flags = unity_DOTSVisibleInstances[0].VisibleData.w;
+    uint flags = FRAXINUS_DOTS_DRAW_HEADER(0).w;
     // X channel = light start index (not supported in DOTS instancing)
     // Y channel = light count (not supported in DOTS instancing)
     // Z channel = main light strength

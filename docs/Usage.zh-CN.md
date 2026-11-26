@@ -4,7 +4,7 @@
 
 使用 **Unity 2022.3**，其中 **2022.3.62f3** 与源工程一致。本仓库是一组 UPM 包，使用它们的 Unity 工程自行提供 `Assets`、`ProjectSettings` 和 `Packages/manifest.json`。
 
-本仓库包含 **ScriptableNode / UltraRP** 的四个配套包：Core、Light Transport、Shader Graph 和 FraxinusRP，以及可选的 **Fraxinus GPU Batcher**。下方配置安装全部五个包。GPU Batcher 在 Unity 2022.3 与 Unity 6 共用注册和剔除实现；Unity 6 支持原生间接绘制，Unity 2022 保留实时源对象的原渲染。不需要 GPU Batcher 时，请省略 `com.bluewhitebow.fraxinus-gpu-batcher`。UltraRP 不依赖 URP。
+本仓库包含 **ScriptableNode / UltraRP** 的四个配套包：Core、Light Transport、Shader Graph 和 FraxinusRP，以及可选的 **Fraxinus GPU Batcher**。下方配置安装全部五个包。GPU Batcher 在 Unity 2022.3 与 Unity 6 共用注册和剔除实现。Unity 6 使用原生 BRG 间接绘制。定制 Unity 2022.3.62f3 的 Win64 后端支持 D3D11 和 Vulkan 相机绘制。官方 2022.3 保留实时源对象的渲染。不需要 GPU Batcher 时，请省略 `com.bluewhitebow.fraxinus-gpu-batcher`。UltraRP 不依赖 URP。
 
 五个包目录与 Duckov-Recovered 中的对应源包保持一致，不再维护单独的代码适配。四个配套包及选装的 GPU Batcher 请使用同一提交中的版本。BRG 移植依赖 Core 的原生对象变化追踪封装、UltraRP 的剔除与逐节点注入钩子，以及 Shader Graph 的 SpeedTree 适配，仅匹配包版本号不足以保证兼容。
 
@@ -69,9 +69,9 @@ UltraRP 的 Target 内部 API 需要配套 Shader Graph 分支。它的版本仍
 
 ## 可选 GPU Batcher
 
-[Fraxinus GPU Batcher](../Packages/Fraxinus-GPU-Batcher/README.md) 在 Unity 2022.3 与 Unity 6 共用实例注册、存储、变换上传、相机／阴影剔除、LOD 和间接参数生成实现。**Unity 6 提交原生 BRG 相机及阴影间接绘制；Unity 2022 的 `GPUBatcherRenderer.canSubmitDraws` 为 false，`TrySubmit` 不写入输出。** Unity 2022 中 Live GameObject 和 Terrain 注册会保留源 Renderer／植被渲染。仅有烘焙数据或仅通过 API 创建的实例需要 Unity 6 才能执行 BRG 绘制。显式 Bake 仍会删除源子对象；已有烘焙组可用 Expand 重建 GameObject。
+[Fraxinus GPU Batcher](../Packages/Fraxinus-GPU-Batcher/README.md) 在 Unity 2022.3 与 Unity 6 共用实例注册、存储、变换上传、相机／阴影剔除、LOD 和间接参数生成实现。**Unity 6 提交原生 BRG 相机及阴影间接绘制。** 官方 Unity 2022.3 的 `GPUBatcherRenderer.canSubmitDraws` 为 false，GameObject 和地形植被保留原生渲染。仅有烘焙数据或仅通过 API 创建的实例需要可用的提交后端。显式 Bake 仍会删除源子对象；已有烘焙组可用 Expand 重建 GameObject。
 
-Unity 2022 Vulkan carrier、NativeContract 库、`BRGIndirectSubmission.submitHandler` API 和 Android linker processor 已移除。升级时，请清理使用方工程中旧的插件副本，包括 `Assets/Plugins/FraxinusNativeContract` 以及另外复制的 `FraxinusBrgVulkan` 插件。旧的 Vulkan 启动参数不会在当前版本启用 GPU Batcher 绘制后端。
+定制 Unity 2022.3.62f3 的 Win64 编辑器和 Mono 播放器使用包内 NativeContract 插件。D3D11 在关闭实时阴影时，通过 Fraxinus 通道绘制兼容的不透明 Ultra/Lit 对象。未通过检查的地形保留 Unity 原生植被渲染。Vulkan 在主延迟相机中绘制符合条件且已登记的 Ultra/Lit 材质批次，其余批次由原生 Vulkan 插件绘制。升级时保留包内插件，清理工程中的旧副本，如 `Assets/Plugins/FraxinusNativeContract` 或另外复制的 `FraxinusBrgVulkan` 插件。旧的 `BRGIndirectSubmission.submitHandler` API 和 Android linker processor 已移除。详见 [GPU Batcher 移植说明](../Packages/Fraxinus-GPU-Batcher/Documentation~/Port.md)。
 
 自定义渲染注入模块应使用源接口，覆盖 `RenderPassInputSummary PrepareFrame(...)`。它替代此前仅在发布仓库使用的 `PrepareFrameResources(...)` 名称；更新五个包时，应一并更新自定义调用和覆盖方法。
 
@@ -90,7 +90,7 @@ Core、FraxinusRP 与 Shader Graph 必须使用同一修订的配套版本。Cor
 | 缺少 `ScopeData` 或类型化 RenderGraph API | 确认 UltraRP 与 Core 来自本仓库同一提交，并检查旧 embedded 副本是否优先生效。 |
 | UltraRP Shader Graph 内部访问或 Target 编译错误 | 确认 `com.unity.shadergraph` 解析到 `Fraxinus-ShaderGraph`，而不是官方包。 |
 | GPU Batcher 找不到原生追踪或注入 API | 将 Core、FraxinusRP、Shader Graph 与 GPU Batcher 一起更新到同一提交。 |
-| GPU Batcher 注册后物体消失 | Unity 2022 保留实时源对象渲染，但仅有烘焙数据或仅通过 API 创建的实例没有 BRG 输出。使用 GameObject Group、Expand 烘焙组或切换至 Unity 6。若实时源对象仍被隐藏，检查是否混用了旧包。 |
+| GPU Batcher 注册后物体消失 | 检查 `GPUBatcherRenderer.canSubmitDraws`。值为 false 时，实时源对象保留原生渲染。仅有烘焙数据或仅通过 API 创建的实例需使用受支持的后端，或恢复为 GameObject（烘焙组可用 Expand）。若实时源对象仍被隐藏，检查是否混用了旧包。 |
 | 找不到包或 Git 路径无效 | 检查 GitHub 连接、`?path=/Packages/...` 是否与目录名称一致、所有引用的修订是否存在。 |
 | 安装后仍使用原来的管线 | 检查 Graphics 与当前 Quality 的管线资产；安装包本身不会选择管线。 |
 | 材质变粉或 UltraRP 画面为空 | 检查材质对应的管线、Renderer Graph 连接及绘制标签。URP Renderer Feature 不是 UltraRP 图节点。 |

@@ -92,6 +92,14 @@ namespace Fraxinus.GPUBatcher
             base.OnEnable();
         }
 
+        protected override bool SupportsD3D11Registration()
+        {
+            if (!Rendering.D3D11SourceSupport.SupportsCameraPasses) return false;
+            foreach (var prefab in _prototypeSources)
+                if (!Rendering.D3D11SourceSupport.Supports(prefab)) return false;
+            return true;
+        }
+
         protected override void OnInitialize()
         {
             if (!_converted || _cachedChunks == null || _cachedChunks.Length == 0) return;
@@ -317,6 +325,7 @@ namespace Fraxinus.GPUBatcher
 
         void SetSourceRenderersHidden(bool hidden)
         {
+            if (hidden && Rendering.D3D11SourceSupport.requiresValidation && !SupportsD3D11Registration()) return;
             foreach (var go in _sourceObjects)
             {
                 if (go == null) continue;
@@ -695,12 +704,13 @@ namespace Fraxinus.GPUBatcher
                 return;
             }
 
+            bool hideNewSources = !Rendering.D3D11SourceSupport.requiresValidation || SupportsD3D11Registration();
             for (int i = prevCount; i < _sourceObjects.Count; i++)
             {
                 var go = _sourceObjects[i];
                 if (go == null) continue;
 
-                HideSourceRenderers(go, true);
+                if (hideNewSources) HideSourceRenderers(go, true);
 
                 var link = go.GetComponent<GPUBatcherGameObjectLink>();
                 if (link == null)

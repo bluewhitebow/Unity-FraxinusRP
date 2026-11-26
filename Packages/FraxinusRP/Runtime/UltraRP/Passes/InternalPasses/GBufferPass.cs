@@ -13,6 +13,7 @@ namespace FraxinusEngine.Rendering.Ultra
             internal TextureHandle[] gbuffer;
             internal TextureHandle depth;
 
+            internal BRGIndirectDrawBridge.DrawRequest brgDraws;
             internal DeferredLights deferredLights;
             internal CpuLightListFrameData cpuLightLists;
 
@@ -214,6 +215,9 @@ namespace FraxinusEngine.Rendering.Ultra
             _renderStateBlocks[2] = DeferredLights.OverwriteStencil(_renderStateBlock, (int)StencilUsage.MaterialMask, (int)StencilUsage.MaterialUnlit);
             _renderStateBlocks[3] = DeferredLights.OverwriteStencil(_renderStateBlock, (int)StencilUsage.MaterialMask, (int)StencilUsage.MaterialUnlit);  // Fill GBuffer, but skip lighting pass for ComplexLit
             _renderStateBlocks[4] = _renderStateBlocks[0];
+            var lit = _renderStateBlocks[0];
+            passData.brgDraws = new BRGIndirectDrawBridge.DrawRequest(cameraData, "GBuffer", filterSettings.layerMask,
+                lit.stencilReference, lit.stencilState.writeMask);
 
             NativeArray<ShaderTagId> tagValues = new NativeArray<ShaderTagId>(s_shaderTagValues, Allocator.Temp);
             NativeArray<RenderStateBlock> stateBlocks = new NativeArray<RenderStateBlock>(_renderStateBlocks, Allocator.Temp);
@@ -243,6 +247,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 data.deferredLights.ClearStencilPartial(cmd);
 
             cmd.DrawRendererList(rendererList);
+            data.brgDraws.Draw(cmd);
 
             // Render objects that did not match any shader pass with error shader
             RenderingUtils.DrawRendererListObjectsWithError(cmd, ref errorRendererList);

@@ -52,7 +52,7 @@ field equality does not permit casting the descriptor to Unity's native ABI.
 
 | Area | Port behavior / reason |
 | --- | --- |
-| Indirect native output | Unity 6 enables `FRAXINUS_BRG_INDIRECT_API` and writes native camera and shadow draws. Unity 2022 builds visibility and arguments and skips submission. |
+| Indirect native output | Unity 6 enables `FRAXINUS_BRG_INDIRECT_API` and writes native camera and shadow draws. The custom Win64 Unity 2022.3.62f3 Vulkan editor submits indexed draws through its BRG writer. Stock Unity 2022 builds visibility and arguments. |
 | SpeedTree native wind | Available Unity 2022 `Tree` rendering captures current/history constants through two private native capture passes and GPU copy. Source mesh and Tree/LOD hierarchy are preserved. The original managed wind-manager binding remains absent. |
 | SpeedTree initialization/cost | Native branch/leaf values can remain zero before the first engine wind update; full parameter families are checked after simulation advances. Each distinct retained native source/prototype adds two capture passes per rendering context plus the slot copy. |
 | Baked Umbra query | Available native `CullingGroup` queries enclosing spheres after the current camera cull. Spheres can retain more chunks than the original native AABB query. Camera results do not filter shadow candidates. |

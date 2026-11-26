@@ -1,31 +1,31 @@
 {
   "suite": "Unity-FraxinusRP",
-  "sourceProject": "Duckov-Recovered",
+  "sourceProject": "Duckov-2022",
   "unity": "2022.3.62f3",
   "packages": [
     {
       "folder": "Fraxinus-Light-Transport",
       "name": "com.fraxinus.rendering.light-transport",
       "version": "1.0.1",
-      "sourceCommit": "97771f07980978f62834d5caf41a909a112c2811",
-      "sourceProject": "Duckov-Recovered",
-      "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
-      "sourcePath": "ExportedProject/Packages/com.fraxinus.rendering.light-transport",
-      "sourceState": "Exact source working-tree snapshot; package files are copied without content or line-ending transformations.",
+      "sourceCommit": "d0b3e9c91d20c57acf1fdb339b09f6f96c339ee7",
+      "sourceProject": "Duckov-2022",
+      "sourceRepository": "https://github.com/bluewhitebow/Dockov-Demo.git",
+      "sourcePath": "Packages/com.fraxinus.rendering.light-transport",
+      "sourceState": "Incremental sync from the Duckov-2022 baseline in latestSync. The manifest hashes the target working tree with its existing line endings.",
       "fileCount": 186,
-      "manifestSha256": "008918eb22cfe26906792b7e58829ca951c3843bfd865b476b6cb073a5ed9a54"
+      "manifestSha256": "b33b9573518f7e4772156a1279b7cb39c68d21a81c42c3d9977dc74b262ce748"
     },
     {
       "folder": "Fraxinus-RPCore",
       "name": "com.unity.render-pipelines.core",
       "version": "14.0.99",
-      "sourceCommit": "97771f07980978f62834d5caf41a909a112c2811",
-      "sourceProject": "Duckov-Recovered",
-      "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
-      "sourcePath": "ExportedProject/Packages/com.unity.render-pipelines.core",
-      "sourceState": "Exact source working-tree snapshot; package files are copied without content or line-ending transformations.",
+      "sourceCommit": "d0b3e9c91d20c57acf1fdb339b09f6f96c339ee7",
+      "sourceProject": "Duckov-2022",
+      "sourceRepository": "https://github.com/bluewhitebow/Dockov-Demo.git",
+      "sourcePath": "Packages/com.unity.render-pipelines.core",
+      "sourceState": "Incremental sync from the Duckov-2022 baseline in latestSync. The manifest hashes the target working tree with its existing line endings.",
       "fileCount": 2425,
-      "manifestSha256": "d74eec8813a35a38294fc068e75554baf975e1b9d1c86514e695be9f414e0163"
+      "manifestSha256": "1b8d01dc3d559c1586273163d0955b4840c14a35dee1dc762fe2e5bb68de258f"
     },
     {
       "folder": "Fraxinus-ShaderGraph",
@@ -43,49 +43,49 @@
       "folder": "FraxinusRP",
       "name": "com.bluewhitebow.fraxinus-rp",
       "version": "0.1.0",
-      "sourceCommit": "97771f07980978f62834d5caf41a909a112c2811",
-      "sourceProject": "Duckov-Recovered",
-      "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
-      "sourcePath": "ExportedProject/Packages/com.bluewhitebow.fraxinus-rp",
-      "sourceState": "Exact source working-tree snapshot; package files are copied without content or line-ending transformations.",
-      "fileCount": 2195,
-      "manifestSha256": "73e0f756123d0cbb514d472f6f829fa2638e3b2b8a89de96c0c1dc85e1c86f5e"
+      "sourceCommit": "d0b3e9c91d20c57acf1fdb339b09f6f96c339ee7",
+      "sourceProject": "Duckov-2022",
+      "sourceRepository": "https://github.com/bluewhitebow/Dockov-Demo.git",
+      "sourcePath": "Packages/com.bluewhitebow.fraxinus-rp",
+      "sourceState": "Incremental sync from the Duckov-2022 baseline in latestSync. The manifest hashes the target working tree with its existing line endings.",
+      "fileCount": 2201,
+      "manifestSha256": "7915e37c6d702943f88333ee3fa70e6133e12ab8f2fd1d9ae79fd5b57a784354"
     },
     {
       "folder": "Fraxinus-GPU-Batcher",
       "name": "com.bluewhitebow.fraxinus-gpu-batcher",
       "version": "0.1.0",
-      "sourceProject": "Duckov-Recovered",
-      "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
-      "sourcePath": "ExportedProject/Packages/com.bluewhitebow.fraxinus-gpu-batcher",
-      "sourceCommit": "97771f07980978f62834d5caf41a909a112c2811",
-      "sourceState": "Exact source working-tree snapshot; package files are copied without content or line-ending transformations.",
-      "fileCount": 185,
-      "manifestSha256": "0d01ea0191fcbc098cb9d50caf3004f5bd9a2488a62aca198bb6733c321b28bd"
+      "sourceProject": "Duckov-2022",
+      "sourceRepository": "https://github.com/bluewhitebow/Dockov-Demo.git",
+      "sourcePath": "Packages/com.bluewhitebow.fraxinus-gpu-batcher",
+      "sourceCommit": "d0b3e9c91d20c57acf1fdb339b09f6f96c339ee7",
+      "sourceState": "Incremental sync from the Duckov-2022 baseline in latestSync. The manifest hashes the target working tree with its existing line endings.",
+      "fileCount": 198,
+      "manifestSha256": "731bb572255d9cf6da6a0d78941828195b3ec8856e2142a9ca36a128fdf022ab"
     }
   ],
   "latestSync": {
-    "date": "2026-11-25",
-    "sourceProject": "Duckov-Recovered",
-    "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
-    "sourceCommit": "97771f07980978f62834d5caf41a909a112c2811",
-    "previousSourceCommit": "fc66753003cecfe9f630e84e70a1181e2f66447e",
-    "mode": "exact-package-mirror",
-    "sourceState": "All five suite packages match the source working-tree file sets and bytes. Existing distribution-only adaptations were replaced by the source versions; repository-level installation documentation is maintained separately.",
-    "fileCount": 9243,
+    "date": "2026-11-26",
+    "sourceProject": "Duckov-2022",
+    "sourceRepository": "https://github.com/bluewhitebow/Dockov-Demo.git",
+    "sourceCommit": "d0b3e9c91d20c57acf1fdb339b09f6f96c339ee7",
+    "sourceBaselineCommit": "c8e81938a46810ed7a480bc6ed52440762db1bee",
+    "previousTargetCommit": "8dd56733aa76bb4879a97f5a83c792c597356760",
+    "mode": "incremental-package-sync",
+    "sourceState": "Applied the 70 package file changes since sourceBaselineCommit (51 modified, 19 added). Existing target text files retain their line endings. New metadata retains source GUIDs and all three DLLs match the source bytes.",
+    "fileCount": 9262,
     "packages": [
-      "Fraxinus-GPU-Batcher",
-      "FraxinusRP",
+      "Fraxinus-Light-Transport",
       "Fraxinus-RPCore",
-      "Fraxinus-ShaderGraph",
-      "Fraxinus-Light-Transport"
+      "FraxinusRP",
+      "Fraxinus-GPU-Batcher"
     ],
-    "manifestAlgorithm": "SHA-256 of sorted relative paths, NUL, per-file SHA-256, and LF; file content is hashed as raw bytes.",
+    "manifestAlgorithm": "SHA-256 of the concatenated records in ordinal package-relative path order. Each record is the UTF-8 path with forward slashes, NUL, lowercase hexadecimal SHA-256 of the raw target file bytes, and LF.",
     "validation": {
-      "unity2022": "9 assemblies compiled with stock 2022.3.62f3; 0 errors, 60 warnings",
-      "unity6": "10 assemblies compiled with 6000.0.85f2; 0 errors, 47 warnings",
+      "unity2022": "9 C# assemblies compiled with stock 2022.3.62f3, 0 errors, 60 warnings",
+      "unity6": "10 C# assemblies compiled with 6000.0.85f2, 0 errors, 48 warnings",
       "renderingRerun": false
     }
   },
-  "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git"
+  "sourceRepository": "https://github.com/bluewhitebow/Dockov-Demo.git"
 }

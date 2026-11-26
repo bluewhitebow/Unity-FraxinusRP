@@ -62,9 +62,9 @@ Renderer Graph 支持 Forward、Forward+、Stencil Deferred、Deferred+ 与 GPU 
 | [Fraxinus-Light-Transport](Packages/Fraxinus-Light-Transport/README.zh-CN.md) | `com.fraxinus.rendering.light-transport` | `1.0.1` | Compute 射线查询、加速结构与采样。 |
 | [Fraxinus-GPU-Batcher](Packages/Fraxinus-GPU-Batcher/README.md) | `com.bluewhitebow.fraxinus-gpu-batcher` | `0.1.0` | 可选的 BRG 实例存储、注册、剔除与 LOD；Unity 6 支持原生相机及阴影间接绘制。 |
 
-五个包目录按 Duckov-Recovered 中的对应源包同步，不再维护单独的代码适配。各 UPM 包保留自己的版本号。四个配套包及选装的 GPU Batcher 应来自同一份 checkout 或同一个 Git 提交；版本号相同不代表官方包与定制分支可以互换。依赖示例包含全部五个包，不需要 GPU Batcher 时可省略它的条目。
+五个包目录与 Duckov-Recovered 中的对应包保持同步。各 UPM 包保留自己的版本号。四个配套包及选装的 GPU Batcher 应来自同一份 checkout 或同一个 Git 提交；版本号相同不代表官方包与定制分支可以互换。依赖示例包含全部五个包，不需要 GPU Batcher 时可省略它的条目。
 
-**GPU Batcher 在 Unity 2022.3 与 Unity 6 共用注册和剔除实现。** Unity 6 提交原生 BRG 相机和阴影间接绘制。Unity 2022 中，Live GameObject 和 Terrain 注册会保留源渲染；仅有烘焙数据或仅通过 API 创建的实例需要 Unity 6 才能执行 BRG 绘制。显式 Bake 仍会删除源子对象，Expand 可重建 GameObject。Vulkan carrier、NativeContract 插件、自定义提交 handler API 和 Android linker processor 已移除。包内包含保守的 `CullingGroup` 遮挡与原生 SpeedTree 风捕获，需要配套的 Core、FraxinusRP 和 Shader Graph。它替换了旧 GPUInstancer 实现、Profile、API 和示例，不提供自动迁移。升级步骤和版本边界见 [GPU Batcher 状态与配置](docs/Usage.zh-CN.md#可选-gpu-batcher)。
+**GPU Batcher 在 Unity 2022.3 与 Unity 6 共用注册和剔除实现。** Unity 6 提交原生 BRG 相机和阴影间接绘制。官方 Unity 2022.3 保留 GameObject 和地形植被的原生渲染。定制 Unity 2022.3.62f3 的 Win64 编辑器和 Mono 播放器通过包内 NativeContract 插件提交受支持的 D3D11 和 Vulkan 相机绘制。仅有烘焙数据或仅通过 API 创建的实例需要可用的提交后端。显式 Bake 仍会删除源子对象，Expand 可重建 GameObject。旧的自定义提交 handler API 和 Android linker processor 已移除。包内包含保守的 `CullingGroup` 遮挡与原生 SpeedTree 风捕获，需要配套的 Core、FraxinusRP 和 Shader Graph。它替换了旧 GPUInstancer 实现、Profile、API 和示例，不提供自动迁移。升级步骤和版本边界见 [GPU Batcher 状态与配置](docs/Usage.zh-CN.md#可选-gpu-batcher)。
 
 ## 开始使用
 

@@ -4,7 +4,11 @@
 #pragma kernel ClearDebugSphereArgs
 #pragma kernel BuildDebugSphereList
 
+#if UNITY_VERSION >= 600000
 #pragma only_renderers d3d11 vulkan metal webgpu playstation xboxseries switch
+#else
+#pragma only_renderers d3d11 vulkan metal playstation xboxseries switch
+#endif
 
 struct DrawBucket
 {

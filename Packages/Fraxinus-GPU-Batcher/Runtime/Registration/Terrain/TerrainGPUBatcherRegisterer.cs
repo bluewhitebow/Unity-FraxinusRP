@@ -39,6 +39,28 @@ namespace Fraxinus.GPUBatcher
         private TerrainData _terrainData;
         private bool _ownsFoliageRendering;
 
+        public bool canUseIndirectRendering => GPUBatcherRenderer.canSubmitDraws &&
+            (!Rendering.D3D11SourceSupport.requiresValidation || SupportsD3D11Registration());
+
+        protected override bool SupportsD3D11Registration()
+        {
+            if (!Rendering.D3D11SourceSupport.SupportsCameraPasses) return false;
+            var terrain = GetComponent<Terrain>();
+            if (!terrain || !terrain.terrainData) return false;
+            foreach (var tree in terrain.terrainData.treePrototypes)
+                if (tree.prefab && !Rendering.D3D11SourceSupport.Supports(tree.prefab)) return false;
+            foreach (var detail in terrain.terrainData.detailPrototypes)
+            {
+                if (!detail.usePrototypeMesh || !detail.prototype) return false;
+                var prefab = detail.prototype;
+                if (prefab.TryGetComponent<GPUBatcherTerrainDetailOverride>(out var replacement) &&
+                    replacement.enabled && replacement.overridePrefab)
+                    prefab = replacement.overridePrefab;
+                if (!Rendering.D3D11SourceSupport.Supports(prefab)) return false;
+            }
+            return true;
+        }
+
         #endregion
 
         #region cache management

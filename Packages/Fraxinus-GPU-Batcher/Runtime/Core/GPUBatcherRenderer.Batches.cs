@@ -269,6 +269,9 @@ namespace Fraxinus.GPUBatcher
             uint byteAddressO2W = 0;
             uint byteAddressW2O = totalSlots * k_sizeOfPackedMatrix;
             uint byteAddressPrevM = totalSlots * 2 * k_sizeOfPackedMatrix;
+#if UNITY_2022_3 && (UNITY_EDITOR_WIN || (UNITY_STANDALONE_WIN && !ENABLE_IL2CPP))
+            Rendering.Custom2022IndirectSubmission.SetMatrixLayout(_matrixBuffer, byteAddressO2W, byteAddressW2O, byteAddressPrevM);
+#endif
             int speedTreeSlot = IsSpeedTreeProto(protoIndex) ? _protoSpeedTreeSlotIndex[protoIndex] : -1;
             int baseCount = lightProbesEnabled ? 4 : 3;
             int speedTreeCount = speedTreeSlot >= 0 ? GPUBatcherSpeedTreeWindBridge.maxWindParamsCount * 2 : 0;

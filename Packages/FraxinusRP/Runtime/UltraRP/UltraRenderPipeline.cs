@@ -792,6 +792,7 @@ namespace FraxinusEngine.Rendering.Ultra
                 // RenderingData takes a copy of the CameraData.
                 // RenderingData needs to be created here to avoid copying cullResults.
                 var data = frameData.Create<RenderingData>();
+                using var brgCamera = new BRGIndirectDrawBridge.CameraScope(cameraData, frameData.Get<InternalRendererData>(), asset);
                 beforeCameraCulling?.Invoke(camera, in cullingParameters);
                 data.cullResults = context.Cull(ref cullingParameters);
                 afterCameraCulling?.Invoke(camera, in cullingParameters);

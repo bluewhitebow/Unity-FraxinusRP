@@ -42,7 +42,7 @@ void BuildHistogram(uint3 dispatchId : SV_DispatchThreadID, uint groupIndex : SV
         uint2 sourcePixel = min((uint2)((pixel + 0.5) * _SourceSize.xy / _SourceSize.zw),
                                (uint2)_SourceSize.xy - 1);
         float3 color = _SourceTexture.Load(int3(sourcePixel, 0)).rgb;
-        if (!any(isnan(color)) && !any(isinf(color)))
+        if (IsFinite(color.r) && IsFinite(color.g) && IsFinite(color.b))
         {
             color = max(color, 0.0);
             if (_SourceIsGamma != 0)

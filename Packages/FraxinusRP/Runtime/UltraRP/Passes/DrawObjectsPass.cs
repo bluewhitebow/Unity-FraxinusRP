@@ -41,6 +41,7 @@ namespace FraxinusEngine.Rendering.Ultra
             internal TextureHandle depthHdl;
 
             internal CameraData cameraData;
+            internal BRGIndirectDrawBridge.DrawRequest brgDraws;
             internal bool isOpaque;
             internal bool shouldTransparentsReceiveShadows;
             internal uint batchLayerMask;
@@ -82,6 +83,7 @@ namespace FraxinusEngine.Rendering.Ultra
         [SerializeField] private StencilStateData _stencilSettings = new StencilStateData();
         [SerializeField] private bool _useSortingLayerFilter = false;
         [SerializeField, VisibleIf(nameof(_useSortingLayerFilter), true)] private string _sortingLayerName = "Default";
+
 
         static readonly int s_drawObjectPassDataPropID = Shader.PropertyToID("_DrawObjectPassData");
         static readonly int s_contactShadowsEnabledPropID = Shader.PropertyToID("_ContactShadowsEnabled");
@@ -567,6 +569,9 @@ namespace FraxinusEngine.Rendering.Ultra
                     break;
             }
 
+            passData.brgDraws = BRGIndirectDrawBridge.IsAvailable && _isOpaque && !material && !shader &&
+                !_useSortingLayerFilter && renderQueueType != RenderQueueType.Transparent && shaderTags.Contains(new ShaderTagId("UltraForward"))
+                ? new BRGIndirectDrawBridge.DrawRequest(cameraData, "ForwardLit", filterSettings.layerMask) : default;
             drawingSettings.overrideMaterial = material;
             drawingSettings.overrideMaterialPassIndex = _overrideMaterialPassIndex;
             drawingSettings.overrideShader = shader;
@@ -630,6 +635,7 @@ namespace FraxinusEngine.Rendering.Ultra
             else
             {
                 cmd.DrawRendererList(rendererList);
+                data.brgDraws.Draw(cmd);
                 RenderingUtils.DrawRendererListObjectsWithError(cmd, ref objectsWithErrorRendererList);
             }
         }

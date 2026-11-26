@@ -18,7 +18,9 @@ THE SOFTWARE.
 ********************************************************************/
 
 // WebGPU has extremely strict uniformity requirements that are incompatible with the current implementation of this shader.
+#if UNITY_VERSION >= 600000
 #pragma exclude_renderers webgpu
+#endif
 
 #define SORT_VALUES
 

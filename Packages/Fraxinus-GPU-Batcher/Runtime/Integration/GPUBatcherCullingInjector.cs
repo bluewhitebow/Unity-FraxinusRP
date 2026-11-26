@@ -132,7 +132,7 @@ namespace Fraxinus.GPUBatcher.Integration
                 var size = GPUBatcherCullingInjector.DepthDimensions(camera.cameraTargetDescriptor);
                 batcher.EnsureHZBAtlas(camera.camera, size.x, size.y);
             }
-            GPUBatcherRenderGraphPasses.RecordDeferredCullingPass(graph, batcher,
+            GPUBatcherRenderGraphPasses.RecordDeferredCullingPass(graph, context, batcher,
                 "FraxinusGPUBatcher.Culling", cameraId, batcher.isGPUOcclusionEnabled);
         }
         protected override void OnCameraCleanup(CommandBuffer cmd) { }
@@ -218,7 +218,7 @@ namespace Fraxinus.GPUBatcher.Integration
             GPUBatcherRenderGraphPasses.RecordHZBBuildPass(graph, batcher, "FraxinusGPUBatcher.HZBBuild", cameraId, depth, width, height,
                 sourceTextureArray: sourceArray);
             if (retest)
-                GPUBatcherRenderGraphPasses.RecordHZBCullPass(graph, batcher, "FraxinusGPUBatcher.HZBRetest", cameraId);
+                GPUBatcherRenderGraphPasses.RecordHZBCullPass(graph, context, batcher, "FraxinusGPUBatcher.HZBRetest", cameraId);
         }
     }
 

@@ -70,6 +70,7 @@ Shader "Hidden/Ultra Render Pipeline/Terrain/Lit (Add Pass)"
 
             #pragma vertex SplatmapVert
             #pragma fragment SplatmapFragment
+            #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/AreaLightKeywords.hlsl"
 
             // -------------------------------------
             // Universal Pipeline keywords

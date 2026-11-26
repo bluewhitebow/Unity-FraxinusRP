@@ -5,7 +5,11 @@
 // source: https://docs.google.com/document/d/1yHARKE5NwOGmWKZY2z3EPwSz5V_ZxTDT8RnRl521iyE/edit?tab=t.0
 #pragma use_dxc vulkan metal
 
+#if UNITY_VERSION >= 600000
 #pragma only_renderers d3d11 vulkan metal webgpu playstation xboxseries switch
+#else
+#pragma only_renderers d3d11 vulkan metal playstation xboxseries switch
+#endif
 
 // camera culling kernels
 #pragma kernel ResetCullingState

@@ -9,6 +9,7 @@ namespace FraxinusEngine.Rendering.Ultra
     {
         private class PassData
         {
+            internal BRGIndirectDrawBridge.DrawRequest brgDraws;
             internal RendererListHandle rendererList;
         }
 
@@ -57,6 +58,8 @@ namespace FraxinusEngine.Rendering.Ultra
 #if UNITY_6000_0_OR_NEWER
                 param.filteringSettings.batchLayerMask = batchLayerMask;
 #endif
+                passData.brgDraws = BRGIndirectDrawBridge.IsAvailable && shaderTagId == k_shaderTagId
+                    ? new BRGIndirectDrawBridge.DrawRequest(cameraData, "DepthOnly", param.filteringSettings.layerMask) : default;
                 passData.rendererList = renderGraph.CreateRendererList(param);
                 builder.UseRendererList(passData.rendererList);
 
@@ -72,6 +75,7 @@ namespace FraxinusEngine.Rendering.Ultra
                     using (new ProfilingScope(context.cmd, ProfilingSampler.Get(UltraRPProfileId.DepthPrepass)))
                     {
                         context.cmd.DrawRendererList(data.rendererList);
+                        data.brgDraws.Draw(context.cmd);
                     }
                 });
             }

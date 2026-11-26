@@ -14,7 +14,9 @@ subject to the following restrictions:
 3. This notice may not be removed or altered from any source distribution. */
 
 // WebGPU has extremely strict uniformity requirements that are incompatible with the current implementation of this shader.
+#if UNITY_VERSION >= 600000
 #pragma exclude_renderers webgpu
+#endif
 #pragma multi_compile __ TOP_LEVEL UINT16_INDICES
 
 #if defined(SHADER_API_PSSL) || defined(SHADER_API_METAL) || defined(SHADER_API_WEBGPU)

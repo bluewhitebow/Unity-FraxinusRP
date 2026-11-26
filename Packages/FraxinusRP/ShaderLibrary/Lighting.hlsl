@@ -1,7 +1,7 @@
 #ifndef ULTRA_LIGHTING_INCLUDED
 #define ULTRA_LIGHTING_INCLUDED
 
-#include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/AreaLightKeywords.hlsl"
+// PBR forward passes and deferred compute entry points declare their own area-light variants.
 
 #include "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/BRDF.hlsl"
 #include "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/Debug/Debugging3D.hlsl"

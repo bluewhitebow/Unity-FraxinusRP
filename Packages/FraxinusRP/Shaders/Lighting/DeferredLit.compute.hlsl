@@ -75,12 +75,8 @@ uint EncodeTileIndex(uint2 tileID)
 
 uint ShadingModelToIndex(uint shadingModel)
 {
-    if (shadingModel == SHADINGMODELS_SIMPLE_LIT)
-        return 1;
-    if (shadingModel == SHADINGMODELS_CHARACTER)
-        return 2;
     // Preserve the Lit/default bucket; lighting still checks each pixel's stencil.
-    return 0;
+    return shadingModel == SHADINGMODELS_SIMPLE_LIT ? 1u : (shadingModel == SHADINGMODELS_CHARACTER ? 2u : 0u);
 }
 
 #if defined(DEFERRED_LIGHTING)

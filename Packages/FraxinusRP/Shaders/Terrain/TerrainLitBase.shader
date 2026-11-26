@@ -77,6 +77,7 @@ Shader "Hidden/Ultra Render Pipeline/Terrain/Lit (Base Pass)"
 
             #pragma vertex SplatmapVert
             #pragma fragment SplatmapFragment
+            #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/AreaLightKeywords.hlsl"
 
             #pragma shader_feature_local _NORMALMAP
             // Sample normal in pixel shader when doing instancing

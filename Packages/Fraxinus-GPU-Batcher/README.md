@@ -1,7 +1,8 @@
 # Fraxinus GPU Batcher
 
 GPU instance registration and culling for Unity 2022.3 and Unity 6 with Fraxinus RP.
-Unity 6 also submits native BRG indirect camera and shadow draws.
+Unity 6 submits native BRG indirect camera and shadow draws. On Windows x64 the
+custom Unity 2022.3.62f3 editor supports indexed camera draws on D3D11 and Vulkan.
 Runtime types use `Fraxinus.GPUBatcher`; editor tools use `Fraxinus.GPUBatcher.Editor`.
 
 C# naming follows Fraxinus RP: private/protected fields use `_camelCase`, private
@@ -24,17 +25,22 @@ the reference workflow.
 
 Both versions build camera and shadow visibility lists and indirect arguments. The
 runtime asmdef enables `FRAXINUS_BRG_INDIRECT_API` on Unity 6. `BRGIndirectSubmission`
-copies the shared draw descriptors into native BRG output there. On Unity 2022,
-`GPUBatcherRenderer.canSubmitDraws` is false and `TrySubmit` leaves the output untouched.
+copies the shared draw descriptors into native BRG output there. On Windows with the
+custom 2022 editor, D3D11 records compatible opaque Ultra/Lit draws inside Fraxinus
+raster passes using the original GPU visibility and argument buffers. Vulkan does
+the same for eligible batches of tracked Ultra/Lit materials in the main deferred camera and hands other
+batches to its native receiver. `GPUBatcherRenderer.canSubmitDraws`
+reports the active backend's capability. Terrain registration also checks the source
+materials and shadow configuration before taking over native foliage.
 
 Edit the active configuration in **Edit > Project Settings > Graphics > Fraxinus GPU Batcher**.
 The page edits the same asset used by the Player. Configuration is discovered or created automatically under
 `Assets/FraxinusGPUBatcherData/FraxinusGPUBatcherConfig.asset`; existing project configs
 are found first. Shader references are repaired automatically and the config is added
-to Player Settings preloaded assets. Live GameObject and Terrain registration leaves
-source rendering active on Unity 2022. Explicit Bake removes its source children.
-Baked-only groups and instances created solely through the API need Unity 6 for
-BRG rendering. Use Expand to reconstruct GameObjects from a baked group.
+to Player Settings preloaded assets. Live GameObject and Terrain registration takes
+over source rendering when the backend supports indirect submission. Explicit Bake
+removes its source children. Baked-only groups and instances created through the API
+require a working submission backend. Use Expand to reconstruct GameObjects from a baked group.
 
 Open **Window > Analysis > Rendering Debugger** and select **GPU Batcher** in the sidebar for culling
 overrides, Scene view diagnostics and live instance, chunk and draw-command counts.

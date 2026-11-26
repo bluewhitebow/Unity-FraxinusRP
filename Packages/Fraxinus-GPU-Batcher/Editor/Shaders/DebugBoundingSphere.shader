@@ -29,6 +29,7 @@ Shader "Hidden/Fraxinus/GPU Batcher/Debug Bounding Sphere"
             #pragma target 4.5
             #pragma vertex DebugSphereVertex
             #pragma fragment DebugSphereFragment
+            #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/AreaLightKeywords.hlsl"
             #pragma multi_compile_instancing
             #pragma instancing_options nolightprobe nolightmap
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS

@@ -142,10 +142,13 @@ float3 EvaluateDirectLight(ShadingData data, Light light, float lightMinRoughnes
 
 float GetDirectAmbientOcclusion(uint2 positionSS)
 {
-    if (_FraxinusAmbientOcclusionEnabled == 0)
-        return 1.0;
-    float occlusion = saturate(LOAD_TEXTURE2D_X(_ScreenSpaceOcclusionTexture, positionSS).r);
-    return lerp(1.0, occlusion, saturate(_FraxinusAmbientOcclusionDirectStrength));
+    float visibility = 1.0;
+    if (_FraxinusAmbientOcclusionEnabled != 0)
+    {
+        float occlusion = saturate(LOAD_TEXTURE2D_X(_ScreenSpaceOcclusionTexture, positionSS).r);
+        visibility = lerp(1.0, occlusion, saturate(_FraxinusAmbientOcclusionDirectStrength));
+    }
+    return visibility;
 }
 
 float3 EvaluateDeferredAreaLighting(PositionInputs receiver, ShadingData data, uint shadingModel, float directOcclusion)

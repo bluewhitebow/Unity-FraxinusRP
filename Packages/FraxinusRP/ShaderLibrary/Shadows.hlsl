@@ -330,9 +330,11 @@ real SampleShadowmapFiltered(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap
 
 real SampleShadowmap(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, ShadowSamplingData samplingData, half4 shadowParams, bool isPerspectiveProjection = true)
 {
-    // Compiler will optimize this branch away as long as isPerspectiveProjection is known at compile time
-    if (isPerspectiveProjection)
-        shadowCoord.xyz /= shadowCoord.w;
+    // Directional shadow coordinates already have their projection applied.
+    // A perspective receiver on or behind the light's eye plane is unshadowed.
+    float projectionW = isPerspectiveProjection ? shadowCoord.w : 1.0;
+    bool inFront = projectionW > 0.0;
+    shadowCoord.xyz /= inFront ? projectionW : 1.0;
 
     real attenuation;
     real shadowStrength = shadowParams.x;
@@ -361,7 +363,7 @@ real SampleShadowmap(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap), float
 
     // Shadow coords that fall out of the light frustum volume must always return attenuation 1.0
     // TODO: We could use branch here to save some perf on some platforms.
-    return BEYOND_SHADOW_FAR(shadowCoord) ? 1.0 : attenuation;
+    return !inFront || BEYOND_SHADOW_FAR(shadowCoord) ? 1.0 : attenuation;
 }
 
 half ComputeCascadeIndex(float3 positionWS)
@@ -420,20 +422,15 @@ half MainLightRealtimeShadow(float4 shadowCoord)
 // returns 1.0 if position is in light
 half AdditionalLightRealtimeShadow(int lightIndex, float3 positionWS, half3 lightDirection, half4 shadowParams, ShadowSamplingData shadowSamplingData)
 {
-    #if defined(ADDITIONAL_LIGHT_CALCULATE_SHADOWS)
-        int shadowSliceIndex = shadowParams.w;
-        if (shadowSliceIndex < 0)
-            return 1.0;
-
-        half isPointLight = shadowParams.z;
-
+    half attenuation = 1.0h;
+#if defined(ADDITIONAL_LIGHT_CALCULATE_SHADOWS)
+    int shadowSliceIndex = shadowParams.w;
+    if (shadowSliceIndex >= 0)
+    {
+        // A point light owns six consecutive shadow slices.
         UNITY_BRANCH
-        if (isPointLight)
-        {
-            // This is a point light, we have to find out which shadow slice to sample from
-            const int cubeFaceOffset = CubeMapFaceID(-lightDirection);
-            shadowSliceIndex += cubeFaceOffset;
-        }
+        if (shadowParams.z)
+            shadowSliceIndex += CubeMapFaceID(-lightDirection);
 
         #if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
             float4 shadowCoord = mul(_AdditionalLightsWorldToShadow_SSBO[shadowSliceIndex], float4(positionWS, 1.0));
@@ -441,19 +438,19 @@ half AdditionalLightRealtimeShadow(int lightIndex, float3 positionWS, half3 ligh
             float4 shadowCoord = mul(_AdditionalLightsWorldToShadow[shadowSliceIndex], float4(positionWS, 1.0));
         #endif
 
-        return SampleShadowmap(TEXTURE2D_ARGS(_AdditionalLightsShadowmapTexture, sampler_LinearClampCompare), shadowCoord, shadowSamplingData, shadowParams, true);
-    #else
-        return half(1.0);
-    #endif
+        attenuation = SampleShadowmap(TEXTURE2D_ARGS(_AdditionalLightsShadowmapTexture, sampler_LinearClampCompare), shadowCoord, shadowSamplingData, shadowParams, true);
+    }
+#endif
+    return attenuation;
 }
 
 half AdditionalLightRealtimeShadow(int lightIndex, float3 positionWS, half3 lightDirection)
 {
-    #if !defined(ADDITIONAL_LIGHT_CALCULATE_SHADOWS)
-        return half(1.0);
-    #endif
-
+#if defined(ADDITIONAL_LIGHT_CALCULATE_SHADOWS)
     return AdditionalLightRealtimeShadow(lightIndex, positionWS, lightDirection, GetAdditionalLightShadowParams(lightIndex), GetAdditionalLightShadowSamplingData(lightIndex));
+#else
+    return 1.0h;
+#endif
 }
 
 half GetMainLightShadowFade(float3 positionWS)

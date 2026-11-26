@@ -12,6 +12,8 @@ namespace Fraxinus.GPUBatcher.Rendering
     {
 #if FRAXINUS_BRG_INDIRECT_API
         public static bool isAvailable => true;
+#elif UNITY_2022_3 && (UNITY_EDITOR_WIN || (UNITY_STANDALONE_WIN && !ENABLE_IL2CPP))
+        public static bool isAvailable => Custom2022IndirectSubmission.isAvailable;
 #else
         public static bool isAvailable => false;
 #endif
@@ -104,6 +106,8 @@ namespace Fraxinus.GPUBatcher.Rendering
                 if (nativeCommands != null) UnsafeUtility.Free(nativeCommands, Allocator.TempJob);
                 if (nativeRanges != null) UnsafeUtility.Free(nativeRanges, Allocator.TempJob);
             }
+#elif UNITY_2022_3 && (UNITY_EDITOR_WIN || (UNITY_STANDALONE_WIN && !ENABLE_IL2CPP))
+            return Custom2022IndirectSubmission.TrySubmit(in output, commands, ranges);
 #else
             return false;
 #endif

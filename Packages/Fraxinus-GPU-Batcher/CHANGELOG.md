@@ -2,10 +2,10 @@
 
 ## [Unreleased]
 
-- Removed the Unity 2022 indirect draw adapters, Vulkan carrier, native plugins
-  and shader variants. Registration, GPU culling and argument generation run on
-  both versions. Live sources keep rendering on 2022 and Unity 6 submits native
-  camera and shadow commands.
+- Added indexed BRG submission for the custom Windows x64 Unity 2022.3.62f3
+  Vulkan editor. It uses the engine's output writer, the matching native receiver
+  and the Fraxinus indirect-visibility shader variant. Stock Unity 2022 retains
+  registration, GPU culling and argument generation. Unity 6 uses its native API.
 
 ## Earlier port revisions
 

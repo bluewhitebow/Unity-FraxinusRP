@@ -116,6 +116,7 @@ Shader "Ultra Render Pipeline/Hybrid Lit"
             // Shader Stages
             #pragma vertex LitPassVertex
             #pragma fragment LitPassFragment
+            #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/AreaLightKeywords.hlsl"
 
             // -------------------------------------
             // Material Keywords

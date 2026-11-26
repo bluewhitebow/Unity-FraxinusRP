@@ -36,10 +36,13 @@ float3 ReconstructViewPosition(float2 uv, float depth)
 bool LoadReceiverDepth(int2 pixel, out float depth)
 {
     depth = 0.0;
-    if (any(pixel < 0) || any(pixel >= (int2)_ContactShadowSize.xy))
-        return false;
-    depth = _ContactDepthTexture.Load(int3(pixel, 0));
-    return !IsBackground(depth);
+    bool valid = all(pixel >= 0) && all(pixel < (int2)_ContactShadowSize.xy);
+    if (valid)
+    {
+        depth = _ContactDepthTexture.Load(int3(pixel, 0));
+        valid = !IsBackground(depth);
+    }
+    return valid;
 }
 
 bool ReceiverTangent(int2 pixel, int2 axis, float depth, float3 position, out float3 tangent)
@@ -52,9 +55,6 @@ bool ReceiverTangent(int2 pixel, int2 axis, float depth, float3 position, out fl
     bool hasRight2 = LoadReceiverDepth(pixel + 2 * axis, right2);
     bool hasLeft = hasLeft1 && hasLeft2;
     bool hasRight = hasRight1 && hasRight2;
-    if (!hasLeft && !hasRight)
-        return false;
-
     // Projected raw depth is affine on a plane for perspective and orthographic
     // cameras. Two agreeing intervals keep silhouettes and thin foreground
     // samples from defining the receiver's plane.
@@ -62,12 +62,14 @@ bool ReceiverTangent(int2 pixel, int2 axis, float depth, float3 position, out fl
     float rightError = abs(depth - 2.0 * right1 + right2);
     bool useLeft = hasLeft && (!hasRight || leftError <= rightError);
     float error = useLeft ? leftError : rightError;
-    if (error > max(abs(depth), 1e-5) * 2e-6)
-        return false;
-    int2 neighbor = pixel + (useLeft ? -2 : 2) * axis;
-    tangent = ReconstructViewPosition((neighbor + 0.5) * _ContactShadowSize.zw,
-        useLeft ? left2 : right2) - position;
-    return true;
+    bool valid = (hasLeft || hasRight) && error <= max(abs(depth), 1e-5) * 2e-6;
+    if (valid)
+    {
+        int2 neighbor = pixel + (useLeft ? -2 : 2) * axis;
+        tangent = ReconstructViewPosition((neighbor + 0.5) * _ContactShadowSize.zw,
+            useLeft ? left2 : right2) - position;
+    }
+    return valid;
 }
 
 bool ReceiverPlane(int2 pixel, float depth, float3 position, out float3 normal)
@@ -76,14 +78,12 @@ bool ReceiverPlane(int2 pixel, float depth, float3 position, out float3 normal)
     float3 tangentX, tangentY;
     bool hasX = ReceiverTangent(pixel, int2(1, 0), depth, position, tangentX);
     bool hasY = ReceiverTangent(pixel, int2(0, 1), depth, position, tangentY);
-    if (!hasX || !hasY)
-        return false;
-    normal = cross(tangentX, tangentY);
-    float lengthSquared = dot(normal, normal);
-    if (lengthSquared < 1e-20)
-        return false;
-    normal *= rsqrt(lengthSquared);
-    return true;
+    float3 plane = cross(tangentX, tangentY);
+    float lengthSquared = dot(plane, plane);
+    bool valid = hasX && hasY && lengthSquared >= 1e-20;
+    if (valid)
+        normal = plane * rsqrt(max(lengthSquared, 1e-20));
+    return valid;
 }
 
 [numthreads(8, 8, 1)]

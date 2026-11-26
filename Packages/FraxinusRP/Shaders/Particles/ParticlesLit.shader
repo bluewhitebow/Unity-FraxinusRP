@@ -119,6 +119,7 @@ Shader "Ultra Render Pipeline/Particles/Lit"
             // Shader Stages
             #pragma vertex ParticlesLitVertex
             #pragma fragment ParticlesLitFragment
+            #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/AreaLightKeywords.hlsl"
             #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/RenderingLayers.hlsl"
 
             // -------------------------------------

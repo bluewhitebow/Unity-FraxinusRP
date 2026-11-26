@@ -83,7 +83,7 @@ namespace FraxinusEditor.Rendering.Ultra
             _removed = 0;
             _canStripShader = ShouldStripComputeShader(_stripUnusedVariants, _clusteredUnused,
                 AssetDatabase.GetAssetPath(shader), shader.name);
-            _areaKeyword = new LocalKeyword(shader, ShaderKeywordStrings.AreaLights);
+            _areaKeyword = shader.keywordSpace.FindKeyword(ShaderKeywordStrings.AreaLights);
             string path = AssetDatabase.GetAssetPath(shader);
             _canFilterArea = _stripUnusedVariants && !string.IsNullOrEmpty(path) && _areaKeyword.isValid && _areaKeyword.isOverridable &&
                 IsAreaLightComputeShader(path, AssetDatabase.GetDependencies(path));

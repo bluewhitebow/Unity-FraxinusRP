@@ -18,13 +18,18 @@ int _APVHasAlphaClipping;
 
 int APVWrapTexel(int coordinate, int size, int mode)
 {
-    if (mode == 1) return clamp(coordinate, 0, size - 1); // Clamp
-    if (mode == 3) return min(coordinate < 0 ? -1 - coordinate : coordinate, size - 1); // MirrorOnce
-    int period = mode == 2 ? size * 2 : size;
-    uint magnitude = (uint)(coordinate < 0 ? -1 - coordinate : coordinate);
-    int wrapped = (int)(magnitude % (uint)period);
-    if (coordinate < 0) wrapped = period - 1 - wrapped;
-    return mode == 2 ? min(wrapped, period - 1 - wrapped) : wrapped;
+    int magnitude = coordinate < 0 ? -1 - coordinate : coordinate;
+    int texel = clamp(coordinate, 0, size - 1);
+    if (mode == 3) // MirrorOnce
+        texel = min(magnitude, size - 1);
+    else if (mode != 1) // Repeat or Mirror
+    {
+        int period = mode == 2 ? size * 2 : size;
+        int wrapped = (int)((uint)magnitude % (uint)period);
+        if (coordinate < 0) wrapped = period - 1 - wrapped;
+        texel = mode == 2 ? min(wrapped, period - 1 - wrapped) : wrapped;
+    }
+    return texel;
 }
 
 float4 APVLoadTexel(int2 pixel, int2 size, float4 map)
@@ -35,16 +40,24 @@ float4 APVLoadTexel(int2 pixel, int2 size, float4 map)
 
 float4 APVSampleTexture(float4 map, float2 uv)
 {
-    if (map.x < 0) return 1;
-    uint width, height, slices;
-    _APVMaterialTextures.GetDimensions(width, height, slices);
-    int2 size = int2(width, height);
-    if (map.w == 0) return APVLoadTexel((int2)floor(uv * size), size, map);
-    float2 pixel = uv * size - 0.5;
-    int2 low = (int2)floor(pixel);
-    float2 blend = frac(pixel);
-    return lerp(lerp(APVLoadTexel(low, size, map), APVLoadTexel(low + int2(1, 0), size, map), blend.x),
-        lerp(APVLoadTexel(low + int2(0, 1), size, map), APVLoadTexel(low + 1, size, map), blend.x), blend.y);
+    float4 color = 1.0;
+    if (map.x >= 0)
+    {
+        uint width, height, slices;
+        _APVMaterialTextures.GetDimensions(width, height, slices);
+        int2 size = int2(width, height);
+        if (map.w == 0)
+            color = APVLoadTexel((int2)floor(uv * size), size, map);
+        else
+        {
+            float2 pixel = uv * size - 0.5;
+            int2 low = (int2)floor(pixel);
+            float2 blend = frac(pixel);
+            color = lerp(lerp(APVLoadTexel(low, size, map), APVLoadTexel(low + int2(1, 0), size, map), blend.x),
+                lerp(APVLoadTexel(low + int2(0, 1), size, map), APVLoadTexel(low + 1, size, map), blend.x), blend.y);
+        }
+    }
+    return color;
 }
 
 float4 APVSampleAlbedo(APVBakeMaterial material, float2 uv)

@@ -227,6 +227,9 @@ CBUFFER_END
 #include "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/UnityInput.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/UnityInstancing.hlsl"
 #include "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/UltraDOTSInstancing.hlsl"
+#if defined(FRAXINUS_GRAPH_LIT_PASS) && defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
+#include "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/GraphLitInstancing.hlsl"
+#endif
 
 // VFX may also redefine UNITY_MATRIX_M / UNITY_MATRIX_I_M as static per-particle global matrices.
 #ifdef HAVE_VFX_MODIFICATION

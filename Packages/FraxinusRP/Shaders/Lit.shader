@@ -69,6 +69,10 @@ Shader "Ultra Render Pipeline/Lit"
         [HideInInspector] _Glossiness("Smoothness", Float) = 0.0
         [HideInInspector] _GlossyReflections("EnvironmentReflections", Float) = 0.0
 
+        [HideInInspector] _FraxinusVulkanGraphVersion("Vulkan indirect pass version", Float) = 1
+        [HideInInspector] _FraxinusGraphStencilRef("Indirect GBuffer stencil reference", Int) = 0
+        [HideInInspector] _FraxinusGraphStencilWriteMask("Indirect GBuffer stencil write mask", Int) = 0
+
         [HideInInspector][NoScaleOffset]unity_Lightmaps("unity_Lightmaps", 2DArray) = "" {}
         [HideInInspector][NoScaleOffset]unity_LightmapsInd("unity_LightmapsInd", 2DArray) = "" {}
         [HideInInspector][NoScaleOffset]unity_ShadowMasks("unity_ShadowMasks", 2DArray) = "" {}
@@ -119,6 +123,12 @@ Shader "Ultra Render Pipeline/Lit"
             // Shader Stages
             #pragma vertex LitPassVertex
             #pragma fragment LitPassFragment
+            #if UNITY_VERSION < 600000 && (defined(SHADER_API_D3D11) || defined(SHADER_API_VULKAN)) && defined(SHADER_API_DESKTOP)
+                #pragma instancing_options procedural:FraxinusSetupGraphInstance renderinglayer
+                #define FRAXINUS_GRAPH_LIT_PASS 1
+            #endif
+            #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/GraphLitPragmas.hlsl"
+            #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/AreaLightKeywords.hlsl"
 
             // -------------------------------------
             // Material Keywords
@@ -171,7 +181,12 @@ Shader "Ultra Render Pipeline/Lit"
             //--------------------------------------
             // GPU Instancing
             #pragma multi_compile_instancing
+            #if !defined(FRAXINUS_GRAPH_LIT_PASS)
             #pragma instancing_options renderinglayer
+            #endif
+            #if UNITY_VERSION < 600000 && defined(SHADER_API_VULKAN) && defined(SHADER_API_DESKTOP)
+                #pragma multi_compile_local _ FRAXINUS_BRG_MATERIAL_HEADER_V1
+            #endif
             #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/DOTS.hlsl"
 
             #include "Packages/com.bluewhitebow.fraxinus-rp/Shaders/LitInput.hlsl"
@@ -210,6 +225,9 @@ Shader "Ultra Render Pipeline/Lit"
             //--------------------------------------
             // GPU Instancing
             #pragma multi_compile_instancing
+            #if UNITY_VERSION < 600000 && defined(SHADER_API_VULKAN) && defined(SHADER_API_DESKTOP)
+                #pragma multi_compile_local _ FRAXINUS_BRG_MATERIAL_HEADER_V1
+            #endif
             #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/DOTS.hlsl"
 
             // -------------------------------------
@@ -244,6 +262,13 @@ Shader "Ultra Render Pipeline/Lit"
             ZWrite[_ZWrite]
             ZTest LEqual
             Cull[_Cull]
+            Stencil
+            {
+                Ref [_FraxinusGraphStencilRef]
+                WriteMask [_FraxinusGraphStencilWriteMask]
+                Comp Always
+                Pass Replace
+            }
 
             HLSLPROGRAM
             #pragma multi_compile _ _FORWARD_PLUS
@@ -257,6 +282,11 @@ Shader "Ultra Render Pipeline/Lit"
             // Shader Stages
             #pragma vertex LitGBufferPassVertex
             #pragma fragment LitGBufferPassFragment
+            #if UNITY_VERSION < 600000 && (defined(SHADER_API_D3D11) || defined(SHADER_API_VULKAN)) && defined(SHADER_API_DESKTOP)
+                #pragma instancing_options procedural:FraxinusSetupGraphInstance renderinglayer
+                #define FRAXINUS_GRAPH_LIT_PASS 1
+            #endif
+            #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/GraphLitPragmas.hlsl"
 
             // -------------------------------------
             // Material Keywords
@@ -303,7 +333,12 @@ Shader "Ultra Render Pipeline/Lit"
             //--------------------------------------
             // GPU Instancing
             #pragma multi_compile_instancing
+            #if !defined(FRAXINUS_GRAPH_LIT_PASS)
             #pragma instancing_options renderinglayer
+            #endif
+            #if UNITY_VERSION < 600000 && defined(SHADER_API_VULKAN) && defined(SHADER_API_DESKTOP)
+                #pragma multi_compile_local _ FRAXINUS_BRG_MATERIAL_HEADER_V1
+            #endif
             #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/DOTS.hlsl"
 
             // -------------------------------------
@@ -334,6 +369,11 @@ Shader "Ultra Render Pipeline/Lit"
             // Shader Stages
             #pragma vertex DepthOnlyVertex
             #pragma fragment DepthOnlyFragment
+            #if UNITY_VERSION < 600000 && (defined(SHADER_API_D3D11) || defined(SHADER_API_VULKAN)) && defined(SHADER_API_DESKTOP)
+                #pragma instancing_options procedural:FraxinusSetupGraphInstance renderinglayer
+                #define FRAXINUS_GRAPH_LIT_PASS 1
+            #endif
+            #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/GraphLitPragmas.hlsl"
 
             // -------------------------------------
             // Material Keywords
@@ -347,6 +387,9 @@ Shader "Ultra Render Pipeline/Lit"
             //--------------------------------------
             // GPU Instancing
             #pragma multi_compile_instancing
+            #if UNITY_VERSION < 600000 && defined(SHADER_API_VULKAN) && defined(SHADER_API_DESKTOP)
+                #pragma multi_compile_local _ FRAXINUS_BRG_MATERIAL_HEADER_V1
+            #endif
             #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/DOTS.hlsl"
 
             // -------------------------------------
@@ -377,6 +420,11 @@ Shader "Ultra Render Pipeline/Lit"
             // Shader Stages
             #pragma vertex DepthNormalsVertex
             #pragma fragment DepthNormalsFragment
+            #if UNITY_VERSION < 600000 && (defined(SHADER_API_D3D11) || defined(SHADER_API_VULKAN)) && defined(SHADER_API_DESKTOP)
+                #pragma instancing_options procedural:FraxinusSetupGraphInstance renderinglayer
+                #define FRAXINUS_GRAPH_LIT_PASS 1
+            #endif
+            #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/GraphLitPragmas.hlsl"
 
             // -------------------------------------
             // Material Keywords
@@ -398,6 +446,9 @@ Shader "Ultra Render Pipeline/Lit"
             //--------------------------------------
             // GPU Instancing
             #pragma multi_compile_instancing
+            #if UNITY_VERSION < 600000 && defined(SHADER_API_VULKAN) && defined(SHADER_API_DESKTOP)
+                #pragma multi_compile_local _ FRAXINUS_BRG_MATERIAL_HEADER_V1
+            #endif
             #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/DOTS.hlsl"
 
             // -------------------------------------
@@ -474,6 +525,9 @@ Shader "Ultra Render Pipeline/Lit"
             #pragma shader_feature_local_fragment _ALPHATEST_ON
             #pragma shader_feature_local_fragment _ALPHAPREMULTIPLY_ON
 
+            #if UNITY_VERSION < 600000 && defined(SHADER_API_VULKAN) && defined(SHADER_API_DESKTOP)
+                #pragma multi_compile_local _ FRAXINUS_BRG_MATERIAL_HEADER_V1
+            #endif
             #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/DOTS.hlsl"
 
             // -------------------------------------
@@ -495,6 +549,9 @@ Shader "Ultra Render Pipeline/Lit"
             #pragma shader_feature_local_vertex _ADD_PRECOMPUTED_VELOCITY
 
             #include "Packages/com.bluewhitebow.fraxinus-rp/Shaders/LitInput.hlsl"
+            #if UNITY_VERSION < 600000 && defined(SHADER_API_VULKAN) && defined(SHADER_API_DESKTOP)
+                #pragma multi_compile_local _ FRAXINUS_BRG_MATERIAL_HEADER_V1
+            #endif
             #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/ObjectMotionVectors.hlsl"
             ENDHLSL
         }
@@ -521,6 +578,9 @@ Shader "Ultra Render Pipeline/Lit"
             #define APLICATION_SPACE_WARP_MOTION 1
 
             #include "Packages/com.bluewhitebow.fraxinus-rp/Shaders/LitInput.hlsl"
+            #if UNITY_VERSION < 600000 && defined(SHADER_API_VULKAN) && defined(SHADER_API_DESKTOP)
+                #pragma multi_compile_local _ FRAXINUS_BRG_MATERIAL_HEADER_V1
+            #endif
             #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/ObjectMotionVectors.hlsl"
             ENDHLSL
         }

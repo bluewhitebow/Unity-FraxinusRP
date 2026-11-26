@@ -318,6 +318,17 @@ namespace Fraxinus.GPUBatcher
 
             if (!_initialized) Initialize();
 
+            if (Rendering.D3D11SourceSupport.requiresValidation)
+            {
+                for (int lod = 0; lod < signature.lodCount; lod++)
+                    if (!Rendering.D3D11SourceSupport.SupportsCameraPasses ||
+                        !Rendering.D3D11SourceSupport.Supports(signature.GetLODMaterialsRaw(lod) ?? signature.materials))
+                    {
+                        ReleaseSignatureCombinedMeshes(signature);
+                        return -1;
+                    }
+            }
+
             int index = AllocOrDedup(signature, out bool isNewSlot);
             if (isNewSlot)
             {

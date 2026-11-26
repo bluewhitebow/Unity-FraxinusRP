@@ -16,6 +16,7 @@ namespace FraxinusEngine.Rendering.Ultra
             internal bool accurateGbufferNormals;
             internal bool enableRenderingLayers;
             internal RenderingLayerUtils.MaskSize maskSize;
+            internal BRGIndirectDrawBridge.DrawRequest brgDraws;
             internal RendererListHandle rendererList;
         }
 
@@ -95,6 +96,8 @@ namespace FraxinusEngine.Rendering.Ultra
 #if UNITY_6000_0_OR_NEWER
                 param.filteringSettings.batchLayerMask = batchLayerMask;
 #endif
+                passData.brgDraws = BRGIndirectDrawBridge.IsAvailable && shaderTagIds.Contains(k_depthNormals[0])
+                    ? new BRGIndirectDrawBridge.DrawRequest(cameraData, "DepthNormals", param.filteringSettings.layerMask) : default;
                 passData.rendererList = renderGraph.CreateRendererList(param);
                 builder.UseRendererList(passData.rendererList);
 
@@ -144,6 +147,7 @@ namespace FraxinusEngine.Rendering.Ultra
 
             // Draw
             cmd.DrawRendererList(rendererList);
+            passData.brgDraws.Draw(cmd);
 
             // Clean up
             if (passData.enableRenderingLayers)

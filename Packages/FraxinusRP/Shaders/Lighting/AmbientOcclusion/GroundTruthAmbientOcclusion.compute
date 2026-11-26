@@ -268,11 +268,9 @@ void GTAOMain(uint3 id : SV_DispatchThreadID)
 
 float GTAODepthWeight(float sampleDepth, float centerDepth)
 {
-    if (sampleDepth <= 0.0)
-        return 0.0;
     // Express the bilateral threshold in world units relative to the AO radius.
     float aggressiveness = exp2(lerp(2.0, 8.0, saturate(_GTAOSampling.w))) / max(_GTAOParams.x, 1e-4);
-    return saturate(1.0 - abs(sampleDepth - centerDepth) * aggressiveness);
+    return sampleDepth <= 0.0 ? 0.0 : saturate(1.0 - abs(sampleDepth - centerDepth) * aggressiveness);
 }
 
 float GTAOFinalVisibility(float visibility)
@@ -289,16 +287,17 @@ float GTAOPlaneDepth(float eyeDepth)
 bool GTAOLoadPlaneDepth(int2 pixel, out float planeDepth)
 {
     planeDepth = 0.0;
-    if (any(pixel < 0) || any(pixel >= (int2)_GTAOFullSize.xy))
-        return false;
-    float rawDepth = _GTAODepthTexture.Load(int3(pixel, 0));
-    if (GTAOIsBackground(rawDepth))
-        return false;
-    float eyeDepth = GTAOPositionVS((pixel + 0.5) * _GTAOFullSize.zw, rawDepth).z;
-    if (eyeDepth <= 0.0)
-        return false;
-    planeDepth = GTAOPlaneDepth(eyeDepth);
-    return true;
+    if (all(pixel >= 0) && all(pixel < (int2)_GTAOFullSize.xy))
+    {
+        float rawDepth = _GTAODepthTexture.Load(int3(pixel, 0));
+        if (!GTAOIsBackground(rawDepth))
+        {
+            float eyeDepth = GTAOPositionVS((pixel + 0.5) * _GTAOFullSize.zw, rawDepth).z;
+            if (eyeDepth > 0.0)
+                planeDepth = GTAOPlaneDepth(eyeDepth);
+        }
+    }
+    return planeDepth > 0.0;
 }
 
 float GTAOPlaneDepthSlope(int2 pixel, int2 axis, float centerDepth)
@@ -310,9 +309,6 @@ float GTAOPlaneDepthSlope(int2 pixel, int2 axis, float centerDepth)
     bool hasRight2 = GTAOLoadPlaneDepth(pixel + 2 * axis, right2);
     bool hasLeft = hasLeft1 && hasLeft2;
     bool hasRight = hasRight1 && hasRight2;
-    if (!hasLeft && !hasRight)
-        return 0.0;
-
     // Two consecutive intervals must agree before a slope may explain a depth
     // difference. A silhouette or a one-pixel foreground object is not a plane.
     float leftError = abs(centerDepth - 2.0 * left1 + left2);
@@ -320,7 +316,7 @@ float GTAOPlaneDepthSlope(int2 pixel, int2 axis, float centerDepth)
     bool useLeft = hasLeft && (!hasRight || leftError <= rightError);
     float slope = useLeft ? centerDepth - left1 : right1 - centerDepth;
     float error = useLeft ? leftError : rightError;
-    return error <= abs(slope) * 0.25 + abs(centerDepth) * 1e-5 ? slope : 0.0;
+    return (hasLeft || hasRight) && error <= abs(slope) * 0.25 + abs(centerDepth) * 1e-5 ? slope : 0.0;
 }
 
 float GTAOUpsampleExpectedDepth(int2 tracePixel, int2 fullPixel, float planeDepth, float2 slope)

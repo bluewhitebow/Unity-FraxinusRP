@@ -13,6 +13,7 @@ namespace Fraxinus.GPUBatcher
         private class CullPassData
         {
             public GPUBatcherRenderer brg;
+            public ScriptableRenderContext renderContext;
             public int cameraId;
             public TextureHandle hzbAtlas;
             public bool bindHZBAtlas;
@@ -103,7 +104,7 @@ namespace Fraxinus.GPUBatcher
         }
 
         /// <summary>Deferred culling pass. bindHZBAtlas imports last frame's HZB atlas and binds it via the graph (pass 0).</summary>
-        public static void RecordDeferredCullingPass(RenderGraph renderGraph, GPUBatcherRenderer brg,
+        public static void RecordDeferredCullingPass(RenderGraph renderGraph, ScriptableRenderContext renderContext, GPUBatcherRenderer brg,
             string passName, int cameraId, bool bindHZBAtlas)
         {
             var viewSet = brg.GetPendingCullingBufferSet(cameraId);
@@ -117,6 +118,7 @@ namespace Fraxinus.GPUBatcher
                     UseCullingBuffers(builder, renderGraph, brg.GetPendingCullingBufferSet(cameraId, split));
                 // pass data is pooled, always assign
                 data.brg = brg;
+                data.renderContext = renderContext;
                 data.cameraId = cameraId;
                 data.bindHZBAtlas = bindHZBAtlas;
                 data.hzbAtlas = bindHZBAtlas ? ImportHZBAtlas(builder, renderGraph, brg, cameraId, AccessFlags.Read) : default;
@@ -127,12 +129,15 @@ namespace Fraxinus.GPUBatcher
                         BindHZBAtlasOnCullKernels(ctx, passData.brg, passData.hzbAtlas);
                     passData.brg.ExecuteGraphCulling(CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd),
                         passData.cameraId, skipHZBTextureBinding: passData.bindHZBAtlas);
+#if UNITY_2022_3 && (UNITY_EDITOR_WIN || (UNITY_STANDALONE_WIN && !ENABLE_IL2CPP))
+                    Rendering.Custom2022IndirectSubmission.AfterGraphCull(passData.renderContext, CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd));
+#endif
                 });
             }
         }
 
         /// <summary>Phase 1: re-cull against the current frame's HZB atlas.</summary>
-        public static void RecordHZBCullPass(RenderGraph renderGraph, GPUBatcherRenderer brg, string passName, int cameraId)
+        public static void RecordHZBCullPass(RenderGraph renderGraph, ScriptableRenderContext renderContext, GPUBatcherRenderer brg, string passName, int cameraId)
         {
             var viewSet = brg.GetPendingCullingBufferSet(cameraId);
             if (viewSet == null) return;
@@ -143,6 +148,7 @@ namespace Fraxinus.GPUBatcher
                 builder.AllowPassCulling(false);
                 UseCullingBuffers(builder, renderGraph, viewSet);
                 data.brg = brg;
+                data.renderContext = renderContext;
                 data.cameraId = cameraId;
                 data.hzbAtlas = ImportHZBAtlas(builder, renderGraph, brg, cameraId, AccessFlags.Read);
 
@@ -152,6 +158,9 @@ namespace Fraxinus.GPUBatcher
                         BindHZBAtlasOnCullKernels(ctx, passData.brg, passData.hzbAtlas);
                     passData.brg.ExecuteGraphHZBRetest(CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd),
                         passData.cameraId, skipHZBTextureBinding: true);
+#if UNITY_2022_3 && (UNITY_EDITOR_WIN || (UNITY_STANDALONE_WIN && !ENABLE_IL2CPP))
+                    Rendering.Custom2022IndirectSubmission.AfterGraphCull(passData.renderContext, CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd));
+#endif
                 });
             }
         }

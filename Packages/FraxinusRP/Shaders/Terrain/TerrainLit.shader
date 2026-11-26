@@ -73,6 +73,7 @@ Shader "Ultra Render Pipeline/Terrain/Lit"
 
             #pragma vertex SplatmapVert
             #pragma fragment SplatmapFragment
+            #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/AreaLightKeywords.hlsl"
 
             #define _METALLICSPECGLOSSMAP 1
             #define _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A 1

@@ -23,8 +23,23 @@ available. The default config location is writable project data.
 
 Draw templates and per-view scratch data remain renderer-owned. Both versions run
 camera and shadow culling. `FRAXINUS_BRG_INDIRECT_API` enables native output on
-Unity 6. Without the API, `TrySubmit` returns false and leaves BRG output untouched.
+Unity 6. On the custom Win64 2022.3.62f3 Vulkan backend, the main deferred camera
+submits eligible tracked Ultra/Lit batches inside the active Fraxinus raster passes.
+Other batches use the native Vulkan receiver. Its carrier materials use the
+`FRAXINUS_BRG_NATIVE_INDIRECT` shader variant for indexed visibility and packed LOD fade.
+Stock 2022 and unsupported devices keep the culling-only path.
 Editor picking retains its direct-command path.
+
+On 2026-11-25 the Win64 custom editor rendered the Terrain Demo's Fraxinus Lit
+trees and rocks on an RTX 5060 with `-force-vulkan`. Disabling batch submission
+changed 84.32% of the fixed camera's pixels by more than 8/255 in at least one RGB
+channel. Two draws with submission enabled matched. The main camera reported
+66,936 indirect instances with history HZB and 67,195 with HZB disabled.
+On the custom 2022 Win64 D3D11 backend, the BRG callback hands the original indexed
+arguments and visibility buffers to the camera's Fraxinus raster passes.
+Terrain Demo's opaque Ultra/Lit trees and rocks use `DrawMeshInstancedIndirect`
+inside the active GBuffer pass. Registration checks the material and shadow settings
+before taking over native terrain foliage.
 
 ObjectDispatcher tracking uses the same GlobalTRS and type-change queries as the source.
 Core's shared `Unity.InternalAPIEngineBridge.024` engine-friend assembly
