@@ -31,13 +31,13 @@
       "folder": "Fraxinus-ShaderGraph",
       "name": "com.unity.shadergraph",
       "version": "14.0.12",
-      "sourceCommit": "97771f07980978f62834d5caf41a909a112c2811",
-      "sourceProject": "Duckov-Recovered",
-      "sourceRepository": "https://github.com/zgsxof/Duckov-Recovered.git",
-      "sourcePath": "ExportedProject/Packages/com.unity.shadergraph",
-      "sourceState": "Exact source working-tree snapshot; package files are copied without content or line-ending transformations.",
+      "sourceCommit": "26709f083346e4a3d01f329bbb8792b8f644a3fd",
+      "sourceProject": "Duckov-2022",
+      "sourceRepository": "https://github.com/bluewhitebow/Dockov-Demo.git",
+      "sourcePath": "Packages/com.fraxinus.shadergraph",
+      "sourceState": "The Duckov-2022 package directory moved to com.fraxinus.shadergraph. MaterialGraphView uses the GraphView selection API available in Tuanjie 1.11 and Unity 6.",
       "fileCount": 4252,
-      "manifestSha256": "03238240e2b45cb076ec44d4f74ff3b5dfad51aaf6dba0eb2a5157b3f864ad07"
+      "manifestSha256": "5149db50d9bf05a875cb7c58b84a7d892574c07eebbf135bde92991874cb1e45"
     },
     {
       "folder": "FraxinusRP",
@@ -68,20 +68,19 @@
     "date": "2026-11-27",
     "sourceProject": "Duckov-2022",
     "sourceRepository": "https://github.com/bluewhitebow/Dockov-Demo.git",
-    "sourceCommit": "013bcf6cabbc123d55e6447d597868b9fe15a7aa",
-    "sourceBaselineCommit": "d0b3e9c91d20c57acf1fdb339b09f6f96c339ee7",
-    "previousTargetCommit": "8f871caf67ea954a7bbd41622584f37de3414b1a",
+    "sourceCommit": "26709f083346e4a3d01f329bbb8792b8f644a3fd",
+    "sourceBaselineCommit": "013bcf6cabbc123d55e6447d597868b9fe15a7aa",
+    "previousTargetCommit": "23313d113e4c279e104b8addb2ea93b61e29a235",
     "mode": "incremental-package-sync",
-    "sourceState": "Applied 43 modified and 19 deleted files across three embedded packages. Existing target text files retain their line endings. The delete set includes the custom Unity 2022 BRG adapters, native plugins and their metadata.",
+    "sourceState": "Synced the MaterialGraphView change for Tuanjie 1.11. The embedded Shader Graph package uses the UPM identifier com.unity.shadergraph.",
     "fileCount": 9243,
     "packages": [
-      "Fraxinus-RPCore",
-      "FraxinusRP",
-      "Fraxinus-GPU-Batcher"
+      "Fraxinus-ShaderGraph"
     ],
     "manifestAlgorithm": "SHA-256 of the concatenated records in ordinal package-relative path order. Each record is the UTF-8 path with forward slashes, NUL, lowercase hexadecimal SHA-256 of the raw target file bytes, and LF.",
     "validation": {
       "unity2022": "9 C# assemblies compiled with stock 2022.3.62f3, 0 errors, 60 warnings",
+      "tuanjie": "9 C# assemblies compiled with Tuanjie 1.11.2 / 2022.3.62t19, 0 errors, 3 warnings",
       "unity6": "10 C# assemblies compiled with 6000.0.85f2, 0 errors, 47 warnings",
       "renderingRerun": false
     }

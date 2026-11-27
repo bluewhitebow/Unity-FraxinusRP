@@ -1,3 +1,8 @@
+// These GraphView versions grant Unity.ShaderGraph.Editor access to their internals.
+#if UNITY_6000_0_OR_NEWER || TUANJIE_1_11_OR_NEWER
+#define GRAPHVIEW_SELECTION_INTERNALS_VISIBLE
+#endif
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -74,7 +79,7 @@ namespace UnityEditor.ShaderGraph.Drawing
             }
         }
 
-#if UNITY_6000_0_OR_NEWER
+#if GRAPHVIEW_SELECTION_INTERNALS_VISIBLE
         protected internal override bool canCutSelection
 #else
         protected override bool canCutSelection
@@ -83,7 +88,7 @@ namespace UnityEditor.ShaderGraph.Drawing
             get { return selection.OfType<IShaderNodeView>().Any(x => x.node.canCutNode) || selection.OfType<Group>().Any() || selection.OfType<SGBlackboardField>().Any() || selection.OfType<SGBlackboardCategory>().Any() || selection.OfType<StickyNote>().Any(); }
         }
 
-#if UNITY_6000_0_OR_NEWER
+#if GRAPHVIEW_SELECTION_INTERNALS_VISIBLE
         protected internal override bool canCopySelection
 #else
         protected override bool canCopySelection
@@ -688,7 +693,7 @@ namespace UnityEditor.ShaderGraph.Drawing
             m.Invoke(null, new object[] { (Action<Color>)ApplyColor, defaultColor, true, false });
         }
 
-#if UNITY_6000_0_OR_NEWER
+#if GRAPHVIEW_SELECTION_INTERNALS_VISIBLE
         protected internal override bool canDeleteSelection
 #else
         protected override bool canDeleteSelection
