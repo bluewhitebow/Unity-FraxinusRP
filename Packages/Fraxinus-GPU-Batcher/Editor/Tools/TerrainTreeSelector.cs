@@ -55,6 +55,7 @@ public static class TerrainTreeSelector
 
     static TerrainTreeSelector()
     {
+        if (!GPUBatcherRenderer.canSubmitDraws) return;
         // unsubscribe first to prevent duplicate handlers across domain reloads
         SceneView.duringSceneGui -= OnSceneGUI;
         Selection.selectionChanged -= OnSelectionChanged;

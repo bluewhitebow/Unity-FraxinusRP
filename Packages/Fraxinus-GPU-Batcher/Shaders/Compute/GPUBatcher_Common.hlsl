@@ -3,7 +3,12 @@
 
 // Copyright (c) 2026 Milk_Drinker01. All rights reserved.
 
-#define THREADS_INSTANCES 256    // default group size for instance kernels
+// The same width is used for the linear index, strided loops and CPU dispatch counts.
+#if defined(SHADER_API_VULKAN) && (defined(UNITY_PLATFORM_ANDROID) || defined(SHADER_API_MOBILE))
+#define THREADS_INSTANCES 128
+#else
+#define THREADS_INSTANCES 256
+#endif
 #define MAX_LOD_LEVELS 8
 #define DISPATCH_MAX_X 65535u    // max work groups in X dimension (D3D11/D3D12/Vulkan/GLES3.1)
 

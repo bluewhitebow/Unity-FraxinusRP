@@ -45,6 +45,7 @@ namespace Fraxinus.GPUBatcher.Editor
 
         private void OnEnable()
         {
+            if (!GPUBatcherRenderer.canSubmitDraws) return;
             var package = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(GPUBatcherRendererWindow).Assembly);
             _versionLabel = package == null ? null : $"Version {package.version}";
             RefreshConfigSO();
@@ -84,6 +85,12 @@ namespace Fraxinus.GPUBatcher.Editor
 
         private void OnGUI()
         {
+            if (!GPUBatcherRenderer.canSubmitDraws)
+            {
+                EditorGUILayout.HelpBox("GPU Batcher rendering requires Unity 6 and a graphics device that supports native BRG indirect draws with raw buffers.", MessageType.Info);
+                return;
+            }
+
             RefreshConfigSO();
 
             _scrollPos = EditorGUILayout.BeginScrollView(_scrollPos);

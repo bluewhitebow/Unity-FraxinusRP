@@ -31,6 +31,7 @@ namespace Fraxinus.GPUBatcher
         {
             get
             {
+                if (!Rendering.BRGIndirectSubmission.hasNativeApi) return s_instance;
                 if (s_instance == null)
                 {
 #if UNITY_EDITOR
@@ -76,6 +77,7 @@ namespace Fraxinus.GPUBatcher
 
         private void OnEnable()
         {
+            if (!Rendering.BRGIndirectSubmission.hasNativeApi) return;
             SetConfigMissing(false);
 #if UNITY_EDITOR
             if (s_instance == null || FindInPreloadedAssets() == this)
@@ -126,6 +128,7 @@ namespace Fraxinus.GPUBatcher
         [UnityEditor.InitializeOnLoadMethod]
         private static void AutoCreateOnDomainReload()
         {
+            if (!Rendering.BRGIndirectSubmission.hasNativeApi) return;
             UnityEditor.EditorApplication.delayCall += () =>
             {
                 if (s_instance == null)
@@ -193,6 +196,7 @@ namespace Fraxinus.GPUBatcher
 
         private static void EnsurePreloadedAsset(GPUBatcherConfig config)
         {
+            if (!Rendering.BRGIndirectSubmission.hasNativeApi) return;
             var preloaded = UnityEditor.PlayerSettings.GetPreloadedAssets();
 
             int emptySlot = -1;
@@ -260,6 +264,7 @@ namespace Fraxinus.GPUBatcher
         [UnityEditor.InitializeOnLoadMethod]
         private static void ResolveShadersAfterReload()
         {
+            if (!Rendering.BRGIndirectSubmission.hasNativeApi) return;
             UnityEditor.EditorApplication.delayCall += () => instance?.EnsureShaderReferences();
         }
 
@@ -294,10 +299,14 @@ namespace Fraxinus.GPUBatcher
         [UnityEditor.MenuItem("Tools/Fraxinus GPU Batcher/Select Config")]
         public static void SelectConfig()
         {
+            if (!Rendering.BRGIndirectSubmission.hasNativeApi) return;
             var config = instance;
             UnityEditor.Selection.activeObject = config;
             UnityEditor.EditorGUIUtility.PingObject(config);
         }
+
+        [UnityEditor.MenuItem("Tools/Fraxinus GPU Batcher/Select Config", true)]
+        private static bool CanSelectConfig() => Rendering.BRGIndirectSubmission.hasNativeApi;
 
         private int _prevMaxShadowCrossfadeCascade = -1;
         private float _prevDefaultAnimatedCrossfadeDuration;
@@ -323,7 +332,7 @@ namespace Fraxinus.GPUBatcher
 
         private void OnValidate()
         {
-
+            if (!Rendering.BRGIndirectSubmission.hasNativeApi) return;
             maxPoolRefsPerChunk = math.max(1, maxPoolRefsPerChunk);
             initialChunkCount = math.max(1, initialChunkCount);
             initialPoolCapacity = math.max(1, initialPoolCapacity);

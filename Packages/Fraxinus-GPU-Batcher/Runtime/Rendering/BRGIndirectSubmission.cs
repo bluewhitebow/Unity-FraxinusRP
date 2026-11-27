@@ -1,8 +1,9 @@
 using System;
 using UnityEngine.Rendering;
-#if FRAXINUS_BRG_INDIRECT_API
+#if UNITY_6000_0_OR_NEWER
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using UnityEngine;
 using NativeCommand = UnityEngine.Rendering.BatchDrawCommandIndirect;
 #endif
 
@@ -10,13 +11,32 @@ namespace Fraxinus.GPUBatcher.Rendering
 {
     public static class BRGIndirectSubmission
     {
-#if FRAXINUS_BRG_INDIRECT_API
-        public static bool isAvailable => true;
-#elif UNITY_2022_3 && (UNITY_EDITOR_WIN || (UNITY_STANDALONE_WIN && !ENABLE_IL2CPP))
-        public static bool isAvailable => Custom2022IndirectSubmission.isAvailable;
-#else
-        public static bool isAvailable => false;
-#endif
+#if UNITY_6000_0_OR_NEWER
+        internal static bool hasNativeApi => true;
+        private static GraphicsDeviceType? s_checkedDevice;
+        private static bool s_deviceSupported;
+
+        public static bool isAvailable
+        {
+            get
+            {
+                var device = SystemInfo.graphicsDeviceType;
+                if (s_checkedDevice != device)
+                {
+                    // AddBatch binds a raw matrix buffer and our draw commands bind a raw
+                    // visibility buffer. Constant-buffer BRG requires a different layout.
+                    s_deviceSupported = device != GraphicsDeviceType.Null &&
+                        SystemInfo.supportsComputeShaders && SystemInfo.supportsInstancing &&
+                        SystemInfo.supportsIndirectArgumentsBuffer && SystemInfo.maxComputeBufferInputsVertex >= 2 &&
+                        BatchRendererGroup.BufferTarget == BatchBufferTarget.RawBuffer;
+                    s_checkedDevice = device;
+                }
+                return s_deviceSupported;
+            }
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetDeviceSupport() => s_checkedDevice = null;
 
         /// <summary>Copies camera or shadow commands to BRG-owned memory when native indirect draws are available.</summary>
         public static unsafe bool TrySubmit(
@@ -24,7 +44,7 @@ namespace Fraxinus.GPUBatcher.Rendering
             ReadOnlySpan<BatchDrawCommandIndirect> commands,
             ReadOnlySpan<BatchDrawRange> ranges)
         {
-#if FRAXINUS_BRG_INDIRECT_API
+            if (!isAvailable) return false;
             if (!output.drawCommands.IsCreated || output.drawCommands.Length == 0)
                 throw new ArgumentException("A native BRG output slot is required.", nameof(output));
             for (int i = 0; i < commands.Length; ++i)
@@ -39,9 +59,7 @@ namespace Fraxinus.GPUBatcher.Rendering
             }
             var target = (BatchCullingOutputDrawCommands*)output.drawCommands.GetUnsafePtr();
             if (target->drawCommands != null || target->indirectDrawCommands != null || target->drawRanges != null ||
-#if UNITY_6000_0_OR_NEWER
                 target->proceduralDrawCommands != null || target->proceduralIndirectDrawCommands != null ||
-#endif
                 target->visibleInstances != null || target->instanceSortingPositions != null ||
 #if UNITY_6000_3_OR_NEWER
                 target->drawCommandPickingEntityIds != null)
@@ -106,11 +124,10 @@ namespace Fraxinus.GPUBatcher.Rendering
                 if (nativeCommands != null) UnsafeUtility.Free(nativeCommands, Allocator.TempJob);
                 if (nativeRanges != null) UnsafeUtility.Free(nativeRanges, Allocator.TempJob);
             }
-#elif UNITY_2022_3 && (UNITY_EDITOR_WIN || (UNITY_STANDALONE_WIN && !ENABLE_IL2CPP))
-            return Custom2022IndirectSubmission.TrySubmit(in output, commands, ranges);
-#else
-            return false;
-#endif
         }
+#else
+        internal static bool hasNativeApi => false;
+        public static bool isAvailable => false;
+#endif
     }
 }

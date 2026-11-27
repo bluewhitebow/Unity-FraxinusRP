@@ -16,6 +16,7 @@ namespace Fraxinus.GPUBatcher.Editor
 
         static GPUBatcherEditorIntegration()
         {
+            if (!GPUBatcherRenderer.canSubmitDraws) return;
             GPUBatcherRenderer.editorOnPrototypeDirty = OnMarkPrototypeDirty;
 
             // domain reload just completed - safe to auto-create instances again

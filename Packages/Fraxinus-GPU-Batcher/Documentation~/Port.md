@@ -15,31 +15,10 @@ The original copyright notices are retained in adapted source files.
 | Unity 6 native indirect command | Package-owned `Rendering.BatchDrawCommandIndirect` |
 
 The instance storage, CPU/GPU layouts and command-generation contracts are retained.
-HZB depth normalization and the native compatibility bridges adapt the reference
-algorithms to the APIs and depth inputs available in Unity 2022.
-Config discovery, resource repair, preloading, Bake and Expand follow the reference.
-Live registration takes over source rendering only when native indirect drawing is
-available. The default config location is writable project data.
-
-Draw templates and per-view scratch data remain renderer-owned. Both versions run
-camera and shadow culling. `FRAXINUS_BRG_INDIRECT_API` enables native output on
-Unity 6. On the custom Win64 2022.3.62f3 Vulkan backend, the main deferred camera
-submits eligible tracked Ultra/Lit batches inside the active Fraxinus raster passes.
-Other batches use the native Vulkan receiver. Its carrier materials use the
-`FRAXINUS_BRG_NATIVE_INDIRECT` shader variant for indexed visibility and packed LOD fade.
-Stock 2022 and unsupported devices keep the culling-only path.
-Editor picking retains its direct-command path.
-
-On 2026-11-25 the Win64 custom editor rendered the Terrain Demo's Fraxinus Lit
-trees and rocks on an RTX 5060 with `-force-vulkan`. Disabling batch submission
-changed 84.32% of the fixed camera's pixels by more than 8/255 in at least one RGB
-channel. Two draws with submission enabled matched. The main camera reported
-66,936 indirect instances with history HZB and 67,195 with HZB disabled.
-On the custom 2022 Win64 D3D11 backend, the BRG callback hands the original indexed
-arguments and visibility buffers to the camera's Fraxinus raster passes.
-Terrain Demo's opaque Ultra/Lit trees and rocks use `DrawMeshInstancedIndirect`
-inside the active GBuffer pass. Registration checks the material and shadow settings
-before taking over native terrain foliage.
+On Unity 6 the renderer submits camera and shadow commands to the native BRG output.
+Editor picking uses direct commands. On earlier Unity versions the registration
+components remain loadable and live source renderers retain ownership. Expand
+baked-only groups to reconstruct ordinary GameObjects for these versions.
 
 ObjectDispatcher tracking uses the same GlobalTRS and type-change queries as the source.
 Core's shared `Unity.InternalAPIEngineBridge.024` engine-friend assembly
@@ -62,8 +41,7 @@ farthest sample before reduction, with an explicit array slice and viewport boun
 
 ## Native compatibility paths
 
-Unity 2022 still lacks the reference's managed SpeedTree wind-manager/iterator and
-BRG occlusion-buffer/AABB-query bindings. The port uses available native APIs:
+The Unity 6 implementation uses these APIs for occlusion and wind:
 
 - Baked occlusion uses one `CullingGroup` per camera and a sphere enclosing each
   chunk AABB. Fraxinus invokes preparation immediately before native `Cull`, then
@@ -87,16 +65,10 @@ its first native simulation update. The suite accepts that initial state and che
 complete current/history parameter families after ten frames; this does not promise
 fully animated branch values on the first draw.
 
-Baked occlusion and SpeedTree wind capture use the same code in both versions.
+## Embedded package copies
 
-## One maintained package source
-
-The canonical source directory is
-`D:/projects/unityProjects/Duckov-Recovered/ExportedProject/Packages`. The Unity 2022
-and Unity 6 validation projects reference it through local UPM `file:` dependencies;
-their `Assets` contain independent fixtures and project data. Edit package code only
-in that source directory. Former embedded validation copies are reviewable archives
-under `Validation/Backups/BeforeSharedPackages-*`, not active package sources.
+Duckov-2022 and Duckov-6 use embedded copies of the rendering packages. Keep their shared
+code in sync while preserving project-specific Unity package versions.
 
 Fraxinus shadow culling and drawing use `UNITY_6000_0_OR_NEWER` for Unity 6's native
 `CullShadowCasters`/split-index API while keeping the 2022 slice path. Categorization
@@ -125,7 +97,7 @@ alpha 0.5 through a Fraxinus shader; generated URP/HDRP auxiliary passes are omi
 Disposal guards and explicit graph-context lifetimes prevent released storage reuse.
 
 The [equivalence audit](EquivalenceAudit.md) separates implementation from validation.
-After consolidation, both stock editors verified their canonical package paths and
+In the earlier port, both stock editors verified their canonical package paths and
 default submission availability, without a custom handler. The Unity 2022 six-suite
 aggregate passed, and its rebuilt Windows Player passed two GPU transform checks and
 30 production wind frames. Unity 6 passed

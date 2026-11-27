@@ -1,8 +1,7 @@
 # Fraxinus GPU Batcher
 
-GPU instance registration and culling for Unity 2022.3 and Unity 6 with Fraxinus RP.
-Unity 6 submits native BRG indirect camera and shadow draws. On Windows x64 the
-custom Unity 2022.3.62f3 editor supports indexed camera draws on D3D11 and Vulkan.
+GPU instance registration, culling and native BRG indirect drawing for Unity 6 with Fraxinus RP.
+In Unity 2022.3, scene components stay available for serialization and ordinary renderers draw their own objects.
 Runtime types use `Fraxinus.GPUBatcher`; editor tools use `Fraxinus.GPUBatcher.Editor`.
 
 C# naming follows Fraxinus RP: private/protected fields use `_camelCase`, private
@@ -23,15 +22,11 @@ visibility buffers and indirect argument generation. Config, camera/prototype se
 GameObject registration, baked groups, terrain trees/details and editor tools retain
 the reference workflow.
 
-Both versions build camera and shadow visibility lists and indirect arguments. The
-runtime asmdef enables `FRAXINUS_BRG_INDIRECT_API` on Unity 6. `BRGIndirectSubmission`
-copies the shared draw descriptors into native BRG output there. On Windows with the
-custom 2022 editor, D3D11 records compatible opaque Ultra/Lit draws inside Fraxinus
-raster passes using the original GPU visibility and argument buffers. Vulkan does
-the same for eligible batches of tracked Ultra/Lit materials in the main deferred camera and hands other
-batches to its native receiver. `GPUBatcherRenderer.canSubmitDraws`
-reports the active backend's capability. Terrain registration also checks the source
-materials and shadow configuration before taking over native foliage.
+Unity 6 submits the generated camera and shadow draw descriptors to its native BRG API.
+Check `GPUBatcherRenderer.canSubmitDraws` before acquiring the renderer or registering instances.
+In earlier editors and players this property is false and `GPUBatcherRenderer.instance` is null.
+
+## Unity 6 configuration and diagnostics
 
 Edit the active configuration in **Edit > Project Settings > Graphics > Fraxinus GPU Batcher**.
 The page edits the same asset used by the Player. Configuration is discovered or created automatically under
@@ -53,7 +48,7 @@ uses a complete depth prepass before opaques. The atlas normalizes device depth 
 near=1/far=0, handles depth/UV conventions and resolves MSAA 2D or array depth using
 the farthest sample. Per-camera retest state survives interleaved camera/shadow work.
 
-Baked occlusion uses Unity 2022's native `CullingGroup` with spheres enclosing each
+Baked occlusion uses Unity's native `CullingGroup` with spheres enclosing each
 chunk. Results are captured after the same camera's native cull and applied before
 GPU upload. This is conservative relative to the reference AABB query; camera
 occlusion does not filter shadow candidates.
@@ -72,17 +67,7 @@ mono safety gate; extending the render pipeline to XR is outside this package up
 Native branch/leaf wind values may be zero before the engine's first wind update;
 the suite checks complete current/history parameter families after simulation advances.
 
-Maintain package code only in
-`D:/projects/unityProjects/Duckov-Recovered/ExportedProject/Packages`. Validation
-projects resolve those directories through local UPM `file:` dependencies. Shared-source
-regressions passed in both editors: the 2022 six-suite run and rebuilt Player's two
-GPU transform checks/30 wind frames, plus Unity 6's four algorithm suites, 28 native
-BRG checks and five actual graph image cases. Those pre-plugin runs used stock engines
-without a custom handler: submission was unavailable in 2022 and available in Unity 6.
-Recorded results are kept in the independent `Fraxinus-Unity6-Validation` project's
-`Validation/Results/UnifiedPackages`.
-
-These recorded results belong to the revisions tested.
+Earlier validation results are documented in the equivalence audit for the revisions tested.
 
 See [port notes](Documentation~/Port.md) and the
 [equivalence audit](Documentation~/EquivalenceAudit.md) for mapping, validation and

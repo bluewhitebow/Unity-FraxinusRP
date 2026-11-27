@@ -15,7 +15,10 @@ import's token-equality counts are not a completion metric. `SourceAudit.json` r
 the audited snapshot's hashes and validation results. Package-owned compatibility
 code also requires runtime checks beyond the reference-file comparison.
 
-## Restored source behavior
+## Unity 6 GPU Batcher behavior
+
+The registration, culling, HZB and wind paths described below run on Unity 6.
+In Unity 2022 the original Terrain and GameObject renderers keep ownership.
 
 - Config discovery/creation, shader resource repair and Player Settings preloading.
   Project config storage uses writable `Assets/FraxinusGPUBatcherData`.
@@ -52,8 +55,8 @@ field equality does not permit casting the descriptor to Unity's native ABI.
 
 | Area | Port behavior / reason |
 | --- | --- |
-| Indirect native output | Unity 6 enables `FRAXINUS_BRG_INDIRECT_API` and writes native camera and shadow draws. The custom Win64 Unity 2022.3.62f3 Vulkan editor submits indexed draws through its BRG writer. Stock Unity 2022 builds visibility and arguments. |
-| SpeedTree native wind | Available Unity 2022 `Tree` rendering captures current/history constants through two private native capture passes and GPU copy. Source mesh and Tree/LOD hierarchy are preserved. The original managed wind-manager binding remains absent. |
+| Indirect native output | Unity 6 submits native camera and shadow draws through BRG. Earlier versions leave rendering to the original scene renderers. |
+| SpeedTree native wind | The Unity 6 batcher uses `Tree` rendering to capture current/history constants through two private native capture passes and a GPU copy. It preserves the source mesh and Tree/LOD hierarchy. |
 | SpeedTree initialization/cost | Native branch/leaf values can remain zero before the first engine wind update; full parameter families are checked after simulation advances. Each distinct retained native source/prototype adds two capture passes per rendering context plus the slot copy. |
 | Baked Umbra query | Available native `CullingGroup` queries enclosing spheres after the current camera cull. Spheres can retain more chunks than the original native AABB query. Camera results do not filter shadow candidates. |
 | Pipeline | Fraxinus graph hooks, shader tags/includes and depth resolving replace URP/HDRP integration. Lighting/output depends on Fraxinus. |
@@ -62,7 +65,7 @@ field equality does not permit casting the descriptor to Unity's native ABI.
 | HZB lifetime | Immutable build snapshots and per-camera retained retest contexts. Camera uniforms/output buffers are rebound after other camera/shadow work, replacing the previous skip-on-interleave behavior. First-split retest remains as in the source. |
 | Cleanup | Idempotent disposal and job/context cleanup prevent use of released containers. |
 | Editor/assets | Fraxinus names/menus/resource paths; source demo/logo/help assets and URP/HDRP package patchers omitted. Debug sphere uses a Fraxinus Lit shader rather than generated URP/HDRP auxiliary passes. |
-| Shared source/API selection | Both editors resolve the same package directories. Shadow APIs, categorization aliases and GraphView overrides use version macros; GPUDriven compilation uses its `.asmdef` constraint. Storage, culling, HZB and wind code is shared. |
+| Package layout and API selection | Each project uses its own embedded packages. Version macros select the engine-specific rendering APIs. |
 
 The single ObjectDispatcher wrapper uses the common
 `Unity.InternalAPIEngineBridge.024` friend identity and native query signatures
@@ -71,23 +74,17 @@ The metadata comparison in `NativeCapabilities.json` records the newer wind and
 BRG AABB bindings that are absent in that engine. The compatibility paths use
 `Tree` rendering and `CullingGroup`; they do not create new managed/native bindings.
 
-## Shared-source validation status
+## Historical shared-source validation
 
-All maintained package files now live in
-`D:/projects/unityProjects/Duckov-Recovered/ExportedProject/Packages`. Both validation
-projects use local UPM `file:` references. Validation checked the actual resolved
-paths for GPU Batcher, Fraxinus RP, Core and Shader Graph. The recorded stock-engine
-runs had no custom handler: submission was unavailable in 2022 and available in Unity 6.
-These results do not validate a custom engine backport or a newly registered handler.
-
-The consolidated source has passed:
+At the time of these runs, both validation projects used local UPM `file:` references
+to a consolidated package directory. The following results apply to that revision.
 
 - Unity 2022's six-suite aggregate and a rebuilt Windows Player with two GPU transform
   readbacks and 30 production-context wind frames.
 - Unity 6 compilation, four algorithm suites, 28 native BRG checks and five actual
   Fraxinus graph image cases covering history/retest occlusion and visibility recovery.
 - Both editors' shared-path checks: GPU Batcher, Fraxinus RP, Core and Shader Graph
-  resolve to the canonical directories; default submission availability was false in
+  resolved to the canonical directories. Default submission availability was false in
   stock 2022.3.62f3 and true in stock 6000.0.85f2, with no custom handler registered.
 
 Recorded results are retained in the independent `Fraxinus-Unity6-Validation`
@@ -133,8 +130,8 @@ The earlier independent Unity 6 snapshot also passed native camera color/depth/s
 draw checks and five actual Fraxinus graph history/retest image cases. Its graph uses
 the ten package nodes, reconnecting opaque -> sky -> post while omitting six unavailable
 `TeamSoda.Duckov.Core` nodes. Former package copies are archived under
-`Validation/Backups/BeforeSharedPackages-*`; new results must validate the canonical
-source rather than those archived copies.
+`Validation/Backups/BeforeSharedPackages-*`. To validate a current Duckov project,
+run the checks against its embedded packages.
 
 The independent validation project's README lists its retained test entry points.
 Conditional compilation against Editor dependency DLLs is not a Player build. Native

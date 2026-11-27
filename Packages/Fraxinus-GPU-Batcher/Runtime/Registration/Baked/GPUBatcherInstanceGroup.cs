@@ -102,18 +102,6 @@ namespace Fraxinus.GPUBatcher
             base.OnEnable();
         }
 
-        protected override bool SupportsD3D11Registration()
-        {
-            if (!Rendering.D3D11SourceSupport.SupportsCameraPasses || _signatures == null) return false;
-            foreach (var signature in _signatures)
-            {
-                if (signature?.lods == null) return false;
-                foreach (var lod in signature.lods)
-                    if (lod == null || !Rendering.D3D11SourceSupport.Supports(lod.materials)) return false;
-            }
-            return true;
-        }
-
         protected override void OnInitialize()
         {
             if (!_baked || _signatures == null || _signatures.Count == 0 || _instanceCount == 0) return;

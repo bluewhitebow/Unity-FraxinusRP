@@ -60,6 +60,8 @@ namespace Fraxinus.GPUBatcher
         Dictionary<int, int> _chunkIdToCachedIndex; // chunkId -> index in _cachedChunks
         ChunkLink _primaryChunk = ChunkLink.invalid; // first allocated chunk, used for AddInstance on clones
         readonly HashSet<GPUBatcherGameObjectLink> _trackedLinks = new(); // every wired link this group owns, cleared on Shutdown
+        readonly HashSet<Renderer> _hiddenRenderers = new();
+        readonly HashSet<LODGroup> _disabledLodGroups = new();
 
         public bool isConverted => _converted;
         public int chunkCount => _cachedChunks?.Length ?? 0;
@@ -92,20 +94,9 @@ namespace Fraxinus.GPUBatcher
             base.OnEnable();
         }
 
-        protected override bool SupportsD3D11Registration()
-        {
-            if (!Rendering.D3D11SourceSupport.SupportsCameraPasses) return false;
-            foreach (var prefab in _prototypeSources)
-                if (!Rendering.D3D11SourceSupport.Supports(prefab)) return false;
-            return true;
-        }
-
         protected override void OnInitialize()
         {
             if (!_converted || _cachedChunks == null || _cachedChunks.Length == 0) return;
-
-            // forceRenderingOff isn't serialized - re-apply each init
-            SetSourceRenderersHidden(true);
 
             if (_globalProtoIndices == null || _globalProtoIndices.Length != _prototypeSources.Count)
                 _globalProtoIndices = new int[_prototypeSources.Count];
@@ -173,9 +164,7 @@ namespace Fraxinus.GPUBatcher
 
         protected override void OnShutdown()
         {
-            // restore source renderers unless they're being torn down with the scene (play-mode unload/quit)
-            if (!Application.isPlaying || gameObject.scene.isLoaded)
-                SetSourceRenderersHidden(false);
+            ReleaseSourceRenderers();
 
             foreach (var link in _trackedLinks)
                 if (link != null) link.instanceLink = InstanceLink.invalid;
@@ -216,6 +205,7 @@ namespace Fraxinus.GPUBatcher
                 link.instanceLink = instanceLink;
                 link.group = this;
                 link.globalProtoIndex = globalProto; // refresh stale serialized value to current session
+                HideSourceRenderers(link.gameObject);
                 _trackedLinks.Add(link);
 #if UNITY_EDITOR
                 GPUBatcherSystem.SetEntityId(instanceLink.globalBRGSlotIndex,
@@ -308,8 +298,15 @@ namespace Fraxinus.GPUBatcher
                         ? _globalProtoIndices[srcProtoIdx] : -1;
 
                     if (!link.isValid) continue;
+                    if (goLink.globalProtoIndex < 0)
+                    {
+                        registration.SetEnabledUnsafe(link, false);
+                        goLink.instanceLink = InstanceLink.invalid;
+                        continue;
+                    }
 
                     _trackedLinks.Add(goLink);
+                    HideSourceRenderers(go);
 
                     if (!goLink.shouldRender)
                         registration.SetEnabledUnsafe(link, false);
@@ -323,45 +320,47 @@ namespace Fraxinus.GPUBatcher
             }
         }
 
-        void SetSourceRenderersHidden(bool hidden)
+        void ReleaseSourceRenderers()
         {
-            if (hidden && Rendering.D3D11SourceSupport.requiresValidation && !SupportsD3D11Registration()) return;
-            foreach (var go in _sourceObjects)
-            {
-                if (go == null) continue;
-                HideSourceRenderers(go, hidden);
-            }
+            // Only undo changes made by this group. Serialized source lists do not
+            // record which LODs/renderers were already disabled by the author.
+            foreach (var renderer in _hiddenRenderers)
+                if (renderer && renderer.gameObject.scene.isLoaded) renderer.forceRenderingOff = false;
+            foreach (var lodGroup in _disabledLodGroups)
+                if (lodGroup && lodGroup.gameObject.scene.isLoaded) lodGroup.enabled = true;
+            _hiddenRenderers.Clear();
+            _disabledLodGroups.Clear();
         }
 
-        void HideSourceRenderers(GameObject go, bool hidden)
+        void HideSourceRenderers(GameObject go)
         {
-            // A culling-only registration never owns the source renderers or their LOD state.
-            if (!GPUBatcherRenderer.canSubmitDraws) return;
             var lodGroup = go.GetComponent<LODGroup>();
             if (lodGroup != null)
             {
-                // forceRenderingOff hides the renderers; disable the LODGroup itself only at runtime to skip
-                // its per-frame LOD work. play/build changes aren't serialized, so no prefab override is written.
-                if (!hidden) lodGroup.enabled = true; // restore + clear any legacy enabled=false override
-                else if (Application.isPlaying) lodGroup.enabled = false;
+                if (Application.isPlaying && lodGroup.enabled)
+                {
+                    _disabledLodGroups.Add(lodGroup);
+                    lodGroup.enabled = false;
+                }
                 var lods = lodGroup.GetLODs();
                 foreach (var lod in lods)
                 {
                     if (lod.renderers == null) continue;
                     foreach (var r in lod.renderers)
-                        if (r != null) HideRenderer(r, hidden);
+                        if (r != null) HideRenderer(r);
                 }
                 return;
             }
 
             if (go.TryGetComponent<MeshRenderer>(out var mr))
-                HideRenderer(mr, hidden);
+                HideRenderer(mr);
         }
 
-        static void HideRenderer(Renderer r, bool hidden)
+        void HideRenderer(Renderer renderer)
         {
-            r.forceRenderingOff = hidden;
-            if (!hidden) r.enabled = true; // restore + clear any legacy enabled=false override
+            if (renderer.forceRenderingOff) return;
+            _hiddenRenderers.Add(renderer);
+            renderer.forceRenderingOff = true;
         }
 
         internal void NotifyInstanceDestroyed(GPUBatcherGameObjectLink link)
@@ -493,6 +492,9 @@ namespace Fraxinus.GPUBatcher
 
         void OnValidate()
         {
+            // OnValidate can run on the loading thread. Device queries and cache
+            // mutations belong to the editor update on supported hardware.
+            if (!Rendering.BRGIndirectSubmission.hasNativeApi) return;
             if (!_prevFieldsInitialized)
             {
                 _prevChunkSize = _chunkSize;
@@ -552,7 +554,7 @@ namespace Fraxinus.GPUBatcher
             _pendingRebuild = false;
             bool needsProtos = _rebuildNeedsProtos;
             _rebuildNeedsProtos = false;
-            if (this == null || !_converted) return;
+            if (this == null || !_converted || !GPUBatcherRenderer.canSubmitDraws) return;
 
             // fast path: size/mode changed but prototypes didn't - re-chunk without the full rebuild
             if (!needsProtos && _registered && _sourceObjects.Count > 0
@@ -579,6 +581,7 @@ namespace Fraxinus.GPUBatcher
         // regroup + re-upload chunks without re-registering prototypes (skips the mesh re-combine)
         void RechunkInPlace()
         {
+            ReleaseSourceRenderers();
             // detach links and release chunks; prototypes stay registered
             foreach (var link in _trackedLinks)
                 if (link != null) link.instanceLink = InstanceLink.invalid;
@@ -599,6 +602,7 @@ namespace Fraxinus.GPUBatcher
 
         public void ConvertChildren()
         {
+            if (!GPUBatcherRenderer.canSubmitDraws) return;
             if (_converted) return;
 
             _sourceObjects.Clear();
@@ -616,7 +620,6 @@ namespace Fraxinus.GPUBatcher
                 return;
             }
 
-            SetSourceRenderersHidden(true);
             AddInstanceLinks();
             BuildCache();
             _converted = true;
@@ -627,6 +630,7 @@ namespace Fraxinus.GPUBatcher
 
         public void ConvertObjects(GameObject[] objects)
         {
+            if (!GPUBatcherRenderer.canSubmitDraws) return;
             if (_converted) return;
 
             _sourceObjects.Clear();
@@ -646,7 +650,6 @@ namespace Fraxinus.GPUBatcher
                 return;
             }
 
-            SetSourceRenderersHidden(true);
             AddInstanceLinks();
             BuildCache();
             _converted = true;
@@ -658,7 +661,7 @@ namespace Fraxinus.GPUBatcher
         public void RevertToGameObjects()
         {
             Shutdown();
-            SetSourceRenderersHidden(false);
+            ReleaseSourceRenderers();
             RemoveInstanceLinks();
             _sourceObjects.Clear();
             _sourceProtoIndices.Clear();
@@ -670,7 +673,7 @@ namespace Fraxinus.GPUBatcher
 
         public void Refresh()
         {
-            if (!_converted) return;
+            if (!_converted || !GPUBatcherRenderer.canSubmitDraws) return;
             CleanNullSourceObjects();
             Shutdown();
             BuildCache();
@@ -680,6 +683,7 @@ namespace Fraxinus.GPUBatcher
 
         public void RegisterNewChildren()
         {
+            if (!GPUBatcherRenderer.canSubmitDraws) return;
             if (!_converted) return;
 
             var existingSet = new HashSet<GameObject>(_sourceObjects);
@@ -704,13 +708,10 @@ namespace Fraxinus.GPUBatcher
                 return;
             }
 
-            bool hideNewSources = !Rendering.D3D11SourceSupport.requiresValidation || SupportsD3D11Registration();
             for (int i = prevCount; i < _sourceObjects.Count; i++)
             {
                 var go = _sourceObjects[i];
                 if (go == null) continue;
-
-                if (hideNewSources) HideSourceRenderers(go, true);
 
                 var link = go.GetComponent<GPUBatcherGameObjectLink>();
                 if (link == null)

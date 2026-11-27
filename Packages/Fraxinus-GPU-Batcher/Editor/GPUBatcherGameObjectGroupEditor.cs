@@ -35,6 +35,13 @@ namespace Fraxinus.GPUBatcher.Editor
 
             var group = (GPUBatcherGameObjectGroup)target;
 
+            if (!GPUBatcherRenderer.canSubmitDraws)
+            {
+                EditorGUILayout.HelpBox("Regular renderers own these objects. GPU Batcher conversion requires Unity 6 and a compatible graphics device.", MessageType.Info);
+                if (group.isConverted) DrawRevertButton(group);
+                return;
+            }
+
             EditorGUILayout.PropertyField(_propDetectPrefabOverrides, s_detectOverrides);
             EditorGUILayout.PropertyField(_propChunkMode, s_chunkMode);
             var mode = (ChunkMode)_propChunkMode.enumValueIndex;
@@ -135,16 +142,21 @@ namespace Fraxinus.GPUBatcher.Editor
 
                 EditorGUILayout.Space();
 
-                GUI.color = new Color(1f, 0.7f, 0.7f);
-                if (GUILayout.Button("Revert to GameObjects", GUILayout.Height(24)))
-                {
-                    Undo.RecordObject(group, "Revert BRG GameObject Group");
-                    group.RevertToGameObjects();
-                    if (!Application.isPlaying)
-                        EditorSceneManager.MarkSceneDirty(group.gameObject.scene);
-                }
-                GUI.color = Color.white;
+                DrawRevertButton(group);
             }
+        }
+
+        static void DrawRevertButton(GPUBatcherGameObjectGroup group)
+        {
+            GUI.color = new Color(1f, 0.7f, 0.7f);
+            if (GUILayout.Button("Revert to GameObjects", GUILayout.Height(24)))
+            {
+                Undo.RecordObject(group, "Revert BRG GameObject Group");
+                group.RevertToGameObjects();
+                if (!Application.isPlaying)
+                    EditorSceneManager.MarkSceneDirty(group.gameObject.scene);
+            }
+            GUI.color = Color.white;
         }
 
         #region Hierarchy Context Menu
@@ -183,6 +195,7 @@ namespace Fraxinus.GPUBatcher.Editor
         // top-level selected GameObjects with a renderer/LODGroup, not already under a BRG registerer
         internal static GameObject[] GatherConvertSelection()
         {
+            if (!GPUBatcherRenderer.canSubmitDraws) return System.Array.Empty<GameObject>();
             var allSelected = Selection.gameObjects;
             var selectedSet = new HashSet<GameObject>(allSelected);
             var list = new List<GameObject>(allSelected.Length);
@@ -207,6 +220,7 @@ namespace Fraxinus.GPUBatcher.Editor
 
         internal static bool HasConvertibleSelection()
         {
+            if (!GPUBatcherRenderer.canSubmitDraws) return false;
             foreach (var go in Selection.gameObjects)
                 if (go.GetComponentInChildren<MeshRenderer>() != null || go.GetComponent<LODGroup>() != null)
                     return true;

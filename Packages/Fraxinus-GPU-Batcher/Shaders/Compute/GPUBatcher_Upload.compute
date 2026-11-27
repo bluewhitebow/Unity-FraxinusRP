@@ -75,10 +75,10 @@ uint _CopyCountUint4;   // number of 16-byte chunks
 uint _CopyTailUints;    // remaining 4-byte elements
 
 // copy a buffer region on GPU, uint4 bulk + uint tail for non-aligned remainders
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void CopyBufferRegion(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 {
-    uint id = GetLinearThreadId(gid, gi, 256);
+    uint id = GetLinearThreadId(gid, gi, THREADS_INSTANCES);
     if (id < _CopyCountUint4)
     {
         uint srcAddr = _CopySrcOffsetBytes + id * 16;
@@ -102,10 +102,10 @@ StructuredBuffer<uint> _SettleSlotIndices;
 uint _SettleCount;
 uint _SettlePrevMBaseBytes;   // = totalSlots * 2 * 48
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void SettleMotionVectors(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 {
-    uint id = GetLinearThreadId(gid, gi, 256);
+    uint id = GetLinearThreadId(gid, gi, THREADS_INSTANCES);
     if (id >= _SettleCount) return;
     uint slot = _SettleSlotIndices[id];
     uint slotBytes = slot * 48;
@@ -215,10 +215,10 @@ void ComputeMatrixForInstance(uint idx, uint totalSlots, uint prevMMode)
 // batched ComputeMatricesFromTRS for scattered slot indices
 uint _TRSBatchCount;
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void ComputeMatricesFromTRSBatched(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 {
-    uint id = GetLinearThreadId(gid, gi, 256);
+    uint id = GetLinearThreadId(gid, gi, THREADS_INSTANCES);
     if (id >= _TRSBatchCount) return;
     ComputeMatrixForInstance(_SettleSlotIndices[id], _TRSTotalSlots, _TRSPrevMMode);
 }
@@ -247,13 +247,13 @@ RWStructuredBuffer<InstanceRotationScale> _ClearRotScaleDst;
 StructuredBuffer<uint3> _BatchCmds;  // (srcOffset/unused, liveOffset, count)
 uint _BatchCmdCount;
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void BatchUploadInstances(uint3 gid : SV_GroupID, uint tid : SV_GroupIndex)
 {
     uint cmdIdx = GetLinearGroupId(gid);
     if (cmdIdx >= _BatchCmdCount) return;
     uint3 cmd = _BatchCmds[cmdIdx];
-    for (uint i = tid; i < cmd.z; i += 256)
+    for (uint i = tid; i < cmd.z; i += THREADS_INSTANCES)
     {
         StagedInstance s = _UploadStagedSrc[cmd.x + i];
         uint dstIdx = cmd.y + i;
@@ -284,10 +284,10 @@ struct TRSPatchEntry
 StructuredBuffer<TRSPatchEntry> _TRSPatchSrc;
 uint _TRSPatchCount;
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void TRSPatchInstances(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 {
-    uint id = GetLinearThreadId(gid, gi, 256);
+    uint id = GetLinearThreadId(gid, gi, THREADS_INSTANCES);
     if (id >= _TRSPatchCount) return;
     TRSPatchEntry p = _TRSPatchSrc[id];
 
@@ -310,17 +310,17 @@ void TRSPatchInstances(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
     _UploadInstanceDst[p.slotIndex] = inst;
 }
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void BatchComputeMatrices(uint3 gid : SV_GroupID, uint tid : SV_GroupIndex)
 {
     uint cmdIdx = GetLinearGroupId(gid);
     if (cmdIdx >= _BatchCmdCount) return;
     uint3 cmd = _BatchCmds[cmdIdx];
-    for (uint i = tid; i < cmd.z; i += 256)
+    for (uint i = tid; i < cmd.z; i += THREADS_INSTANCES)
         ComputeMatrixForInstance(cmd.y + i, _TRSTotalSlots, _TRSPrevMMode);
 }
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void BatchClearInstances(uint3 gid : SV_GroupID, uint tid : SV_GroupIndex)
 {
     uint cmdIdx = GetLinearGroupId(gid);
@@ -329,7 +329,7 @@ void BatchClearInstances(uint3 gid : SV_GroupID, uint tid : SV_GroupIndex)
     InstanceInput d = (InstanceInput)0;
     d.sigDensityPacked = 0xFFFFu; // signatureIndex = -1, densityHash = 0
     InstanceRotationScale rsZero = (InstanceRotationScale)0;
-    for (uint i = tid; i < cmd.z; i += 256)
+    for (uint i = tid; i < cmd.z; i += THREADS_INSTANCES)
     {
         uint dstIdx = cmd.y + i;
         _ClearInstanceDst[dstIdx] = d;
@@ -337,13 +337,13 @@ void BatchClearInstances(uint3 gid : SV_GroupID, uint tid : SV_GroupIndex)
     }
 }
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void BatchUploadInts(uint3 gid : SV_GroupID, uint tid : SV_GroupIndex)
 {
     uint cmdIdx = GetLinearGroupId(gid);
     if (cmdIdx >= _BatchCmdCount) return;
     uint3 cmd = _BatchCmds[cmdIdx];
-    for (uint i = tid; i < cmd.z; i += 256)
+    for (uint i = tid; i < cmd.z; i += THREADS_INSTANCES)
         _UploadIntDst[cmd.y + i] = _UploadIntSrc[cmd.x + i];
 }
 
@@ -351,24 +351,24 @@ RWStructuredBuffer<FadeState> _InitFadeDst;
 uint _InitFadeDstOffset;
 uint _InitFadeCount;
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void InitFadeStateTyped(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 {
-    uint id = GetLinearThreadId(gid, gi, 256);
+    uint id = GetLinearThreadId(gid, gi, THREADS_INSTANCES);
     if (id >= _InitFadeCount) return;
     _InitFadeDst[_InitFadeDstOffset + id] = PackFadeState(-1, -1, 0);
 }
 
 // batched fade state init: processes multiple (offset, count) commands in a single dispatch.
 // _BatchCmds[gid.x] = (unused, dstOffset, count). One thread group per command.
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void BatchInitFadeStates(uint3 gid : SV_GroupID, uint tid : SV_GroupIndex)
 {
     uint cmdIdx = GetLinearGroupId(gid);
     if (cmdIdx >= _BatchCmdCount) return;
     uint3 cmd = _BatchCmds[cmdIdx];
     FadeState f = PackFadeState(-1, -1, 0);
-    for (uint i = tid; i < cmd.z; i += 256)
+    for (uint i = tid; i < cmd.z; i += THREADS_INSTANCES)
         _InitFadeDst[cmd.y + i] = f;
 }
 
@@ -376,10 +376,10 @@ void BatchInitFadeStates(uint3 gid : SV_GroupID, uint tid : SV_GroupIndex)
 StructuredBuffer<ChunkInfo> _CopyChunkSrc;
 RWStructuredBuffer<ChunkInfo> _CopyChunkDst;
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void CopyChunkRegion(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 {
-    uint id = GetLinearThreadId(gid, gi, 256);
+    uint id = GetLinearThreadId(gid, gi, THREADS_INSTANCES);
     if (id >= _UploadCount) return;
     _CopyChunkDst[_UploadDstOffset + id] = _CopyChunkSrc[_UploadSrcOffset + id];
 }
@@ -388,10 +388,10 @@ void CopyChunkRegion(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 StructuredBuffer<FadeState> _CopyFadeSrc;
 RWStructuredBuffer<FadeState> _CopyFadeDst;
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void CopyFadeStateRegion(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 {
-    uint id = GetLinearThreadId(gid, gi, 256);
+    uint id = GetLinearThreadId(gid, gi, THREADS_INSTANCES);
     if (id >= _UploadCount) return;
     _CopyFadeDst[_UploadDstOffset + id] = _CopyFadeSrc[_UploadSrcOffset + id];
 }
@@ -400,10 +400,10 @@ void CopyFadeStateRegion(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 StructuredBuffer<InstanceInput> _CopyInstanceSrc;
 RWStructuredBuffer<InstanceInput> _CopyInstanceDst;
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void CopyInstanceBuffer(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 {
-    uint id = GetLinearThreadId(gid, gi, 256);
+    uint id = GetLinearThreadId(gid, gi, THREADS_INSTANCES);
     if (id >= _UploadCount) return;
     _CopyInstanceDst[_UploadDstOffset + id] = _CopyInstanceSrc[_UploadSrcOffset + id];
 }
@@ -412,10 +412,10 @@ void CopyInstanceBuffer(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 StructuredBuffer<InstanceRotationScale> _CopyRotScaleSrc;
 RWStructuredBuffer<InstanceRotationScale> _CopyRotScaleDst;
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void CopyRotScaleBuffer(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 {
-    uint id = GetLinearThreadId(gid, gi, 256);
+    uint id = GetLinearThreadId(gid, gi, THREADS_INSTANCES);
     if (id >= _UploadCount) return;
     _CopyRotScaleDst[_UploadDstOffset + id] = _CopyRotScaleSrc[_UploadSrcOffset + id];
 }
@@ -426,10 +426,10 @@ StructuredBuffer<uint> _ChunkStagingIndices;
 RWStructuredBuffer<ChunkInfo> _ChunkScatterDst;
 uint _ChunkScatterCount;
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void ScatterWriteChunks(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 {
-    uint id = GetLinearThreadId(gid, gi, 256);
+    uint id = GetLinearThreadId(gid, gi, THREADS_INSTANCES);
     if (id >= _ChunkScatterCount) return;
     _ChunkScatterDst[_ChunkStagingIndices[id]] = _ChunkStagingSrc[id];
 }
@@ -440,10 +440,10 @@ struct ColorEntry { uint slotIndex; uint packedColor; };
 StructuredBuffer<ColorEntry> _ColorStagingSrc;
 uint _ColorScatterCount;
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void ScatterWriteColors(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 {
-    uint id = GetLinearThreadId(gid, gi, 256);
+    uint id = GetLinearThreadId(gid, gi, THREADS_INSTANCES);
     if (id >= _ColorScatterCount) return;
     ColorEntry e = _ColorStagingSrc[id];
     _CopyDst.Store((_ColorRegionOffsetUint + e.slotIndex) * 4, e.packedColor);
@@ -454,10 +454,10 @@ struct SigOverrideEntry { uint slotIndex; int sigIdx; };
 StructuredBuffer<SigOverrideEntry> _SigOverrideSrc;
 uint _SigOverrideCount;
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void ScatterWriteSigOverrides(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 {
-    uint id = GetLinearThreadId(gid, gi, 256);
+    uint id = GetLinearThreadId(gid, gi, THREADS_INSTANCES);
     if (id >= _SigOverrideCount) return;
     SigOverrideEntry e = _SigOverrideSrc[id];
     InstanceInput inst = _UploadInstanceDst[e.slotIndex];
@@ -757,10 +757,10 @@ float3 _ShiftOffset;
 uint _ShiftCount;
 uint _ShiftTotalSlots;
 
-[numthreads(256,1,1)]
+[numthreads(THREADS_INSTANCES,1,1)]
 void ShiftAllInstances(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 {
-    uint id = GetLinearThreadId(gid, gi, 256);
+    uint id = GetLinearThreadId(gid, gi, THREADS_INSTANCES);
     if (id >= _ShiftCount) return;
 
     uint idx = id;

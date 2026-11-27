@@ -43,6 +43,7 @@ namespace Fraxinus.GPUBatcher
 
         public static void Initialize()
         {
+            if (!GPUBatcherRenderer.canSubmitDraws) return;
             Dispose();
             s_dispatcher = new NativeObjectChangeTracker();
         }

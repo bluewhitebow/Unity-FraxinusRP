@@ -108,6 +108,7 @@ namespace Fraxinus.GPUBatcher
         public bool Initialize()
         {
             if (isRegistered) return true;
+            if (!GPUBatcherRenderer.canSubmitDraws) return false;
 
             var instance = GPUBatcherRenderer.instance;
             if (instance == null)

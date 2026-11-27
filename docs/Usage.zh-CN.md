@@ -4,7 +4,7 @@
 
 使用 **Unity 2022.3**，其中 **2022.3.62f3** 与源工程一致。本仓库是一组 UPM 包，使用它们的 Unity 工程自行提供 `Assets`、`ProjectSettings` 和 `Packages/manifest.json`。
 
-本仓库包含 **ScriptableNode / UltraRP** 的四个配套包：Core、Light Transport、Shader Graph 和 FraxinusRP，以及可选的 **Fraxinus GPU Batcher**。下方配置安装全部五个包。GPU Batcher 在 Unity 2022.3 与 Unity 6 共用注册和剔除实现。Unity 6 使用原生 BRG 间接绘制。定制 Unity 2022.3.62f3 的 Win64 后端支持 D3D11 和 Vulkan 相机绘制。官方 2022.3 保留实时源对象的渲染。不需要 GPU Batcher 时，请省略 `com.bluewhitebow.fraxinus-gpu-batcher`。UltraRP 不依赖 URP。
+本仓库包含 **ScriptableNode / UltraRP** 的四个配套包：Core、Light Transport、Shader Graph 和 FraxinusRP，以及可选的 **Fraxinus GPU Batcher**。下方配置安装全部五个包。GPU Batcher 需要 Unity 6 以及支持原生 BRG 间接绘制的设备。在 Unity 2022.3 中，场景组件保留序列化数据，原有对象由 Unity 渲染。不需要 GPU Batcher 时，请省略 `com.bluewhitebow.fraxinus-gpu-batcher`。UltraRP 不依赖 URP。
 
 五个包目录与 Duckov-Recovered 中的对应源包保持一致，不再维护单独的代码适配。四个配套包及选装的 GPU Batcher 请使用同一提交中的版本。BRG 移植依赖 Core 的原生对象变化追踪封装、UltraRP 的剔除与逐节点注入钩子，以及 Shader Graph 的 SpeedTree 适配，仅匹配包版本号不足以保证兼容。
 
@@ -69,19 +69,19 @@ UltraRP 的 Target 内部 API 需要配套 Shader Graph 分支。它的版本仍
 
 ## 可选 GPU Batcher
 
-[Fraxinus GPU Batcher](../Packages/Fraxinus-GPU-Batcher/README.md) 在 Unity 2022.3 与 Unity 6 共用实例注册、存储、变换上传、相机／阴影剔除、LOD 和间接参数生成实现。**Unity 6 提交原生 BRG 相机及阴影间接绘制。** 官方 Unity 2022.3 的 `GPUBatcherRenderer.canSubmitDraws` 为 false，GameObject 和地形植被保留原生渲染。仅有烘焙数据或仅通过 API 创建的实例需要可用的提交后端。显式 Bake 仍会删除源子对象；已有烘焙组可用 Expand 重建 GameObject。
+在受支持的 Unity 6 设备上，GPU Batcher 注册实例、上传变换、剔除相机及阴影候选对象、选择 LOD 并提交原生 BRG 间接绘制。通过 API 注册实例前，请检查 `GPUBatcherRenderer.canSubmitDraws`。在 Unity 2022.3 或不受支持的设备上，该属性为 false，`GPUBatcherRenderer.instance` 返回 null，GameObject 和地形植被仍由 Unity 自身的渲染器绘制。详见 [GPU Batcher 包说明](../Packages/Fraxinus-GPU-Batcher/README.md)。
 
-定制 Unity 2022.3.62f3 的 Win64 编辑器和 Mono 播放器使用包内 NativeContract 插件。D3D11 在关闭实时阴影时，通过 Fraxinus 通道绘制兼容的不透明 Ultra/Lit 对象。未通过检查的地形保留 Unity 原生植被渲染。Vulkan 在主延迟相机中绘制符合条件且已登记的 Ultra/Lit 材质批次，其余批次由原生 Vulkan 插件绘制。升级时保留包内插件，清理工程中的旧副本，如 `Assets/Plugins/FraxinusNativeContract` 或另外复制的 `FraxinusBrgVulkan` 插件。旧的 `BRGIndirectSubmission.submitHandler` API 和 Android linker processor 已移除。详见 [GPU Batcher 移植说明](../Packages/Fraxinus-GPU-Batcher/Documentation~/Port.md)。
+从定制 Unity 2022 后端升级时，请清理项目中单独复制的旧 NativeContract 插件。已有的纯烘焙组可在检视面板中使用 **Expand** 恢复源 GameObject。仅通过 API 创建的实例需要受支持的 Unity 6 设备。在受支持的设备上执行 **Bake** 时，打包数据后会移除源子对象。详见 [GPU Batcher 移植说明](../Packages/Fraxinus-GPU-Batcher/Documentation~/Port.md)。
 
 自定义渲染注入模块应使用源接口，覆盖 `RenderPassInputSummary PrepareFrame(...)`。它替代此前仅在发布仓库使用的 `PrepareFrameResources(...)` 名称；更新五个包时，应一并更新自定义调用和覆盖方法。
 
 BRG 实现替换了旧 GPUInstancer 代码、Profile、公开 API 和可导入示例，不提供自动迁移。已有项目数据需要按新组件与配置重建；UPM 标识和 `0.1.0` 版本号不变，不代表这些契约仍兼容。
 
-通过 **Edit > Project Settings > Graphics > Fraxinus GPU Batcher** 编辑 Player 使用的配置。在 **Window > Analysis > Rendering Debugger** 的 **GPU Batcher** 面板调整剔除开关、查看 Scene 视图诊断；**Tools > Fraxinus GPU Batcher > System Window** 保留详细资源和缓冲检查。实时计数需要编译时启用 `DEBUG`。配置会在 `Assets/FraxinusGPUBatcherData/FraxinusGPUBatcherConfig.asset` 自动查找或创建，优先使用已有项目配置，修复 Shader 引用，并将选定配置加入 Player Settings 的 Preloaded Assets。GameObject 和地形注册改用新的 `GPUBatcher*`／`TerrainGPUBatcherRegisterer` 组件。
+在 Unity 6 中，通过 **Edit > Project Settings > Graphics > Fraxinus GPU Batcher** 编辑 Player 使用的配置。在 **Window > Analysis > Rendering Debugger** 的 **GPU Batcher** 面板调整剔除开关、查看 Scene 视图诊断；**Tools > Fraxinus GPU Batcher > System Window** 保留详细资源和缓冲检查。实时计数需要编译时启用 `DEBUG`。配置会在 `Assets/FraxinusGPUBatcherData/FraxinusGPUBatcherConfig.asset` 自动查找或创建，优先使用已有项目配置，修复 Shader 引用，并将选定配置加入 Player Settings 的 Preloaded Assets。GameObject 和地形注册改用新的 `GPUBatcher*`／`TerrainGPUBatcherRegisterer` 组件。
 
 Core、FraxinusRP 与 Shader Graph 必须使用同一修订的配套版本。Core 通过 `NativeObjectChangeTracker` 提供原生 ObjectDispatcher 追踪；RP 的 `InjectPass.ShouldExecute` 钩子让 HZB 历史选择最后一个受支持的不透明 Pass。Shader Graph 提供 SpeedTree 8 DOTS 风参数映射，并在 Player 构建中保留内部风捕获 Pass。BRG 包自己管理历史 HZB 与当前帧重测：历史在不透明渲染后生成，不要求完整预通道；重测会申请完整预通道深度。这替代了旧 GPU Batcher 对 `HiZDepthHistory` 的使用。
 
-两个版本都使用当前相机剔除得到的原生 `CullingGroup` 结果处理烘焙遮挡。包围每个 chunk 边界的球体提供保守可见性判断，相比原实现的 AABB 查询可能保留更多候选；相机遮挡不会过滤阴影候选。SpeedTree 风通过保留的隐藏原生 `Tree` 代理、两个私有捕获 Pass 和 GPU 复制获取当前／历史参数，不逐帧向 CPU 回读风数据。这些路径使用现有原生 API，Unity 2022 仍缺少原实现的 wind-manager 与 Umbra AABB 查询绑定。算法范围、验证边界和剩余引擎接口差异见[移植说明](../Packages/Fraxinus-GPU-Batcher/Documentation~/Port.md)与[等价性审查](../Packages/Fraxinus-GPU-Batcher/Documentation~/EquivalenceAudit.md)。
+在 Unity 6 中，GPU Batcher 使用当前相机剔除得到的原生 `CullingGroup` 结果处理烘焙遮挡。包围每个 chunk 边界的球体提供保守可见性判断，相比原实现的 AABB 查询可能保留更多候选；相机遮挡不会过滤阴影候选。SpeedTree 风通过保留的隐藏原生 `Tree` 代理、两个私有捕获 Pass 和 GPU 复制获取当前／历史参数，不逐帧向 CPU 回读风数据。算法范围、验证边界和剩余引擎接口差异见[移植说明](../Packages/Fraxinus-GPU-Batcher/Documentation~/Port.md)与[等价性审查](../Packages/Fraxinus-GPU-Batcher/Documentation~/EquivalenceAudit.md)。
 
 ## 常见配置问题
 

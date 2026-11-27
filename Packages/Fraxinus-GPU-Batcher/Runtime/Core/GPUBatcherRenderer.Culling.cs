@@ -740,7 +740,6 @@ namespace Fraxinus.GPUBatcher
         private Vector4[] _receiverCullPlanes = new Vector4[k_maxReceiverCullPlanes];
 
         // compute shader thread group sizes
-        private const int k_threadsInstances = 256;
         private const int k_threadsChunks = 64;
         private const int k_threadsFinalize = 64;
         private const int k_threadsReset = 64;
@@ -1262,7 +1261,7 @@ namespace Fraxinus.GPUBatcher
                     if (isPerProtoMode && _protoCrossfadeBuffer != null)
                         cmd.SetComputeBufferParam(_uploadShader, activeKernel, s_idProtoCrossfadeStates, _protoCrossfadeBuffer);
                     int animatedSlots = animatedPoolCount * k_poolSize;
-                    int fadeGroups = (int)math.ceil(animatedSlots / (float)k_threadsInstances);
+                    int fadeGroups = UploadGroupCount(animatedSlots);
 #if DEBUG
                     string fadeName = isPerProtoMode ? "FraxinusGPUBatcher.UpdateFadeStatesProto" : "FraxinusGPUBatcher.UpdateFadeStatesInst";
                     cmd.BeginSample(fadeName);
@@ -1882,7 +1881,7 @@ namespace Fraxinus.GPUBatcher
                             if (isPerProtoMode && _protoCrossfadeBuffer != null)
                                 _cullingCmd.SetComputeBufferParam(_uploadShader, activeKernel, s_idProtoCrossfadeStates, _protoCrossfadeBuffer);
                             int animatedSlots = animatedPoolCount * k_poolSize;
-                            int fadeGroups = (int)math.ceil(animatedSlots / (float)k_threadsInstances);
+                            int fadeGroups = UploadGroupCount(animatedSlots);
                             CmdDispatchUpload(_cullingCmd, isPerProtoMode ? "FraxinusGPUBatcher.UpdateFadeStatesProto" : "FraxinusGPUBatcher.UpdateFadeStatesInst",
                                 activeKernel, fadeGroups);
                         }
@@ -2169,7 +2168,6 @@ namespace Fraxinus.GPUBatcher
                 return dependency;
 #endif
 
-            // emit draw commands (same for both paths)
             EmitCameraDrawCommands(cullingOutput, viewSet);
 
             return dependency;
@@ -2314,7 +2312,7 @@ namespace Fraxinus.GPUBatcher
             }
 
             drawCommands->drawCommandCount = emitted;
-#if FRAXINUS_BRG_INDIRECT_API
+#if UNITY_6000_0_OR_NEWER
             drawCommands->indirectDrawCommandCount = 0;
 #endif
             drawCommands->visibleInstanceCount = emitted;
@@ -2322,7 +2320,7 @@ namespace Fraxinus.GPUBatcher
             drawCommands->drawRangeCount = 1;
             drawCommands->drawRanges[0] = new BatchDrawRange
             {
-#if FRAXINUS_BRG_INDIRECT_API
+#if UNITY_6000_0_OR_NEWER
                 drawCommandsType = BatchDrawCommandType.Direct,
 #endif
                 drawCommandsBegin = 0,
@@ -2338,7 +2336,7 @@ namespace Fraxinus.GPUBatcher
                     allDepthSorted = false
                 }
             };
-#if FRAXINUS_BRG_INDIRECT_API
+#if UNITY_6000_0_OR_NEWER
             drawCommands->indirectDrawCommands = null;
 #endif
             drawCommands->instanceSortingPositions = null;
@@ -2379,7 +2377,7 @@ namespace Fraxinus.GPUBatcher
 
         private unsafe void EmitCameraDrawCommands(BatchCullingOutput cullingOutput, CullingBufferSet viewSet)
         {
-            if (!BRGIndirectSubmission.isAvailable) return;
+#if UNITY_6000_0_OR_NEWER
             int totalCmdCount = _drawCommandCount;
             bool hasRanges = _cameraDrawRangeTemplate.IsCreated && _cameraDrawRangeCount > 0;
             int totalRangeCount = hasRanges ? _cameraDrawRangeCount : 1;
@@ -2409,6 +2407,7 @@ namespace Fraxinus.GPUBatcher
             }
 
             BRGIndirectSubmission.TrySubmit(in cullingOutput, new(commands, totalCmdCount), new(ranges, totalRangeCount));
+#endif
         }
 
         private static BatchDrawRange DefaultDrawRange(int commandCount, bool shadow) => new()
@@ -2490,7 +2489,7 @@ namespace Fraxinus.GPUBatcher
             BatchCullingOutput cullingOutput,
             CullingBufferSet shadowSet)
         {
-            if (!BRGIndirectSubmission.isAvailable) return;
+#if UNITY_6000_0_OR_NEWER
             int totalCmdCount = _shadowDrawCommandCount;
 
             // determine cascade count for this light
@@ -2559,6 +2558,7 @@ namespace Fraxinus.GPUBatcher
                 emittedRangeCount = 1;
             }
             BRGIndirectSubmission.TrySubmit(in cullingOutput, new(outPtr, cmdIdx), new(ranges, emittedRangeCount));
+#endif
         }
 
         #endregion

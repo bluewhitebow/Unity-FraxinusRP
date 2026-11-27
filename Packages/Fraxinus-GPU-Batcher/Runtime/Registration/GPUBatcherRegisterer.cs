@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.Rendering;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -16,7 +15,6 @@ namespace Fraxinus.GPUBatcher
     public abstract class GPUBatcherRegisterer : MonoBehaviour
     {
         private GPUBatcherRegistrationTracker _registration;
-        private bool _pendingCameraInitialization;
 
         public GPUBatcherRegistrationTracker registration
         {
@@ -40,6 +38,7 @@ namespace Fraxinus.GPUBatcher
 
         protected virtual void OnEnable()
         {
+            if (!GPUBatcherRenderer.canSubmitDraws) return;
 #if UNITY_EDITOR
             if (!Application.isPlaying)
             {
@@ -70,46 +69,13 @@ namespace Fraxinus.GPUBatcher
 
         public void Initialize()
         {
-            if (_registered) return;
-            if (Rendering.D3D11SourceSupport.requiresValidation && !SupportsD3D11Registration())
-            {
-                // Awake can precede SRP selection. Query the material pass layout once more
-                // after the first game camera has rendered with the active pipeline.
-                if (!_pendingCameraInitialization)
-                {
-                    _pendingCameraInitialization = true;
-                    RenderPipelineManager.endCameraRendering += InitializeAfterCamera;
-                }
-                return;
-            }
-            InitializeRegistration();
-        }
-
-        private void InitializeAfterCamera(ScriptableRenderContext context, Camera camera)
-        {
-            if (!camera || camera.cameraType != CameraType.Game) return;
-            CancelCameraInitialization();
-            if (isActiveAndEnabled && !_registered && SupportsD3D11Registration())
-                InitializeRegistration();
-        }
-
-        private void CancelCameraInitialization()
-        {
-            if (!_pendingCameraInitialization) return;
-            RenderPipelineManager.endCameraRendering -= InitializeAfterCamera;
-            _pendingCameraInitialization = false;
-        }
-
-        private void InitializeRegistration()
-        {
-            CancelCameraInitialization();
+            if (_registered || !GPUBatcherRenderer.canSubmitDraws) return;
             EnsureRegistration();
             _registration.Initialize();
         }
 
         public void Shutdown()
         {
-            CancelCameraInitialization();
             if (_registration == null) return;
             _registration.Shutdown();
         }
@@ -121,8 +87,6 @@ namespace Fraxinus.GPUBatcher
         protected abstract void OnInitialize();
 
         protected abstract void OnShutdown();
-
-        protected virtual bool SupportsD3D11Registration() => false;
 
         // fires sync during immediate writes, deferred after CommitDeferredWrites
         protected virtual void OnChunkWritten(int chunkId) { }
@@ -316,9 +280,9 @@ namespace Fraxinus.GPUBatcher
 
         protected virtual void OnDrawGizmosSelected()
         {
+            if (!_registered || GPUBatcherSystem == null) return;
             var config = GPUBatcherConfig.instance;
             if (config == null || !config.showChunkBounds) return;
-            if (!_registered || GPUBatcherSystem == null) return;
             DrawChunkBoundsGizmos(_registration, _registration.primaryChunkIds);
         }
 

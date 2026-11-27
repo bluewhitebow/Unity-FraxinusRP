@@ -10,6 +10,7 @@ namespace Fraxinus.GPUBatcher.Editor
     {
         static GPUBatcherConfigValidator()
         {
+            if (!Rendering.BRGIndirectSubmission.hasNativeApi) return;
             int count = GPUBatcherConfig.CountInPreloadedAssets();
             if (count > 1)
                 Debug.LogError($"GPUBatcherConfig: {count} configs found in Preloaded Assets! Only one should exist. Open any config asset in the Inspector to fix this.");
@@ -24,6 +25,7 @@ namespace Fraxinus.GPUBatcher.Editor
         [SettingsProvider]
         private static SettingsProvider CreateProjectSettings()
         {
+            if (!Rendering.BRGIndirectSubmission.hasNativeApi) return null;
             UnityEditor.Editor configEditor = null;
             return new SettingsProvider("Project/Graphics/Fraxinus GPU Batcher", SettingsScope.Project)
             {
@@ -40,6 +42,12 @@ namespace Fraxinus.GPUBatcher.Editor
 
         public override void OnInspectorGUI()
         {
+            if (!Rendering.BRGIndirectSubmission.hasNativeApi)
+            {
+                EditorGUILayout.HelpBox("GPU Batcher rendering requires Unity 6.", MessageType.Info);
+                return;
+            }
+
             var config = (GPUBatcherConfig)target;
             var preloaded = PlayerSettings.GetPreloadedAssets();
             int preloadedCount = CountPreloadedConfigs(preloaded);

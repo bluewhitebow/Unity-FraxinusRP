@@ -56,6 +56,7 @@ namespace Fraxinus.GPUBatcher
 
         void OnEnable()
         {
+            if (!GPUBatcherRenderer.canSubmitDraws) return;
             bool isClone = false;
 
             // detect clones from Instantiate (runtime - _instanceLink is memory-copied)

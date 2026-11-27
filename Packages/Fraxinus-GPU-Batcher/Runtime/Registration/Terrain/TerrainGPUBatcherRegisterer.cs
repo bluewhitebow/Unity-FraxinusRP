@@ -37,29 +37,11 @@ namespace Fraxinus.GPUBatcher
 
         private Terrain _terrain;
         private TerrainData _terrainData;
-        private bool _ownsFoliageRendering;
+        // Terrain serializes drawTreesAndFoliage even when changed by ExecuteAlways.
+        // Keep the ownership bit alongside it so that loading on another device can restore it.
+        [SerializeField, HideInInspector] private bool _ownsFoliageRendering;
 
-        public bool canUseIndirectRendering => GPUBatcherRenderer.canSubmitDraws &&
-            (!Rendering.D3D11SourceSupport.requiresValidation || SupportsD3D11Registration());
-
-        protected override bool SupportsD3D11Registration()
-        {
-            if (!Rendering.D3D11SourceSupport.SupportsCameraPasses) return false;
-            var terrain = GetComponent<Terrain>();
-            if (!terrain || !terrain.terrainData) return false;
-            foreach (var tree in terrain.terrainData.treePrototypes)
-                if (tree.prefab && !Rendering.D3D11SourceSupport.Supports(tree.prefab)) return false;
-            foreach (var detail in terrain.terrainData.detailPrototypes)
-            {
-                if (!detail.usePrototypeMesh || !detail.prototype) return false;
-                var prefab = detail.prototype;
-                if (prefab.TryGetComponent<GPUBatcherTerrainDetailOverride>(out var replacement) &&
-                    replacement.enabled && replacement.overridePrefab)
-                    prefab = replacement.overridePrefab;
-                if (!Rendering.D3D11SourceSupport.Supports(prefab)) return false;
-            }
-            return true;
-        }
+        public bool canUseIndirectRendering => GPUBatcherRenderer.canSubmitDraws;
 
         #endregion
 
@@ -89,6 +71,16 @@ namespace Fraxinus.GPUBatcher
 
         protected override void OnEnable()
         {
+            if (!gameObject.scene.IsValid()) return;
+            // During scene loading isLoaded may still be false. Restore a saved takeover
+            // before registration, including when this device or its compute assets are unavailable.
+            if (_ownsFoliageRendering)
+            {
+                _terrain = GetComponent<Terrain>();
+                if (_terrain != null) _terrain.drawTreesAndFoliage = true;
+                _ownsFoliageRendering = false;
+            }
+            if (!GPUBatcherRenderer.canSubmitDraws) return;
             s_activeRegisterers.Add(this);
 #if UNITY_EDITOR
             if (s_activeRegisterers.Count == 1)

@@ -33,7 +33,7 @@ namespace Fraxinus.GPUBatcher
         {
             get
             {
-                if (s_isShuttingDown)
+                if (s_isShuttingDown || !canSubmitDraws)
                     return null;
 
                 if (s_instance == null)
@@ -60,6 +60,7 @@ namespace Fraxinus.GPUBatcher
 
         public bool isInitialized => _initialized;
 
+        /// <summary>Whether this Unity version and graphics device support the batcher's native indirect draws.</summary>
         public static bool canSubmitDraws => Rendering.BRGIndirectSubmission.isAvailable;
 
         public static void Shutdown()
@@ -249,6 +250,12 @@ namespace Fraxinus.GPUBatcher
             return cs.HasKernel(name) ? cs.FindKernel(name) : -1;
         }
 
+        private static bool SupportsKernel(ComputeShader shader, string name)
+        {
+            int kernel = FindKernelSafe(shader, name);
+            return kernel >= 0 && shader.IsSupported(kernel);
+        }
+
         private void Initialize()
         {
             if (_disposed)
@@ -264,6 +271,14 @@ namespace Fraxinus.GPUBatcher
 
             _cullingShader = _config.cullingShader;
             _uploadShader = _config.uploadShader;
+
+            // Missing/stripped compute assets cannot replace source rendering. Check the
+            // required camera and upload kernels before allocating BRG or starting registration.
+            if (_cullingShader == null || _uploadShader == null ||
+                !SupportsKernel(_cullingShader, "ResetCullingState") || !SupportsKernel(_cullingShader, "CullChunks") ||
+                !SupportsKernel(_cullingShader, "CullInstances") || !SupportsKernel(_cullingShader, "FinalizeDrawArgs") ||
+                !SupportsKernel(_uploadShader, "BatchUploadInstances") || !SupportsKernel(_uploadShader, "BatchComputeMatrices"))
+                return;
 
             _brg = new BatchRendererGroup(OnPerformCulling, IntPtr.Zero);
 
@@ -328,6 +343,11 @@ namespace Fraxinus.GPUBatcher
 
                 // GPU buffer copy kernel
                 _copyBufferRegionKernel = FindKernelSafe(_uploadShader, "CopyBufferRegion");
+                if (_copyBufferRegionKernel >= 0)
+                {
+                    _uploadShader.GetKernelThreadGroupSizes(_copyBufferRegionKernel, out uint width, out _, out _);
+                    _uploadThreads = checked((int)width);
+                }
 
                 // typed upload kernels
                 _initFadeStateTypedKernel = FindKernelSafe(_uploadShader, "InitFadeStateTyped");
@@ -1159,7 +1179,7 @@ namespace Fraxinus.GPUBatcher
                 _uploadShader.SetBuffer(_shiftAllInstancesKernel, s_idInstancesRW, _instanceBuffer);
                 _uploadShader.SetBuffer(_shiftAllInstancesKernel, s_idCopyDst, _matrixBuffer);
 
-                DispatchSafe(_uploadShader, _shiftAllInstancesKernel, (totalSlots + 255) / 256);
+                DispatchSafe(_uploadShader, _shiftAllInstancesKernel, UploadGroupCount(totalSlots));
             }
 
             // shift chunk bounds

@@ -58,8 +58,10 @@ namespace Fraxinus.GPUBatcher.Editor
             EditorGUILayout.Space();
 
             if (!GPUBatcherRenderer.canSubmitDraws)
-                EditorGUILayout.HelpBox("This Unity version supports registration and culling only. Baked instances have no source renderers. " +
-                    "Use a GameObject Group to keep originals visible, or expand an existing bake for regular rendering.", MessageType.Warning);
+            {
+                EditorGUILayout.HelpBox("GPU Batcher rendering requires Unity 6 and a compatible graphics device. Expand an existing bake to use regular GameObjects.", MessageType.Info);
+                if (!group.isBaked) return;
+            }
 
             if (!group.isBaked)
             {

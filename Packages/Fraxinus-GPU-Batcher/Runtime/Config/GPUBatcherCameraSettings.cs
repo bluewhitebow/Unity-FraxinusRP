@@ -21,6 +21,7 @@ namespace Fraxinus.GPUBatcher
 
         private void OnEnable()
         {
+            if (!GPUBatcherRenderer.canSubmitDraws) return;
             camera = GetComponent<Camera>();
             s_activeInstances.Add(this);
         }

@@ -42,21 +42,17 @@ RWTexture2D<float> _HZBMipOut;
 // mips 5+: handled by tail kernel (separate dispatch).
 
 #define SPD_TILE 16
-#define SPD_THREADS (SPD_TILE * SPD_TILE)
+#if defined(SHADER_API_VULKAN) && (defined(UNITY_PLATFORM_ANDROID) || defined(SHADER_API_MOBILE))
+#define SPD_GROUP_Y 8
+#else
+#define SPD_GROUP_Y SPD_TILE
+#endif
 
-groupshared float s_spd[SPD_THREADS];
+groupshared float s_spd[SPD_TILE * SPD_TILE];
 
-[numthreads(SPD_TILE, SPD_TILE, 1)]
+[numthreads(SPD_TILE, SPD_GROUP_Y, 1)]
 void HZBDownscaleSPD(uint3 groupId : SV_GroupID, uint3 lid : SV_GroupThreadID)
 {
-    uint flatIdx = lid.y * SPD_TILE + lid.x;
-
-    // mip 0: each thread reduces 8x8 block from depth source via 16 GatherRed
-    uint2 mip0Coord = groupId.xy * SPD_TILE + lid.xy;
-    int4 bounds = _OccluderMipBounds[0];
-    // Partial workgroups repeat the active viewport edge instead of reading an
-    // unused part of an oversized render target into the higher pyramid levels.
-    uint2 srcBase = min(mip0Coord, uint2(bounds.zw) - 1) * 8;
     uint sourceWidth, sourceHeight;
 #ifdef HZB_SOURCE_TEXARRAY
     uint sourceSlices;
@@ -64,78 +60,49 @@ void HZBDownscaleSPD(uint3 groupId : SV_GroupID, uint3 lid : SV_GroupThreadID)
 #else
     _HZBSource.GetDimensions(sourceWidth, sourceHeight);
 #endif
-    // CPU descriptors need not match the GPU allocation under dynamic resolution.
+    // Use the actual allocation size under dynamic resolution.
     float2 invSrcSize = 1.0 / float2(sourceWidth, sourceHeight);
+    int4 bounds = _OccluderMipBounds[0];
 
-    float d = 1.0;
-    [unroll] for (uint gy = 0; gy < 4; gy++)
-    [unroll] for (uint gx = 0; gx < 4; gx++)
+    // Both variants fill the same logical tile. Mobile lanes cover two rows.
+    [unroll] for (uint y = lid.y; y < SPD_TILE; y += SPD_GROUP_Y)
     {
-        float2 uv = (float2(srcBase) + float2(gx * 2 + 1, gy * 2 + 1)) * invSrcSize;
-        float4 g = HZBCanonicalDepth(GATHER_HZB_SOURCE(uv));
-        d = min(d, min(min(g.x, g.y), min(g.z, g.w)));
+        uint2 mip0Coord = groupId.xy * SPD_TILE + uint2(lid.x, y);
+        uint2 srcBase = min(mip0Coord, uint2(bounds.zw) - 1) * 8;
+        float d = 1.0;
+        [unroll] for (uint gy = 0; gy < 4; gy++)
+        [unroll] for (uint gx = 0; gx < 4; gx++)
+        {
+            float2 uv = (float2(srcBase) + float2(gx * 2 + 1, gy * 2 + 1)) * invSrcSize;
+            float4 g = HZBCanonicalDepth(GATHER_HZB_SOURCE(uv));
+            d = min(d, min(min(g.x, g.y), min(g.z, g.w)));
+        }
+        s_spd[y * SPD_TILE + lid.x] = d;
+        if (mip0Coord.x < (uint)bounds.z && mip0Coord.y < (uint)bounds.w)
+            _HZBMipOut[mip0Coord + uint2(bounds.xy)] = d;
     }
 
-    if (mip0Coord.x < (uint)bounds.z && mip0Coord.y < (uint)bounds.w)
-        _HZBMipOut[mip0Coord + uint2(bounds.xy)] = d;
-
-    s_spd[flatIdx] = d;
-    GroupMemoryBarrierWithGroupSync();
-
-    // mip 1: 8x8 per group
-    if (lid.x < 8 && lid.y < 8)
+    // Reduce disjoint 2x2 blocks into their own top-left cells. This avoids
+    // overwriting another subgroup's input before that subgroup has read it.
+    [unroll] for (uint mip = 1; mip <= 4; ++mip)
     {
-        uint b = (lid.y * 2) * SPD_TILE + lid.x * 2;
-        d = min(min(s_spd[b], s_spd[b + 1]), min(s_spd[b + SPD_TILE], s_spd[b + SPD_TILE + 1]));
+        GroupMemoryBarrierWithGroupSync();
+        uint blockSize = 1u << mip;
+        uint tileSize = SPD_TILE / blockSize;
+        if (lid.x < tileSize && lid.y < tileSize)
+        {
+            uint cell = (lid.y * SPD_TILE + lid.x) * blockSize;
+            uint step = blockSize / 2;
+            uint row = step * SPD_TILE;
+            float d = min(min(s_spd[cell], s_spd[cell + step]),
+                          min(s_spd[cell + row], s_spd[cell + row + step]));
+            s_spd[cell] = d;
 
-        bounds = _OccluderMipBounds[1];
-        uint2 mipCoord = groupId.xy * 8 + lid.xy;
-        if (mipCoord.x < (uint)bounds.z && mipCoord.y < (uint)bounds.w)
-            _HZBMipOut[mipCoord + uint2(bounds.xy)] = d;
-
-        s_spd[flatIdx] = d;
-    }
-    GroupMemoryBarrierWithGroupSync();
-
-    // mip 2: 4x4 per group
-    if (lid.x < 4 && lid.y < 4)
-    {
-        uint b = (lid.y * 2) * SPD_TILE + lid.x * 2;
-        d = min(min(s_spd[b], s_spd[b + 1]), min(s_spd[b + SPD_TILE], s_spd[b + SPD_TILE + 1]));
-
-        bounds = _OccluderMipBounds[2];
-        uint2 mipCoord = groupId.xy * 4 + lid.xy;
-        if (mipCoord.x < (uint)bounds.z && mipCoord.y < (uint)bounds.w)
-            _HZBMipOut[mipCoord + uint2(bounds.xy)] = d;
-
-        s_spd[flatIdx] = d;
-    }
-    GroupMemoryBarrierWithGroupSync();
-
-    // mip 3: 2x2 per group
-    if (lid.x < 2 && lid.y < 2)
-    {
-        uint b = (lid.y * 2) * SPD_TILE + lid.x * 2;
-        d = min(min(s_spd[b], s_spd[b + 1]), min(s_spd[b + SPD_TILE], s_spd[b + SPD_TILE + 1]));
-
-        bounds = _OccluderMipBounds[3];
-        uint2 mipCoord = groupId.xy * 2 + lid.xy;
-        if (mipCoord.x < (uint)bounds.z && mipCoord.y < (uint)bounds.w)
-            _HZBMipOut[mipCoord + uint2(bounds.xy)] = d;
-
-        s_spd[flatIdx] = d;
-    }
-    GroupMemoryBarrierWithGroupSync();
-
-    // mip 4: 1x1 per group
-    if (lid.x == 0 && lid.y == 0)
-    {
-        d = min(min(s_spd[0], s_spd[1]), min(s_spd[SPD_TILE], s_spd[SPD_TILE + 1]));
-
-        bounds = _OccluderMipBounds[4];
-        uint2 mipCoord = groupId.xy;
-        if (mipCoord.x < (uint)bounds.z && mipCoord.y < (uint)bounds.w)
-            _HZBMipOut[mipCoord + uint2(bounds.xy)] = d;
+            int4 dstBounds = _OccluderMipBounds[mip];
+            uint2 coord = groupId.xy * tileSize + lid.xy;
+            if (coord.x < (uint)dstBounds.z && coord.y < (uint)dstBounds.w)
+                _HZBMipOut[coord + uint2(dstBounds.xy)] = d;
+        }
     }
 }
 

@@ -19,6 +19,12 @@ namespace Fraxinus.GPUBatcher
     /// </summary>
     public partial class GPUBatcherRenderer
     {
+        // Linear upload kernels share THREADS_INSTANCES. Query the compiled width at startup.
+        private int _uploadThreads = 256;
+
+        private int UploadGroupCount(int count) =>
+            count > 0 ? 1 + (count - 1) / _uploadThreads : 0;
+
         #region Upload Fields
 
         // staging capacities - fixed size, flush on full, never resize
@@ -278,7 +284,7 @@ namespace Fraxinus.GPUBatcher
             _uploadShader.SetInt(s_idCopyCountUint4, countUint4);
             _uploadShader.SetInt(s_idCopyTailUints, tailUints);
 
-            DispatchSafe(_uploadShader, _copyBufferRegionKernel, (totalThreads + 255) / 256);
+            DispatchSafe(_uploadShader, _copyBufferRegionKernel, UploadGroupCount(totalThreads));
         }
 
         // _TRSPrevMMode: how the matrix kernel updates PrevM. snapshotting is NOT done here - the settle kernel solely owns PrevM
@@ -308,7 +314,7 @@ namespace Fraxinus.GPUBatcher
             _uploadShader.SetInt(s_idTrsTotalSlots, totalInstanceSlots);
             _uploadShader.SetInt(s_idTrsPrevMMode, prevMMode);
 
-            DispatchSafe(_uploadShader, _computeMatricesBatchedKernel, (count + 255) / 256);
+            DispatchSafe(_uploadShader, _computeMatricesBatchedKernel, UploadGroupCount(count));
             return true;
         }
 
@@ -322,7 +328,7 @@ namespace Fraxinus.GPUBatcher
             _uploadShader.SetInt(s_idUploadSrcOffset, srcOffset);
             _uploadShader.SetInt(s_idUploadDstOffset, dstOffset);
             _uploadShader.SetInt(s_idUploadCount, count);
-            DispatchSafe(_uploadShader, kernel, (count + 255) / 256);
+            DispatchSafe(_uploadShader, kernel, UploadGroupCount(count));
         }
 
         private void DispatchTypedInit(int kernel, int dstBufId, GraphicsBuffer dst,
@@ -332,7 +338,7 @@ namespace Fraxinus.GPUBatcher
             _uploadShader.SetBuffer(kernel, dstBufId, dst);
             _uploadShader.SetInt(offsetId, offset);
             _uploadShader.SetInt(countId, count);
-            DispatchSafe(_uploadShader, kernel, (count + 255) / 256);
+            DispatchSafe(_uploadShader, kernel, UploadGroupCount(count));
         }
 
         // copy 20B InstanceInput between buffers
@@ -372,7 +378,7 @@ namespace Fraxinus.GPUBatcher
             _uploadShader.SetBuffer(_scatterWriteChunksKernel, s_idChunkScatterDst, dst);
             _uploadShader.SetInt(s_idChunkScatterCount, count);
 
-            DispatchSafe(_uploadShader, _scatterWriteChunksKernel, (count + 255) / 256);
+            DispatchSafe(_uploadShader, _scatterWriteChunksKernel, UploadGroupCount(count));
         }
 
         private void GPUBatchUploadInstances(GraphicsBuffer cmdBuffer, int cmdCount,
@@ -395,7 +401,7 @@ namespace Fraxinus.GPUBatcher
             _uploadShader.SetBuffer(_trsPatchInstancesKernel, s_idUploadRotScaleDst, _instanceRotScaleBuffer);
             _uploadShader.SetBuffer(_trsPatchInstancesKernel, s_idCopyDst, _matrixBuffer); // OTW position recovery
             _uploadShader.SetInt(s_idTrsPatchCount, patchCount);
-            DispatchSafe(_uploadShader, _trsPatchInstancesKernel, (patchCount + 255) / 256);
+            DispatchSafe(_uploadShader, _trsPatchInstancesKernel, UploadGroupCount(patchCount));
         }
 
         private void GPUBatchComputeMatrices(GraphicsBuffer cmdBuffer, int cmdCount,
@@ -464,7 +470,7 @@ namespace Fraxinus.GPUBatcher
             _uploadShader.SetInt(s_idSettleCount, count);
             _uploadShader.SetInt(s_idSettlePrevMBaseBytes, totalSlots * 2 * k_sizeOfPackedMatrix);
 
-            DispatchSafe(_uploadShader, _settleMotionVectorsKernel, (count + 255) / 256);
+            DispatchSafe(_uploadShader, _settleMotionVectorsKernel, UploadGroupCount(count));
         }
 
         // dispatch upload shader with profiler markers
@@ -823,7 +829,7 @@ namespace Fraxinus.GPUBatcher
             _uploadShader.SetBuffer(_scatterWriteColorsKernel, s_idCopyDst, _matrixBuffer);
             _uploadShader.SetInt(_ColorScatterCount, count);
             _uploadShader.SetInt(_ColorRegionOffsetUint, _colorRegionByteOffset / 4);
-            DispatchSafe(_uploadShader, _scatterWriteColorsKernel, (count + 255) / 256);
+            DispatchSafe(_uploadShader, _scatterWriteColorsKernel, UploadGroupCount(count));
         }
 
         private void FlushChunkMetadataUploads()
@@ -1468,7 +1474,7 @@ namespace Fraxinus.GPUBatcher
             _uploadShader.SetBuffer(_scatterWriteSigOverridesKernel, s_idSigOverrideSrc, src);
             _uploadShader.SetBuffer(_scatterWriteSigOverridesKernel, s_idUploadInstanceDst, _instanceBuffer);
             _uploadShader.SetInt(s_idSigOverrideCount, count);
-            DispatchSafe(_uploadShader, _scatterWriteSigOverridesKernel, (count + 255) / 256);
+            DispatchSafe(_uploadShader, _scatterWriteSigOverridesKernel, UploadGroupCount(count));
         }
 
         /// <summary>Sets position directly; use <see cref="GPUBatcherRegistrationTracker"/> to coalesce repeated patches.</summary>

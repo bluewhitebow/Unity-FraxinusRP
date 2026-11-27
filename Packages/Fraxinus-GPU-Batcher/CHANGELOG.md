@@ -2,10 +2,7 @@
 
 ## [Unreleased]
 
-- Added indexed BRG submission for the custom Windows x64 Unity 2022.3.62f3
-  Vulkan editor. It uses the engine's output writer, the matching native receiver
-  and the Fraxinus indirect-visibility shader variant. Stock Unity 2022 retains
-  registration, GPU culling and argument generation. Unity 6 uses its native API.
+- Limited GPU Batcher initialization, registration and indirect submission to Unity 6. Earlier engines use their scene renderers. Removed the custom 2022 backends and their native plugins.
 
 ## Earlier port revisions
 

@@ -3,6 +3,7 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
@@ -18,6 +19,7 @@ namespace Fraxinus.GPUBatcher
         public void Bake()
         {
             if (_baked) return;
+            if (GPUBatcherRenderer.instance?.isInitialized != true) return;
 
             var keyToIndex = new Dictionary<long, int>();
             _signatures.Clear();
@@ -104,29 +106,48 @@ namespace Fraxinus.GPUBatcher
         {
             if (!_baked || _instanceBlob == null || _instanceBlob.Length == 0) return;
 
-            Shutdown();
-
-            var bytes = new NativeArray<byte>(_instanceBlob, Allocator.Temp);
+            if (_instanceCount <= 0 || (long)_instanceCount * UnsafeUtility.SizeOf<PackedInstance>() != _instanceBlob.Length)
+            {
+                Debug.LogWarning("GPUBatcherInstanceGroup: inconsistent baked instance count. The original bake was kept.", this);
+                return;
+            }
+            using var bytes = new NativeArray<byte>(_instanceBlob, Allocator.Temp);
             var instances = bytes.Reinterpret<PackedInstance>(1);
-            float3 parentScale = transform.lossyScale;
+            var checkedSignatures = new HashSet<int>();
             for (int i = 0; i < instances.Length; i++)
             {
-                var inst = instances[i];
-                if (inst.protoIndex < 0 || inst.protoIndex >= _signatures.Count) continue;
-
-                var go = ReconstructInstance(_signatures[inst.protoIndex]);
-                if (go == null) continue;
-
-                go.transform.SetParent(transform, worldPositionStays: false);
-                go.transform.SetPositionAndRotation(inst.position, inst.rotation);
-                // lossyScale -> localScale (assumes no skew on parent)
-                go.transform.localScale = new Vector3(
-                    parentScale.x != 0 ? inst.scale.x / parentScale.x : inst.scale.x,
-                    parentScale.y != 0 ? inst.scale.y / parentScale.y : inst.scale.y,
-                    parentScale.z != 0 ? inst.scale.z / parentScale.z : inst.scale.z);
+                int proto = instances[i].protoIndex;
+                if (!checkedSignatures.Add(proto)) continue;
+                if (_signatures != null && proto >= 0 && proto < _signatures.Count && CanReconstruct(_signatures[proto])) continue;
+                Debug.LogWarning($"GPUBatcherInstanceGroup: cannot restore prototype {proto}. Repair its prefab or mesh references and retry. The original bake was kept.", this);
+                return;
             }
-            bytes.Dispose();
 
+            var created = new List<GameObject>(instances.Length);
+            try
+            {
+                float3 parentScale = transform.lossyScale;
+                for (int i = 0; i < instances.Length; i++)
+                {
+                    var inst = instances[i];
+                    var go = ReconstructInstance(_signatures[inst.protoIndex], created);
+                    go.transform.SetParent(transform, worldPositionStays: false);
+                    go.transform.SetPositionAndRotation(inst.position, inst.rotation);
+                    // lossyScale -> localScale (assumes no skew on parent)
+                    go.transform.localScale = new Vector3(
+                        parentScale.x != 0 ? inst.scale.x / parentScale.x : inst.scale.x,
+                        parentScale.y != 0 ? inst.scale.y / parentScale.y : inst.scale.y,
+                        parentScale.z != 0 ? inst.scale.z / parentScale.z : inst.scale.z);
+                }
+            }
+            catch (System.Exception e)
+            {
+                foreach (var go in created)
+                    if (go != null) DestroyImmediate(go);
+                Debug.LogException(e, this);
+                return;
+            }
+            Shutdown();
             _instanceBlob = System.Array.Empty<byte>();
             _instanceCount = 0;
             _signatures.Clear();
@@ -136,14 +157,37 @@ namespace Fraxinus.GPUBatcher
 
         // rebuild an editable GameObject from a snapshot using the stored source meshes directly (no
         // recombine - one renderer per source mesh at its matrix), reconstructing the original LOD layout.
-        GameObject ReconstructInstance(BakedSignature sig)
+        static bool CanReconstruct(BakedSignature sig)
+        {
+            if (sig == null) return false;
+            if (sig.sourcePrefab != null) return true;
+            if (sig.lods == null) return false;
+            bool hasMesh = false;
+            foreach (var lod in sig.lods)
+            {
+                if (lod == null) return false;
+                if (lod.directMesh != null) { hasMesh = true; continue; }
+                if (lod.sourceMeshes == null) return false;
+                foreach (var mesh in lod.sourceMeshes)
+                {
+                    if (mesh == null) return false;
+                    hasMesh = true;
+                }
+            }
+            return hasMesh;
+        }
+
+        GameObject ReconstructInstance(BakedSignature sig, List<GameObject> created)
         {
             if (sig.sourcePrefab != null)
-                return (GameObject)PrefabUtility.InstantiatePrefab(sig.sourcePrefab);
-
-            if (sig.lods == null || sig.lods.Length == 0) return null;
+            {
+                var instance = (GameObject)PrefabUtility.InstantiatePrefab(sig.sourcePrefab, gameObject.scene);
+                created.Add(instance);
+                return instance;
+            }
 
             var root = new GameObject("BakedInstance") { layer = sig.layer };
+            created.Add(root);
 
             // single LOD: renderers directly under the root, no LODGroup
             if (sig.lods.Length == 1)

@@ -167,6 +167,7 @@ namespace Fraxinus.GPUBatcher
         [UnityEditor.InitializeOnLoadMethod]
         private static void EditorStaticInitialize()
         {
+            if (!GPUBatcherRenderer.canSubmitDraws) return;
             UnityEditor.Undo.undoRedoPerformed -= OnGlobalUndoRedo;
             UnityEditor.Undo.undoRedoPerformed += OnGlobalUndoRedo;
         }
