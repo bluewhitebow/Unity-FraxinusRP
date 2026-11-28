@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Support installation into stock Unity 2022.3.62f3 projects through Package Manager using public Unity dependencies. Fraxinus RP supplies the optional GPU rendering integration.
 - Added native BRG indirect submission for Tuanjie 1.8.0+ alongside Unity 6. Stock Unity 2022.3 uses its scene renderers.
 
 ## Earlier port revisions

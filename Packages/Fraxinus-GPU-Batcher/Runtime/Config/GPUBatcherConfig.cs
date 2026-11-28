@@ -14,7 +14,9 @@ namespace Fraxinus.GPUBatcher
         private static bool s_configMissing;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         internal static GPUBatcherConfig loadedConfig => s_instance;
+#if FRAXINUS_RP
         private static DebugUI.MessageBox s_missingConfigWarning;
+#endif
 #endif
         private const string k_missingConfigMessage = "GPU Batcher config is missing. Open Project Settings > Graphics > Fraxinus GPU Batcher to create or preload it.";
 
@@ -53,7 +55,7 @@ namespace Fraxinus.GPUBatcher
                 return;
 
             s_configMissing = missing;
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+#if FRAXINUS_RP && (UNITY_EDITOR || DEVELOPMENT_BUILD)
             if (missing)
             {
                 s_missingConfigWarning = new DebugUI.MessageBox

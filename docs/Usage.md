@@ -69,6 +69,8 @@ The matching Shader Graph fork is required for UltraRP's internal target APIs. I
 
 ## Optional GPU Batcher
 
+For a stock Unity 2022.3 Built-in or URP project, open **Package Manager > + > Add package from disk** and select `Packages/Fraxinus-GPU-Batcher/package.json`. Unity resolves the public package dependencies and uses the existing Terrain and MeshRenderer components for rendering. Install the matching Fraxinus suite to use native indirect drawing on supported Unity 6 and Tuanjie devices.
+
 On supported devices running Unity 6 or Tuanjie 1.8.0+, the GPU Batcher registers instances, uploads transforms, culls camera and shadow candidates, selects LODs and submits native BRG indirect draws. Check `GPUBatcherRenderer.canSubmitDraws` before registering instances through the API. On stock Unity 2022.3 or an unsupported device, this property is false and `GPUBatcherRenderer.instance` returns null. Live GameObjects and terrain foliage keep their normal Unity rendering. See the [GPU Batcher README](../Packages/Fraxinus-GPU-Batcher/README.md).
 
 When upgrading from the custom Unity 2022 backend, remove old project-local copies of its NativeContract plugins. For existing baked-only groups, use **Expand** in the Inspector to reconstruct the source GameObjects. API-only instances require a supported device and native backend. On a supported device, **Bake** removes the source children after packing their data. See the [GPU Batcher port notes](../Packages/Fraxinus-GPU-Batcher/Documentation~/Port.md).

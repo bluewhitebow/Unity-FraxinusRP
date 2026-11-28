@@ -1,4 +1,4 @@
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+#if FRAXINUS_RP && (UNITY_EDITOR || DEVELOPMENT_BUILD)
 using System;
 using FraxinusEngine.Rendering.Ultra;
 using UnityEngine.Rendering;

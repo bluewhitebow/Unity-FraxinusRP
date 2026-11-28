@@ -69,6 +69,8 @@ UltraRP 的 Target 内部 API 需要配套 Shader Graph 分支。它的版本仍
 
 ## 可选 GPU Batcher
 
+在官方 Unity 2022.3 的 Built-in 或 URP 工程中，打开 **Package Manager > + > Add package from disk**，选择 `Packages/Fraxinus-GPU-Batcher/package.json`。Unity 会解析公开的包依赖，并使用已有的 Terrain 和 MeshRenderer 渲染。要在受支持的 Unity 6 或团结引擎设备上使用原生间接绘制，请安装同一修订的 Fraxinus 配套包。
+
 在使用 Unity 6 或团结引擎 1.8.0+ 且支持原生 BRG 间接绘制的设备上，GPU Batcher 注册实例、上传变换、剔除相机及阴影候选对象、选择 LOD 并提交原生 BRG 间接绘制。通过 API 注册实例前，请检查 `GPUBatcherRenderer.canSubmitDraws`。在官方 Unity 2022.3 或不受支持的设备上，该属性为 false，`GPUBatcherRenderer.instance` 返回 null，GameObject 和地形植被仍由 Unity 自身的渲染器绘制。详见 [GPU Batcher 包说明](../Packages/Fraxinus-GPU-Batcher/README.md)。
 
 从定制 Unity 2022 后端升级时，请清理项目中单独复制的旧 NativeContract 插件。已有的纯烘焙组可在检视面板中使用 **Expand** 恢复源 GameObject。仅通过 API 创建的实例需要设备和引擎均支持原生 BRG 间接绘制。在受支持的设备上执行 **Bake** 时，打包数据后会移除源子对象。详见 [GPU Batcher 移植说明](../Packages/Fraxinus-GPU-Batcher/Documentation~/Port.md)。

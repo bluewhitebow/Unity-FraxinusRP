@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+#if FRAXINUS_RP
 using FraxinusEngine.Rendering.Ultra;
+#endif
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -18,10 +20,12 @@ namespace Fraxinus.GPUBatcher
 
         void InitializeBakedOcclusion()
         {
+#if FRAXINUS_RP
             UltraRenderPipeline.beforeCameraCulling -= PrepareBakedOcclusion;
             UltraRenderPipeline.beforeCameraCulling += PrepareBakedOcclusion;
             UltraRenderPipeline.afterCameraCulling -= PublishBakedOcclusion;
             UltraRenderPipeline.afterCameraCulling += PublishBakedOcclusion;
+#endif
         }
 
         void PrepareBakedOcclusion(Camera camera, in ScriptableCullingParameters parameters)
@@ -85,8 +89,10 @@ namespace Fraxinus.GPUBatcher
 
         void CleanupBakedOcclusion()
         {
+#if FRAXINUS_RP
             UltraRenderPipeline.beforeCameraCulling -= PrepareBakedOcclusion;
             UltraRenderPipeline.afterCameraCulling -= PublishBakedOcclusion;
+#endif
             foreach (var state in _bakedOcclusionViews.Values) state.Dispose();
             _bakedOcclusionViews.Clear();
             _staleBakedOcclusionViews.Clear();

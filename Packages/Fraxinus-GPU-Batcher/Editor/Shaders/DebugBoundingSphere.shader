@@ -9,6 +9,7 @@ Shader "Hidden/Fraxinus/GPU Batcher/Debug Bounding Sphere"
 
     SubShader
     {
+        PackageRequirements { "com.bluewhitebow.fraxinus-rp": "0.1.0" }
         Tags
         {
             "RenderPipeline" = "UltraPipeline"

@@ -8,6 +8,7 @@ using UnityEngine.Rendering;
 
 namespace Fraxinus.GPUBatcher
 {
+#if FRAXINUS_RP
     public struct ChangeTrackerTransformData : IDisposable
     {
         NativeTransformChanges _data;
@@ -82,4 +83,37 @@ namespace Fraxinus.GPUBatcher
             s_dispatcher = null;
         }
     }
+#else
+    // The standalone package leaves source renderers active and has no native tracking dispatcher.
+    public struct ChangeTrackerTransformData : IDisposable
+    {
+        public NativeArray<int> transformedIDs => default;
+        public NativeArray<Matrix4x4> localToWorldMatrices => default;
+        public NativeArray<Vector3> positions => default;
+        public NativeArray<Quaternion> rotations => default;
+        public NativeArray<Vector3> scales => default;
+        public int length => 0;
+        public void Dispose() { }
+    }
+
+    public struct ChangeTrackerTypeData : IDisposable
+    {
+        public UnityEngine.Object[] changed => null;
+        public NativeArray<int> changedIDs => default;
+        public NativeArray<int> destroyedIDs => default;
+        public int length => 0;
+        public void Dispose() { }
+    }
+
+    public static class GPUBatcherObjectChangeTracker
+    {
+        public static bool isInitialized => false;
+        public static void Initialize() { }
+        public static void TrackTransforms<T>() where T : UnityEngine.Object { }
+        public static void TrackType<T>() where T : UnityEngine.Object { }
+        public static ChangeTrackerTransformData GetTransformChanges<T>(Allocator allocator) where T : UnityEngine.Object => default;
+        public static ChangeTrackerTypeData GetTypeChanges<T>(Allocator allocator) where T : UnityEngine.Object => default;
+        public static void Dispose() { }
+    }
+#endif
 }

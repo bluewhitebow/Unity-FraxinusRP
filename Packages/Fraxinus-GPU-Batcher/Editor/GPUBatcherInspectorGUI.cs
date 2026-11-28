@@ -22,6 +22,7 @@ namespace Fraxinus.GPUBatcher.Editor
 
         public static void DrawRenderingDebuggerButton()
         {
+#if FRAXINUS_RP
             int panelIndex = DebugManager.instance.PanelIndex(GPUBatcherDebugUI.panelName);
             using (new EditorGUI.DisabledScope(panelIndex < 0))
             {
@@ -29,12 +30,15 @@ namespace Fraxinus.GPUBatcher.Editor
                     "Open the GPU Batcher panel in the Rendering Debugger.")))
                     OpenRenderingDebugger(panelIndex);
             }
+#endif
         }
 
+#if FRAXINUS_RP
         private static void OpenRenderingDebugger(int panelIndex)
         {
             if (EditorApplication.ExecuteMenuItem("Window/Analysis/Rendering Debugger"))
                 DebugManager.instance.RequestEditorWindowPanelIndex(panelIndex);
         }
+#endif
     }
 }

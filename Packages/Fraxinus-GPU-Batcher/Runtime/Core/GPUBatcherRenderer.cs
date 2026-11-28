@@ -393,13 +393,7 @@ namespace Fraxinus.GPUBatcher
             GPUBatcherObjectChangeTracker.TrackTransforms<GPUBatcherGameObjectLink>();
 #if UNITY_EDITOR
             if (!Application.isPlaying)
-            {
-                GPUBatcherObjectChangeTracker.TrackType<MeshRenderer>();
-                // drain ObjectDispatcher even when no view is rendering (e.g. debugger view)
-                // to prevent 64-frame auto-disable of type tracking
-                UnityEditor.EditorApplication.update -= EditorDrainRendererChanges;
-                UnityEditor.EditorApplication.update += EditorDrainRendererChanges;
-            }
+                EnsureEditorRendererTracking();
             UnityEditor.EditorApplication.update -= ResetUpdateFlag;
             UnityEditor.EditorApplication.update += ResetUpdateFlag;
 #endif
@@ -559,7 +553,6 @@ namespace Fraxinus.GPUBatcher
                 }
                 UpdateGPUSignatureBuffer();
                 _gpuCullingReady = _chunkSystemInitialized;
-                _dirtyBufferBindings |= BufferBindingFlags.Signatures;
                 _prototypeBufferDirty = false;
                 batchesRebuiltThisFrame = true;
             }
@@ -569,7 +562,6 @@ namespace Fraxinus.GPUBatcher
             {
                 CachePrototypeBounds();
                 UpdateGPUSignatureBuffer();
-                _dirtyBufferBindings |= BufferBindingFlags.Signatures;
                 _prototypeBufferDirty = false;
             }
 
@@ -755,7 +747,6 @@ namespace Fraxinus.GPUBatcher
                 _protoCrossfadeBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured,
                     math.max(protoCount, 8),
                     UnsafeUtility.SizeOf<GPUProtoCrossfadeState>());
-                _dirtyBufferBindings |= BufferBindingFlags.ProtoCrossfade;
             }
             _protoCrossfadeBuffer.SetData(_protoCrossfadeStates, 0, 0, protoCount);
         }
@@ -877,8 +868,21 @@ namespace Fraxinus.GPUBatcher
         }
 
 #if UNITY_EDITOR
+        private bool _trackingEditorRenderers;
+
+        private void EnsureEditorRendererTracking()
+        {
+            if (_trackingEditorRenderers) return;
+            GPUBatcherObjectChangeTracker.TrackType<MeshRenderer>();
+            _trackingEditorRenderers = true;
+            // Drain the dispatcher even when no view is rendering.
+            UnityEditor.EditorApplication.update += EditorDrainRendererChanges;
+        }
+
         private void ProcessTrackedRendererChanges()
         {
+            // Loading RenderDoc can return a renderer initialized in Play Mode to Edit Mode.
+            EnsureEditorRendererTracking();
             using ChangeTrackerTypeData changes = GPUBatcherObjectChangeTracker.GetTypeChanges<MeshRenderer>(Unity.Collections.Allocator.TempJob);
 
             if (!Application.isPlaying)
@@ -911,6 +915,7 @@ namespace Fraxinus.GPUBatcher
             RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.update -= EditorDrainRendererChanges;
+            _trackingEditorRenderers = false;
             UnityEditor.EditorApplication.update -= ResetUpdateFlag;
 #endif
 
@@ -953,9 +958,6 @@ namespace Fraxinus.GPUBatcher
 
             _cullingCmd?.Release();
             _cullingCmd = null;
-
-            // reset buffer binding flags so buffers get rebound after reinit
-            _dirtyBufferBindings = BufferBindingFlags.All;
 
             _prototypeMaxShadowDistance.DisposeIfCreated();
             _prototypeMaxShadowCascade.DisposeIfCreated();
@@ -1108,9 +1110,6 @@ namespace Fraxinus.GPUBatcher
         public NativeList<float3> streamingCameraPositions => _gameCamPositions;
         #endif
         public event Action onStreamingPositionsReady;
-
-        /// <summary>Forces all compute shader buffer bindings to be refreshed on the next dispatch.</summary>
-        internal void InvalidateBufferBindings() => _dirtyBufferBindings = BufferBindingFlags.All;
 
         /// <summary>Rebuilds batches and updates GPU prototype buffer.</summary>
         public void RebuildBatches()

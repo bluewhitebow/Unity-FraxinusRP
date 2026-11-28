@@ -5,8 +5,7 @@
         "Fraxinus.GPUBatcher.Runtime",
         "Unity.Collections",
         "Unity.Mathematics",
-        "Unity.RenderPipelines.Core.Runtime",
-        "Fraxinus.Runtime"
+        "Unity.RenderPipelines.Core.Runtime"
     ],
     "includePlatforms": [
         "Editor"

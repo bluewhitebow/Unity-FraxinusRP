@@ -28,10 +28,6 @@ namespace Fraxinus.GPUBatcher.Editor
             // only process if BRG system exists
             if (!GPUBatcherRenderer.hasInstance) return;
 
-            // any asset reimport can trigger shader variant recompilation,
-            // which silently unbinds all ComputeShader.SetBuffer bindings
-            GPUBatcherRenderer.instance.InvalidateBufferBindings();
-
             bool anyMaterialChanged = false;
 
             foreach (string assetPath in importedAssets)

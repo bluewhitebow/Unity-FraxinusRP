@@ -1,4 +1,4 @@
-#if UNITY_6000_0_OR_NEWER || TUANJIE_1_8_OR_NEWER
+#if FRAXINUS_RP && (UNITY_6000_0_OR_NEWER || TUANJIE_1_8_OR_NEWER)
 // Copyright (c) 2026 Milk_Drinker01. All rights reserved.
 
 using UnityEngine;

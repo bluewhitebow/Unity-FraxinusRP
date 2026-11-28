@@ -19,6 +19,7 @@ Shader "Hidden/FraxinusGPUBatcher/TerrainTextureGrass"
 
     SubShader
     {
+        PackageRequirements { "com.bluewhitebow.fraxinus-rp": "0.1.0" }
         Tags
         {
             "RenderType" = "TransparentCutout"

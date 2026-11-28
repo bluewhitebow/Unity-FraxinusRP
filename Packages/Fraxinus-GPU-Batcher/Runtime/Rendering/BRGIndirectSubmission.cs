@@ -12,7 +12,12 @@ namespace Fraxinus.GPUBatcher.Rendering
     public static class BRGIndirectSubmission
     {
 #if UNITY_6000_0_OR_NEWER || TUANJIE_1_8_OR_NEWER
+        // Renderer takeover requires the Fraxinus integration as well as native indirect commands.
+#if FRAXINUS_RP
         internal static bool hasNativeApi => true;
+#else
+        internal static bool hasNativeApi => false;
+#endif
         private static GraphicsDeviceType? s_checkedDevice;
         private static bool s_deviceSupported;
 
@@ -20,6 +25,7 @@ namespace Fraxinus.GPUBatcher.Rendering
         {
             get
             {
+                if (!hasNativeApi) return false;
                 var device = SystemInfo.graphicsDeviceType;
                 if (s_checkedDevice != device)
                 {

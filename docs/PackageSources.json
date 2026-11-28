@@ -58,26 +58,23 @@
       "sourceProject": "Duckov-2022",
       "sourceRepository": "https://github.com/bluewhitebow/Dockov-Demo.git",
       "sourcePath": "Packages/com.bluewhitebow.fraxinus-gpu-batcher",
-      "sourceCommit": "07cd2ff31e2f060f902fb44c308bc8677cae508d",
-      "sourceState": "Synced 15 files from the Duckov-2022 changes between 26709f0 and 07cd2ff. The manifest hashes the target files with their existing line endings.",
+      "sourceCommit": "3fb5e91c6061089048078695a8d662bbeb04a363",
+      "sourceState": "Synced 21 files for standalone package import and GPU Batcher rendering from the Duckov-2022 changes between 07cd2ff and 3fb5e91. The manifest hashes the target files with their existing line endings.",
       "fileCount": 185,
-      "manifestSha256": "2e2a2c110c666a118b616fe749c70d45f3c7b0c5792af6dd9dd04fa460a407ef"
+      "manifestSha256": "0ab2a1bdcf970b684f6cf35c46cfec4085106b41ece4dc5969f283a3252534b8"
     }
   ],
   "latestSync": {
     "date": "2026-11-28",
     "sourceProject": "Duckov-2022",
     "sourceRepository": "https://github.com/bluewhitebow/Dockov-Demo.git",
-    "sourceCommit": "07cd2ff31e2f060f902fb44c308bc8677cae508d",
-    "sourceBaselineCommit": "26709f083346e4a3d01f329bbb8792b8f644a3fd",
-    "previousTargetCommit": "8df2e4d76c7937012c9618a87ad80d51df8cc744",
+    "sourceCommit": "3fb5e91c6061089048078695a8d662bbeb04a363",
+    "sourceBaselineCommit": "07cd2ff31e2f060f902fb44c308bc8677cae508d",
+    "previousTargetCommit": "4a2052e578cb0d25dca9f72d3b44939ed21a04c8",
     "mode": "incremental-package-sync",
-    "sourceState": "Synced 24 package files for native BRG indirect drawing on Tuanjie 1.8.0+, HZB occlusion, DOTS instancing shaders and Shader Graph selection overrides.",
+    "sourceState": "Synced 21 files in the GPU Batcher package for optional Fraxinus RP integration and compute buffer binding at dispatch.",
     "fileCount": 9243,
     "packages": [
-      "Fraxinus-RPCore",
-      "Fraxinus-ShaderGraph",
-      "FraxinusRP",
       "Fraxinus-GPU-Batcher"
     ],
     "manifestAlgorithm": "SHA-256 of the concatenated records in ordinal package-relative path order. Each record is the UTF-8 path with forward slashes, NUL, lowercase hexadecimal SHA-256 of the raw target file bytes, and LF.",
@@ -85,6 +82,7 @@
       "unity2022": "9 C# assemblies compiled with stock 2022.3.62f3, 0 errors, 60 warnings",
       "tuanjie": "9 C# assemblies compiled with Tuanjie 1.11.2 / 2022.3.62t19, 0 errors, 3 warnings",
       "unity6": "10 C# assemblies compiled with 6000.0.85f2, 0 errors, 47 warnings",
+      "standaloneUnity2022": "Stock 2022.3.62f3 imported the GPU Batcher package from disk in Built-in and URP 14.0.12 projects with public Core 14.0.12. Both compiled the runtime and editor assemblies without FRAXINUS_RP. The terrain registration component left ordinary foliage rendering enabled.",
       "renderingRerun": false
     }
   },

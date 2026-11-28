@@ -4,6 +4,15 @@ GPU instance registration, culling and native BRG indirect drawing for Fraxinus 
 In stock Unity 2022.3, scene components stay available for serialization and ordinary renderers draw their own objects.
 Runtime types use `Fraxinus.GPUBatcher`; editor tools use `Fraxinus.GPUBatcher.Editor`.
 
+## Install in Unity 2022.3.62f3
+
+In Package Manager choose **+ → Add package from disk…** and select this directory's
+`package.json`. Built-in and standard URP projects can import the components with
+the public Unity packages. Terrain and MeshRenderers handle rendering in this mode.
+For baked-only instance groups, use **Expand** to create ordinary renderers.
+To run the native indirect renderer, open the full Duckov project with its embedded
+Fraxinus packages in a supported Tuanjie or Unity 6 editor.
+
 C# naming follows Fraxinus RP: private/protected fields use `_camelCase`, private
 static fields use `s_camelCase`, and private constants use `k_camelCase`. Public and
 internal fields, properties and events use camelCase; methods use PascalCase.
@@ -63,7 +72,7 @@ proxies preserving the source mesh and Tree/LOD hierarchy, two private native
 cull/draw capture passes and GPU copies into current/history instance slots. Shader
 Graph's SpeedTree 8 helpers map those slots through DOTS instancing. The rendering
 path performs no per-frame CPU wind readback.
-The package requires the repository's Core, Fraxinus RP and Shader Graph adaptations.
+The GPU rendering path uses the repository's Core, Fraxinus RP and Shader Graph adaptations.
 
 The scope is the existing single-view Fraxinus pipeline. Stereo cameras retain the
 mono safety gate; extending the render pipeline to XR is outside this package update.

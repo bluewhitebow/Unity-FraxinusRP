@@ -606,7 +606,6 @@ namespace Fraxinus.GPUBatcher
 
             // per-view buffers recreated lazily on next acquire
             _bufferPoolGeneration++;
-            _dirtyBufferBindings |= BufferBindingFlags.ChunkBuffer | BufferBindingFlags.PoolRefs;
 
             _maxChunks = newMaxChunks;
         }
@@ -811,7 +810,6 @@ namespace Fraxinus.GPUBatcher
 
             RemoveAllBatchIds();
             RebindBatchBufferHandle();
-            _dirtyBufferBindings |= BufferBindingFlags.ChunkBuffer | BufferBindingFlags.PoolRefs | BufferBindingFlags.Instances;
 
             // suppress auto-compaction after grow to avoid shrink-grow ping-pong
             if (!allowShrink)

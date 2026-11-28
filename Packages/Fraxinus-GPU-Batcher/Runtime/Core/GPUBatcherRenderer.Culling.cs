@@ -455,23 +455,6 @@ namespace Fraxinus.GPUBatcher
 
         private bool _gpuCullingReady;
 
-        // granular buffer binding dirty flags
-        [Flags]
-        private enum BufferBindingFlags
-        {
-            None = 0,
-            ChunkBuffer = 1 << 0,
-            PoolRefs = 1 << 1,
-            Instances = 1 << 2,
-            Signatures = 1 << 3,
-            BucketMapping = 1 << 4,
-            DrawBuckets = 1 << 5,
-            ArgsToBucket = 1 << 6,
-            ProtoCrossfade = 1 << 7,
-            All = 0xFFFF
-        }
-        private BufferBindingFlags _dirtyBufferBindings = BufferBindingFlags.All;
-
         private CommandBuffer _cullingCmd;
 
         // cached shader property IDs
@@ -838,85 +821,26 @@ namespace Fraxinus.GPUBatcher
 
         #region GPU Culling
 
-        // bind shared read-only buffers to kernels using granular dirty flags
-        private void BindSharedBuffers()
+        // Device recreation (e.g. loading RenderDoc) clears persistent ComputeShader bindings.
+        // Record inputs alongside the dispatches that consume them, once per culling pass.
+        private void BindCullingInputs(CommandBuffer cmd, int chunkKernel, int instanceKernel)
         {
-            if (_cullingShader == null || !_chunkSystemInitialized || _gpuSignatureBuffer == null) return;
-            if (_dirtyBufferBindings == BufferBindingFlags.None) return;  // nothing to bind
+            cmd.SetComputeBufferParam(_cullingShader, chunkKernel, s_idChunks, _chunkBuffer);
+            cmd.SetComputeBufferParam(_cullingShader, instanceKernel, s_idChunks, _chunkBuffer);
+            cmd.SetComputeBufferParam(_cullingShader, instanceKernel, s_idPoolRefs, _poolRefBuffer);
+            cmd.SetComputeBufferParam(_cullingShader, instanceKernel, s_idInstances, _instanceBuffer);
+            cmd.SetComputeBufferParam(_cullingShader, instanceKernel, s_idSignatures, _gpuSignatureBuffer);
+            cmd.SetComputeBufferParam(_cullingShader, instanceKernel, s_idProtoCrossfadeStates, _protoCrossfadeBuffer);
+        }
 
-            // bind ChunkBuffer
-            if ((_dirtyBufferBindings & BufferBindingFlags.ChunkBuffer) != 0 && _chunkBuffer != null)
-            {
-                if (_cullChunksKernel >= 0)
-                    _cullingShader.SetBuffer(_cullChunksKernel, s_idChunks, _chunkBuffer);
-                if (_cullInstancesKernel >= 0)
-                    _cullingShader.SetBuffer(_cullInstancesKernel, s_idChunks, _chunkBuffer);
-                if (_cullChunksShadowKernel >= 0)
-                    _cullingShader.SetBuffer(_cullChunksShadowKernel, s_idChunks, _chunkBuffer);
-                if (_cullInstancesShadowKernel >= 0)
-                    _cullingShader.SetBuffer(_cullInstancesShadowKernel, s_idChunks, _chunkBuffer);
-            }
-
-            // bind PoolRefs
-            if ((_dirtyBufferBindings & BufferBindingFlags.PoolRefs) != 0 && _poolRefBuffer != null)
-            {
-                if (_cullInstancesKernel >= 0)
-                    _cullingShader.SetBuffer(_cullInstancesKernel, s_idPoolRefs, _poolRefBuffer);
-                if (_cullInstancesShadowKernel >= 0)
-                    _cullingShader.SetBuffer(_cullInstancesShadowKernel, s_idPoolRefs, _poolRefBuffer);
-            }
-
-            // bind Instances + InstanceRotScale
-            if ((_dirtyBufferBindings & BufferBindingFlags.Instances) != 0 && _instanceBuffer != null)
-            {
-                if (_cullInstancesKernel >= 0)
-                    _cullingShader.SetBuffer(_cullInstancesKernel, s_idInstances, _instanceBuffer);
-                if (_cullInstancesShadowKernel >= 0)
-                    _cullingShader.SetBuffer(_cullInstancesShadowKernel, s_idInstances, _instanceBuffer);
-                if (_uploadShader != null)
-                {
-                    if (_updateFadeStatesPerInstanceKernel >= 0)
-                        _uploadShader.SetBuffer(_updateFadeStatesPerInstanceKernel, s_idInstances, _instanceBuffer);
-                    if (_updateFadeStatesPerPrototypeKernel >= 0)
-                        _uploadShader.SetBuffer(_updateFadeStatesPerPrototypeKernel, s_idInstances, _instanceBuffer);
-                }
-            }
-
-            // bind Signatures
-            if ((_dirtyBufferBindings & BufferBindingFlags.Signatures) != 0 && _gpuSignatureBuffer != null)
-            {
-                if (_cullInstancesKernel >= 0)
-                    _cullingShader.SetBuffer(_cullInstancesKernel, s_idSignatures, _gpuSignatureBuffer);
-                if (_cullInstancesShadowKernel >= 0)
-                    _cullingShader.SetBuffer(_cullInstancesShadowKernel, s_idSignatures, _gpuSignatureBuffer);
-                if (_uploadShader != null)
-                {
-                    if (_updateFadeStatesPerInstanceKernel >= 0)
-                        _uploadShader.SetBuffer(_updateFadeStatesPerInstanceKernel, s_idSignatures, _gpuSignatureBuffer);
-                    if (_updateFadeStatesPerPrototypeKernel >= 0)
-                        _uploadShader.SetBuffer(_updateFadeStatesPerPrototypeKernel, s_idSignatures, _gpuSignatureBuffer);
-                }
-            }
-
-            // bind ArgsToBucket
-            if ((_dirtyBufferBindings & BufferBindingFlags.ArgsToBucket) != 0)
-            {
-                if (_finalizeDrawArgsKernel >= 0 && _argsToBucketBuffer != null)
-                    _cullingShader.SetBuffer(_finalizeDrawArgsKernel, s_idArgsToBucket, _argsToBucketBuffer);
-                if (_finalizeShadowDrawArgsKernel >= 0 && _shadowArgsToBucketBuffer != null)
-                    _cullingShader.SetBuffer(_finalizeShadowDrawArgsKernel, s_idShadowArgsToBucket, _shadowArgsToBucketBuffer);
-            }
-
-            // bind ProtoCrossfadeStates
-            if ((_dirtyBufferBindings & BufferBindingFlags.ProtoCrossfade) != 0 && _protoCrossfadeBuffer != null)
-            {
-                if (_cullInstancesKernel >= 0)
-                    _cullingShader.SetBuffer(_cullInstancesKernel, s_idProtoCrossfadeStates, _protoCrossfadeBuffer);
-                if (_cullInstancesShadowKernel >= 0)
-                    _cullingShader.SetBuffer(_cullInstancesShadowKernel, s_idProtoCrossfadeStates, _protoCrossfadeBuffer);
-            }
-
-            _dirtyBufferBindings = BufferBindingFlags.None;
+        private void BindFadeBuffers(CommandBuffer cmd, int kernel, GraphicsBuffer fadeBuffer)
+        {
+            cmd.SetComputeBufferParam(_uploadShader, kernel, s_idInstances, _instanceBuffer);
+            cmd.SetComputeBufferParam(_uploadShader, kernel, s_idSignatures, _gpuSignatureBuffer);
+            cmd.SetComputeBufferParam(_uploadShader, kernel, s_idFadeStates, fadeBuffer);
+            cmd.SetComputeBufferParam(_uploadShader, kernel, s_idAnimatedPools, _animatedPoolsBuffer);
+            if (kernel == _updateFadeStatesPerPrototypeKernel)
+                cmd.SetComputeBufferParam(_uploadShader, kernel, s_idProtoCrossfadeStates, _protoCrossfadeBuffer);
         }
 
         // dispatch compute with profiler markers
@@ -1149,10 +1073,6 @@ namespace Fraxinus.GPUBatcher
                 return;
             }
 
-            // rebind shared read-only buffers if dirty
-            if (_dirtyBufferBindings != BufferBindingFlags.None)
-                BindSharedBuffers();
-
             if (!_chunkSystemInitialized || _allocatedCount == 0 || _cullChunksKernel < 0)
             {
                 ReleaseSplitVisibilitySlots(_currentCullingContext);
@@ -1256,10 +1176,7 @@ namespace Fraxinus.GPUBatcher
                 {
                     cmd.SetComputeIntParam(_uploadShader, s_idAnimatedPoolCount, animatedPoolCount);
                     cmd.SetComputeIntParam(_uploadShader, s_idSnapFadeStates, _currentCullingContext.shouldSnap ? 1 : 0);
-                    cmd.SetComputeBufferParam(_uploadShader, activeKernel, s_idFadeStates, fadeBuffer);
-                    cmd.SetComputeBufferParam(_uploadShader, activeKernel, s_idAnimatedPools, _animatedPoolsBuffer);
-                    if (isPerProtoMode && _protoCrossfadeBuffer != null)
-                        cmd.SetComputeBufferParam(_uploadShader, activeKernel, s_idProtoCrossfadeStates, _protoCrossfadeBuffer);
+                    BindFadeBuffers(cmd, activeKernel, fadeBuffer);
                     int animatedSlots = animatedPoolCount * k_poolSize;
                     int fadeGroups = UploadGroupCount(animatedSlots);
 #if DEBUG
@@ -1275,6 +1192,8 @@ namespace Fraxinus.GPUBatcher
             }
 
             bool skipCullChunks = !hzbActive;
+
+            BindCullingInputs(cmd, _cullChunksKernel, _cullInstancesKernel);
 
             // per-split GPU culling dispatch
             for (int s = 0; s < _currentCullingContext.splits.Count; s++)
@@ -1358,8 +1277,6 @@ namespace Fraxinus.GPUBatcher
                 cmd.SetComputeBufferParam(_cullingShader, _cullInstancesKernel, s_idVisibilityBuffer, viewSet.visibilityBuffer);
                 cmd.SetComputeBufferParam(_cullingShader, _cullInstancesKernel, s_idVisibleChunks, viewSet.visibleChunksBuffer);
                 cmd.SetComputeBufferParam(_cullingShader, _cullInstancesKernel, s_idFadeStates, fadeBuffer);
-                cmd.SetComputeBufferParam(_cullingShader, _finalizeDrawArgsKernel, s_idDrawBuckets, viewSet.drawBucketBuffer);
-                cmd.SetComputeBufferParam(_cullingShader, _finalizeDrawArgsKernel, s_idIndirectArgs, viewSet.indirectArgsBuffer);
 
                 if (!skipCullChunks)
                 {
@@ -1425,6 +1342,7 @@ namespace Fraxinus.GPUBatcher
 
                 // Shadow or another camera may have changed the shader's camera uniforms.
                 BindCameraCullingUniforms(cmd, retainedContext);
+                BindCullingInputs(cmd, _cullChunksKernel, _cullInstancesKernel);
 
                 // Phase 0 may have processed several splits. Restore this split's outputs
                 // instead of inheriting whichever split last bound the compute shader.
@@ -1561,6 +1479,7 @@ namespace Fraxinus.GPUBatcher
         /// </summary>
         private void DispatchFinalizeDrawArgs(CommandBuffer cmd, CullingBufferSet viewSet)
         {
+            cmd.SetComputeBufferParam(_cullingShader, _finalizeDrawArgsKernel, s_idArgsToBucket, _argsToBucketBuffer);
             cmd.SetComputeBufferParam(_cullingShader, _finalizeDrawArgsKernel, s_idDrawBuckets, viewSet.drawBucketBuffer);
             cmd.SetComputeBufferParam(_cullingShader, _finalizeDrawArgsKernel, s_idIndirectArgs, viewSet.indirectArgsBuffer);
 
@@ -1588,10 +1507,6 @@ namespace Fraxinus.GPUBatcher
 #endif
             if (_cullingShader == null || !_gpuCullingReady)
                 return false;
-
-            // ensure shared buffers are bound (shadow culling can fire before camera dispatch on first frame)
-            if (_dirtyBufferBindings != BufferBindingFlags.None)
-                BindSharedBuffers();
 
             // determine cascade count and extract planes
             int cascadeCount = cullingContext.cullingSplits.Length;
@@ -1853,6 +1768,7 @@ namespace Fraxinus.GPUBatcher
 
                 // batch shadow culling dispatches into one CommandBuffer (DX12 UAV barriers)
                 _cullingCmd.Clear();
+                BindCullingInputs(_cullingCmd, _cullChunksShadowKernel, _cullInstancesShadowKernel);
 
                 // dispatch pending fade state update before shadow culling - shadows run synchronously
                 // but the deferred camera path hasn't executed yet, so _FadeStates are stale
@@ -1880,10 +1796,7 @@ namespace Fraxinus.GPUBatcher
                         {
                             _cullingCmd.SetComputeIntParam(_uploadShader, s_idAnimatedPoolCount, animatedPoolCount);
                             _cullingCmd.SetComputeIntParam(_uploadShader, s_idSnapFadeStates, _currentCullingContext.shouldSnap ? 1 : 0);
-                            _cullingCmd.SetComputeBufferParam(_uploadShader, activeKernel, s_idFadeStates, _currentCullingContext.fadeState.fadeStateBuffer);
-                            _cullingCmd.SetComputeBufferParam(_uploadShader, activeKernel, s_idAnimatedPools, _animatedPoolsBuffer);
-                            if (isPerProtoMode && _protoCrossfadeBuffer != null)
-                                _cullingCmd.SetComputeBufferParam(_uploadShader, activeKernel, s_idProtoCrossfadeStates, _protoCrossfadeBuffer);
+                            BindFadeBuffers(_cullingCmd, activeKernel, shadowFade);
                             int animatedSlots = animatedPoolCount * k_poolSize;
                             int fadeGroups = UploadGroupCount(animatedSlots);
                             CmdDispatchUpload(_cullingCmd, isPerProtoMode ? "FraxinusGPUBatcher.UpdateFadeStatesProto" : "FraxinusGPUBatcher.UpdateFadeStatesInst",
@@ -1991,6 +1904,7 @@ namespace Fraxinus.GPUBatcher
                 _cullingCmd.SetComputeBufferParam(_cullingShader, _cullInstancesShadowKernel, s_idShadowVisibilityBuffer, shadowSet.visibilityBuffer);
                 _cullingCmd.SetComputeBufferParam(_cullingShader, _cullInstancesShadowKernel, s_idVisibleShadowChunks, shadowSet.visibleChunksBuffer);
                 _cullingCmd.SetComputeBufferParam(_cullingShader, _cullInstancesShadowKernel, s_idFadeStates, shadowFade);
+                _cullingCmd.SetComputeBufferParam(_cullingShader, _finalizeShadowDrawArgsKernel, s_idShadowArgsToBucket, _shadowArgsToBucketBuffer);
                 _cullingCmd.SetComputeBufferParam(_cullingShader, _finalizeShadowDrawArgsKernel, s_idShadowDrawBuckets, shadowSet.drawBucketBuffer);
                 _cullingCmd.SetComputeBufferParam(_cullingShader, _finalizeShadowDrawArgsKernel, s_idShadowIndirectArgs, shadowSet.indirectArgsBuffer);
 

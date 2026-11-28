@@ -6,8 +6,8 @@
         "Unity.Collections",
         "Unity.Mathematics",
         "Unity.RenderPipelines.Core.Runtime",
-        "Unity.InternalAPIEngineBridge.024",
-        "Fraxinus.Runtime"
+        "GUID:4868d82fed074d419831fb13344d0643",
+        "GUID:19a565c0e340f5f4fabf7a4e0d7f2046"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

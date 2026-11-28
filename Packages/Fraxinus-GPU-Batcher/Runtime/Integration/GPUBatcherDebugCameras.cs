@@ -1,6 +1,8 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
+#if FRAXINUS_RP
 using FraxinusEngine.Rendering.Ultra;
+#endif
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -32,10 +34,14 @@ namespace Fraxinus.GPUBatcher
         {
             get
             {
+#if FRAXINUS_RP
                 if (!(GraphicsSettings.currentRenderPipeline is UltraRenderPipelineAsset)) return null;
                 if (IsEligible(s_selectedReferenceCamera)) return s_selectedReferenceCamera;
                 var main = Camera.main;
                 return IsEligible(main) ? main : null;
+#else
+                return null;
+#endif
             }
         }
 

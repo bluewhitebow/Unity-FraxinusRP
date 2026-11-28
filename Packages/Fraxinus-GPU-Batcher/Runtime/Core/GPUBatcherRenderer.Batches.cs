@@ -1298,7 +1298,6 @@ namespace Fraxinus.GPUBatcher
             UploadArgsToBucket(ref _argsToBucketBuffer, _camCmdToBucket, _camCmdCount, "FraxinusGPUBatcher_ArgsToBucket");
             UploadArgsToBucket(ref _shadowArgsToBucketBuffer, _shdCmdToBucket, _shdCmdCount, "FraxinusGPUBatcher_ShadowArgsToBucket");
 
-            _dirtyBufferBindings |= BufferBindingFlags.ArgsToBucket;
             _bufferPoolGeneration++;
             _rangesDirty = false;
         }
