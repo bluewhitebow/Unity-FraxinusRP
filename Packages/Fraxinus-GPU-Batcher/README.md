@@ -1,7 +1,7 @@
 # Fraxinus GPU Batcher
 
-GPU instance registration, culling and native BRG indirect drawing for Unity 6 with Fraxinus RP.
-In Unity 2022.3, scene components stay available for serialization and ordinary renderers draw their own objects.
+GPU instance registration, culling and native BRG indirect drawing for Fraxinus RP on Unity 6 and Tuanjie 1.8.0+ (2022.3.62t2 onward). The Terrain Demo was run on Tuanjie 1.11.2.
+In stock Unity 2022.3, scene components stay available for serialization and ordinary renderers draw their own objects.
 Runtime types use `Fraxinus.GPUBatcher`; editor tools use `Fraxinus.GPUBatcher.Editor`.
 
 C# naming follows Fraxinus RP: private/protected fields use `_camelCase`, private
@@ -22,11 +22,14 @@ visibility buffers and indirect argument generation. Config, camera/prototype se
 GameObject registration, baked groups, terrain trees/details and editor tools retain
 the reference workflow.
 
-Unity 6 submits the generated camera and shadow draw descriptors to its native BRG API.
+Camera and shadow draw descriptors are translated to each engine's native BRG command layout.
 Check `GPUBatcherRenderer.canSubmitDraws` before acquiring the renderer or registering instances.
-In earlier editors and players this property is false and `GPUBatcherRenderer.instance` is null.
+It requires compute shaders, GPU instancing, indirect arguments and raw BRG buffers. Unsupported engines or devices return false.
 
-## Unity 6 configuration and diagnostics
+## Configuration and diagnostics
+
+Set **Project Settings > Graphics > Shader Stripping > BatchRendererGroup Variants** to **Keep All** for Player builds.
+In the Terrain Demo, the performance panel switches between GPU Batcher and Terrain. **Tools > Fraxinus GPU Batcher > System Window** shows instance and draw-command counts.
 
 Edit the active configuration in **Edit > Project Settings > Graphics > Fraxinus GPU Batcher**.
 The page edits the same asset used by the Player. Configuration is discovered or created automatically under

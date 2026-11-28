@@ -3,6 +3,16 @@
 
 #ifdef UNITY_DOTS_INSTANCING_ENABLED
 
+#if defined(FRAXINUS_TUANJIE_BRG_64K)
+// Both Tuanjie layouts share the same packed visibility ABI.
+#define FRAXINUS_TUANJIE_BRG 1
+#endif
+
+#if defined(FRAXINUS_TUANJIE_BRG) && defined(FRAXINUS_USES_PACKED_VISIBILITY)
+// Implemented alongside UltraRP's per-batch metadata after the Core definitions.
+bool FraxinusUsesPackedVisibility();
+#endif
+
 #if UNITY_OLD_PREPROCESSOR
 #error DOTS Instancing requires the new shader preprocessor. Please enable Caching Preprocessor in the Editor settings!
 #endif
@@ -292,10 +302,14 @@ void SetupDOTSInstanceSelectMasks() {}
 
 #endif
 
-#if UNITY_VERSION >= 600000
+#if UNITY_VERSION >= 600000 || defined(FRAXINUS_TUANJIE_BRG)
 #ifdef UNITY_DOTS_INSTANCING_UNIFORM_BUFFER
 CBUFFER_START(unity_DOTSInstancing_IndirectInstanceVisibility)
+    #if defined(FRAXINUS_TUANJIE_BRG) && !defined(FRAXINUS_TUANJIE_BRG_64K)
+    float4 unity_DOTSInstancing_IndirectInstanceVisibilityRaw[1024];
+    #else
     float4 unity_DOTSInstancing_IndirectInstanceVisibilityRaw[4096];
+    #endif
 CBUFFER_END
 #else
 ByteAddressBuffer unity_DOTSInstancing_IndirectInstanceVisibility;
@@ -315,10 +329,20 @@ uint LoadDOTSIndirectInstanceIndex(uint indirectIndex)
 
 void SetupDOTSVisibleInstancingData()
 {
-#if UNITY_VERSION >= 600000
+#if UNITY_VERSION >= 600000 || defined(FRAXINUS_TUANJIE_BRG)
     uint packedIndirectVisibleOffset = unity_DOTSVisibleInstances[0].VisibleData.y;
     uint crossFadeValuePacked = unity_DOTSVisibleInstances[0].VisibleData.w & kDOTSInstancingFlagLODCrossFadeValuePacked;
+#if defined(FRAXINUS_TUANJIE_BRG)
+    // Match Tuanjie's narrower mask used by its backport on Qualcomm Vulkan.
+    unity_SampledDOTSIndirectVisibleIndex = (packedIndirectVisibleOffset & 0x0fffffffu) + unity_InstanceID;
+#if defined(FRAXINUS_USES_PACKED_VISIBILITY)
+    // Fraxinus packs every indirect instance, including percentage LODs without a dither keyword.
+    if (packedIndirectVisibleOffset != 0 && FraxinusUsesPackedVisibility())
+        crossFadeValuePacked = 1;
+#endif
+#else
     unity_SampledDOTSIndirectVisibleIndex = (packedIndirectVisibleOffset & ~kIndirectVisibleOffsetEnabledBit) + unity_InstanceID;
+#endif
 
     if (packedIndirectVisibleOffset != 0)
         unity_SampledDOTSInstanceIndex = LoadDOTSIndirectInstanceIndex(unity_SampledDOTSIndirectVisibleIndex);

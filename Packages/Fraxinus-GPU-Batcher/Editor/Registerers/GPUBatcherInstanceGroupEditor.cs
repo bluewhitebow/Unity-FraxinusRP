@@ -59,7 +59,7 @@ namespace Fraxinus.GPUBatcher.Editor
 
             if (!GPUBatcherRenderer.canSubmitDraws)
             {
-                EditorGUILayout.HelpBox("GPU Batcher rendering requires Unity 6 and a compatible graphics device. Expand an existing bake to use regular GameObjects.", MessageType.Info);
+                EditorGUILayout.HelpBox("GPU Batcher rendering requires native BRG indirect draws and a compatible graphics device. Expand an existing bake to use regular GameObjects.", MessageType.Info);
                 if (!group.isBaked) return;
             }
 

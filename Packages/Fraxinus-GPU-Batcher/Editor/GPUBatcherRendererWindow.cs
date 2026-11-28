@@ -87,7 +87,9 @@ namespace Fraxinus.GPUBatcher.Editor
         {
             if (!GPUBatcherRenderer.canSubmitDraws)
             {
-                EditorGUILayout.HelpBox("GPU Batcher rendering requires Unity 6 and a graphics device that supports native BRG indirect draws with raw buffers.", MessageType.Info);
+                EditorGUILayout.HelpBox(Rendering.BRGIndirectSubmission.hasNativeApi
+                    ? "The current graphics device must support compute shaders, GPU instancing, indirect arguments and raw BRG buffers."
+                    : "This editor version does not provide the native BRG indirect draw API used by GPU Batcher.", MessageType.Info);
                 return;
             }
 
@@ -105,15 +107,19 @@ namespace Fraxinus.GPUBatcher.Editor
             GPUBatcherInspectorGUI.DrawRenderingDebuggerButton();
             EditorGUILayout.EndVertical();
 
+#if UNITY_6000_0_OR_NEWER || TUANJIE_1_6_OR_NEWER
 #if UNITY_6000_0_OR_NEWER
-            if (EditorGraphicsSettings.batchRendererGroupShaderStrippingMode != BatchRendererGroupStrippingMode.KeepAll)
+            bool keepBrgVariants = EditorGraphicsSettings.batchRendererGroupShaderStrippingMode == BatchRendererGroupStrippingMode.KeepAll;
+#else
+            bool keepBrgVariants = EditorGraphicsSettings.batchRendererGroupStrippingMode == BrgStrippingMode.KeepAll;
+#endif
+            if (!keepBrgVariants)
             {
                 EditorGUILayout.HelpBox(
                     "BatchRendererGroup Variants is not set to \"Keep All\" in Project Settings > Graphics > Shader Stripping. " +
                     "GPU Batcher rendering will fail in builds.",
                     MessageType.Error);
             }
-
 #endif
 
             EditorGUILayout.Space(4);
@@ -479,8 +485,9 @@ namespace Fraxinus.GPUBatcher.Editor
 
             EditorGUILayout.Space(k_sectionSpacing);
             EditorGUILayout.LabelField("Per-View GPU Readback", EditorStyles.boldLabel);
-            if (!system.computeRenderedTriangles)
-                EditorGUILayout.LabelField("Enable Compute Per-View Stats in Rendering Debugger.", EditorStyles.miniLabel);
+            system.computeRenderedTriangles = EditorGUILayout.Toggle(
+                new GUIContent("Compute Per-View Stats", "Read the final indirect arguments from the GPU. Compare the same Game camera with GPU Occlusion Culling on and off."),
+                system.computeRenderedTriangles);
             EditorGUI.BeginDisabledGroup(true);
             if (system.computeRenderedTriangles)
             {

@@ -225,6 +225,7 @@ CBUFFER_END
 // declarations don't fail because of instancing macros.
 // UltraDOTSInstancing.hlsl must be included after UnityInstancing.hlsl
 #include "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/UnityInput.hlsl"
+#define FRAXINUS_USES_PACKED_VISIBILITY
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/UnityInstancing.hlsl"
 #include "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/UltraDOTSInstancing.hlsl"
 

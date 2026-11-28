@@ -19,37 +19,37 @@
       "folder": "Fraxinus-RPCore",
       "name": "com.unity.render-pipelines.core",
       "version": "14.0.99",
-      "sourceCommit": "013bcf6cabbc123d55e6447d597868b9fe15a7aa",
+      "sourceCommit": "07cd2ff31e2f060f902fb44c308bc8677cae508d",
       "sourceProject": "Duckov-2022",
       "sourceRepository": "https://github.com/bluewhitebow/Dockov-Demo.git",
       "sourcePath": "Packages/com.unity.render-pipelines.core",
-      "sourceState": "Applied Duckov-2022 package changes from d0b3e9c through 013bcf6. The manifest hashes the target working tree with its existing line endings.",
+      "sourceState": "Synced 1 file from the Duckov-2022 changes between 26709f0 and 07cd2ff. The manifest hashes the target files with their existing line endings.",
       "fileCount": 2425,
-      "manifestSha256": "1aaddfb652be050e8a421f96ffc888e85ad0cf694d4fa216a17fc34c7fbd1c13"
+      "manifestSha256": "aa12ea70f3455dfbec5dac1e0a060d4ecbb22932f75125aeafc022694ddae113"
     },
     {
       "folder": "Fraxinus-ShaderGraph",
       "name": "com.unity.shadergraph",
       "version": "14.0.12",
-      "sourceCommit": "26709f083346e4a3d01f329bbb8792b8f644a3fd",
+      "sourceCommit": "07cd2ff31e2f060f902fb44c308bc8677cae508d",
       "sourceProject": "Duckov-2022",
       "sourceRepository": "https://github.com/bluewhitebow/Dockov-Demo.git",
       "sourcePath": "Packages/com.fraxinus.shadergraph",
-      "sourceState": "The Duckov-2022 package directory moved to com.fraxinus.shadergraph. MaterialGraphView uses the GraphView selection API available in Tuanjie 1.11 and Unity 6.",
+      "sourceState": "Synced 1 file from the Duckov-2022 changes between 26709f0 and 07cd2ff. The manifest hashes the target files with their existing line endings.",
       "fileCount": 4252,
-      "manifestSha256": "5149db50d9bf05a875cb7c58b84a7d892574c07eebbf135bde92991874cb1e45"
+      "manifestSha256": "20210b0adc59e0a9020230314a9b8cbae94cb9fbab14e215579d51814ca68e24"
     },
     {
       "folder": "FraxinusRP",
       "name": "com.bluewhitebow.fraxinus-rp",
       "version": "0.1.0",
-      "sourceCommit": "013bcf6cabbc123d55e6447d597868b9fe15a7aa",
+      "sourceCommit": "07cd2ff31e2f060f902fb44c308bc8677cae508d",
       "sourceProject": "Duckov-2022",
       "sourceRepository": "https://github.com/bluewhitebow/Dockov-Demo.git",
       "sourcePath": "Packages/com.bluewhitebow.fraxinus-rp",
-      "sourceState": "Applied Duckov-2022 package changes from d0b3e9c through 013bcf6. The manifest hashes the target working tree with its existing line endings.",
+      "sourceState": "Synced 7 files from the Duckov-2022 changes between 26709f0 and 07cd2ff. The manifest hashes the target files with their existing line endings.",
       "fileCount": 2195,
-      "manifestSha256": "8769f4fbfd1aebbb0a34cb246f71b6a7965b55aad12c84c53501e7c4db1e6359"
+      "manifestSha256": "64df3e9ad8de32016bdbe9612b9ab8eca969f2ee78300302362bc0299902c9e6"
     },
     {
       "folder": "Fraxinus-GPU-Batcher",
@@ -58,24 +58,27 @@
       "sourceProject": "Duckov-2022",
       "sourceRepository": "https://github.com/bluewhitebow/Dockov-Demo.git",
       "sourcePath": "Packages/com.bluewhitebow.fraxinus-gpu-batcher",
-      "sourceCommit": "013bcf6cabbc123d55e6447d597868b9fe15a7aa",
-      "sourceState": "Applied Duckov-2022 package changes from d0b3e9c through 013bcf6. The manifest hashes the target working tree with its existing line endings.",
+      "sourceCommit": "07cd2ff31e2f060f902fb44c308bc8677cae508d",
+      "sourceState": "Synced 15 files from the Duckov-2022 changes between 26709f0 and 07cd2ff. The manifest hashes the target files with their existing line endings.",
       "fileCount": 185,
-      "manifestSha256": "539905265eaeaa2a43c280206960043bfc6b4f337d6eadda87a8c175792a027f"
+      "manifestSha256": "2e2a2c110c666a118b616fe749c70d45f3c7b0c5792af6dd9dd04fa460a407ef"
     }
   ],
   "latestSync": {
-    "date": "2026-11-27",
+    "date": "2026-11-28",
     "sourceProject": "Duckov-2022",
     "sourceRepository": "https://github.com/bluewhitebow/Dockov-Demo.git",
-    "sourceCommit": "26709f083346e4a3d01f329bbb8792b8f644a3fd",
-    "sourceBaselineCommit": "013bcf6cabbc123d55e6447d597868b9fe15a7aa",
-    "previousTargetCommit": "23313d113e4c279e104b8addb2ea93b61e29a235",
+    "sourceCommit": "07cd2ff31e2f060f902fb44c308bc8677cae508d",
+    "sourceBaselineCommit": "26709f083346e4a3d01f329bbb8792b8f644a3fd",
+    "previousTargetCommit": "8df2e4d76c7937012c9618a87ad80d51df8cc744",
     "mode": "incremental-package-sync",
-    "sourceState": "Synced the MaterialGraphView change for Tuanjie 1.11. The embedded Shader Graph package uses the UPM identifier com.unity.shadergraph.",
+    "sourceState": "Synced 24 package files for native BRG indirect drawing on Tuanjie 1.8.0+, HZB occlusion, DOTS instancing shaders and Shader Graph selection overrides.",
     "fileCount": 9243,
     "packages": [
-      "Fraxinus-ShaderGraph"
+      "Fraxinus-RPCore",
+      "Fraxinus-ShaderGraph",
+      "FraxinusRP",
+      "Fraxinus-GPU-Batcher"
     ],
     "manifestAlgorithm": "SHA-256 of the concatenated records in ordinal package-relative path order. Each record is the UTF-8 path with forward slashes, NUL, lowercase hexadecimal SHA-256 of the raw target file bytes, and LF.",
     "validation": {

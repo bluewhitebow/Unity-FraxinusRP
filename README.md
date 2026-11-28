@@ -60,11 +60,11 @@ Rendering resolution can be chosen independently of output resolution. **SGSR1**
 | [Fraxinus-RPCore](Packages/Fraxinus-RPCore/README.md) | `com.unity.render-pipelines.core` | `14.0.99` | RenderGraph, shared rendering tools, probe baking and data management. |
 | [Fraxinus-ShaderGraph](Packages/Fraxinus-ShaderGraph/FraxinusChanges.md) | `com.unity.shadergraph` | `14.0.12` | Shader Graph fork exposing the internal APIs needed by UltraRP targets. |
 | [Fraxinus-Light-Transport](Packages/Fraxinus-Light-Transport/README.md) | `com.fraxinus.rendering.light-transport` | `1.0.1` | Compute ray queries, acceleration structures and sampling. |
-| [Fraxinus-GPU-Batcher](Packages/Fraxinus-GPU-Batcher/README.md) | `com.bluewhitebow.fraxinus-gpu-batcher` | `0.1.0` | Optional BRG instance storage, registration, culling and LOD; native indirect camera and shadow draws on Unity 6. |
+| [Fraxinus-GPU-Batcher](Packages/Fraxinus-GPU-Batcher/README.md) | `com.bluewhitebow.fraxinus-gpu-batcher` | `0.1.0` | Optional BRG instance storage, registration, culling and LOD; native indirect camera and shadow draws on Unity 6 and Tuanjie 1.8.0+. |
 
 The five package directories are kept in sync with the corresponding Duckov-Recovered packages. Each UPM package retains its own version. Use the four companion packages and, when installed, GPU Batcher from one checkout or Git revision. Matching version numbers do not make official packages interchangeable with these forks. The dependency examples include all five packages; omit the GPU Batcher entry when it is not needed.
 
-**GPU Batcher registers, culls and draws instances on supported Unity 6 devices.** In Unity 2022.3, including custom editors and players, live GameObjects and terrain foliage use their ordinary Unity renderers. Existing baked-only groups can be expanded back into GameObjects. The Unity 6 backend supports native camera and shadow draws, conservative `CullingGroup` occlusion and SpeedTree wind capture with the matching Core, FraxinusRP and Shader Graph packages. See [GPU Batcher status and setup](docs/Usage.md#optional-gpu-batcher) for upgrade steps and version limits.
+**GPU Batcher registers, culls and draws instances on supported devices running Unity 6 or Tuanjie 1.8.0+ (2022.3.62t2 onward).** On stock Unity 2022.3, live GameObjects and terrain foliage use their ordinary Unity renderers. Existing baked-only groups can be expanded back into GameObjects. Both native backends support native camera and shadow draws, conservative `CullingGroup` occlusion and SpeedTree wind capture with the matching Core, FraxinusRP and Shader Graph packages. See [GPU Batcher status and setup](docs/Usage.md#optional-gpu-batcher) for upgrade steps and version limits.
 
 ## Getting started
 

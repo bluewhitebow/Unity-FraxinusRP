@@ -1,5 +1,5 @@
 // These GraphView versions grant Unity.ShaderGraph.Editor access to their internals.
-#if UNITY_6000_0_OR_NEWER || TUANJIE_1_11_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || TUANJIE_1_8_OR_NEWER
 #define GRAPHVIEW_SELECTION_INTERNALS_VISIBLE
 #endif
 

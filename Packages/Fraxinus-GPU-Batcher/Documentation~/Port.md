@@ -15,8 +15,9 @@ The original copyright notices are retained in adapted source files.
 | Unity 6 native indirect command | Package-owned `Rendering.BatchDrawCommandIndirect` |
 
 The instance storage, CPU/GPU layouts and command-generation contracts are retained.
-On Unity 6 the renderer submits camera and shadow commands to the native BRG output.
-Editor picking uses direct commands. On earlier Unity versions the registration
+On Unity 6 and Tuanjie 1.8.0+ the renderer submits camera and shadow commands to the native BRG output.
+Tuanjie uses its own indirect-command layout and LOD flags, and the 2022 shadow renderer list with per-slice `ShadowDrawingSettings.splitData`.
+Editor picking uses direct commands. On stock Unity 2022.3 the registration
 components remain loadable and live source renderers retain ownership. Expand
 baked-only groups to reconstruct ordinary GameObjects for these versions.
 
@@ -40,6 +41,10 @@ for texture UV origin and clip-depth range. MSAA 2D and array inputs resolve to 
 farthest sample before reduction, with an explicit array slice and viewport bounds.
 
 ## Native compatibility paths
+
+The 1.7.6 editor (2022.3.62t1b7) exposes direct BRG commands. The 1.8.0 editor (2022.3.62t2) adds the native indirect command, its output pointer and count, and indirect draw ranges. The optional `UseLightmapSingleKeyword` flag first appears in 1.8.2 (2022.3.62t4). The package's generated camera and shadow commands use the common 1.8.0 fields. See the [1.7 output structure](https://docs.unity.cn/cn/tuanjiemanual/1.7/ScriptReference/Rendering.BatchCullingOutputDrawCommands.html) and [1.8 indirect command](https://docs.unity.cn/cn/tuanjiemanual/1.8/ScriptReference/Rendering.BatchDrawCommandIndirect.html).
+
+Fraxinus uses raw visibility buffers. For materials shared with other BRG batches, the shader also matches the engine's uniform-buffer layout: 64 KiB from 1.8.0 through 1.10.0 and 16 KiB from 1.10.1. See the [1.10.1 UBO fix](https://unity.cn/editor1-10-1/release-note).
 
 The Unity 6 implementation uses these APIs for occlusion and wind:
 

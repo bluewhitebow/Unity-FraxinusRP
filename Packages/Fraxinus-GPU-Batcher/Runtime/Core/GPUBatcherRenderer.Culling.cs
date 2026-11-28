@@ -1375,11 +1375,6 @@ namespace Fraxinus.GPUBatcher
                 CmdDispatchCullIndirect(cmd, "FraxinusGPUBatcher.CullInstances", _cullInstancesKernel, viewSet.visibleChunkCountBuffer);
 
                 DispatchFinalizeDrawArgs(cmd, viewSet);
-
-#if UNITY_EDITOR
-                if (s == 0)
-                    RequestCameraReadback(cmd, viewSet, cameraId);
-#endif
             }
 
             // signal Pass 1 is pending (if HZB active) - only for first split
@@ -1390,7 +1385,10 @@ namespace Fraxinus.GPUBatcher
 #if UNITY_EDITOR
             PublishFrozenCulling(cam);
             if (!retestPending && _currentCullingContext.splits != null && _currentCullingContext.splits.Count > 0)
+            {
+                RequestCameraReadback(cmd, cam.splits[0].viewSet, cameraId);
                 DispatchDebugSphereCompaction(cmd, _currentCullingContext.splits[0].viewSet);
+            }
 #endif
 
             // return instance to pool if no Phase1 pending
@@ -1491,6 +1489,12 @@ namespace Fraxinus.GPUBatcher
             }
             finally
             {
+#if UNITY_EDITOR
+                // The depth prepass used phase-zero args. Report the args that opaque draws
+                // will consume, including the phase-zero fallback if the retest was skipped.
+                if (retainedContext.splits != null && retainedContext.splits.Count > 0 && retainedContext.splits[0].viewSet != null)
+                    RequestCameraReadback(cmd, retainedContext.splits[0].viewSet, cameraId);
+#endif
                 ReleaseCameraCullingContext(retainedContext);
             }
         }
@@ -2312,7 +2316,7 @@ namespace Fraxinus.GPUBatcher
             }
 
             drawCommands->drawCommandCount = emitted;
-#if UNITY_6000_0_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || TUANJIE_1_8_OR_NEWER
             drawCommands->indirectDrawCommandCount = 0;
 #endif
             drawCommands->visibleInstanceCount = emitted;
@@ -2320,7 +2324,7 @@ namespace Fraxinus.GPUBatcher
             drawCommands->drawRangeCount = 1;
             drawCommands->drawRanges[0] = new BatchDrawRange
             {
-#if UNITY_6000_0_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || TUANJIE_1_8_OR_NEWER
                 drawCommandsType = BatchDrawCommandType.Direct,
 #endif
                 drawCommandsBegin = 0,
@@ -2336,7 +2340,7 @@ namespace Fraxinus.GPUBatcher
                     allDepthSorted = false
                 }
             };
-#if UNITY_6000_0_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || TUANJIE_1_8_OR_NEWER
             drawCommands->indirectDrawCommands = null;
 #endif
             drawCommands->instanceSortingPositions = null;
@@ -2377,7 +2381,7 @@ namespace Fraxinus.GPUBatcher
 
         private unsafe void EmitCameraDrawCommands(BatchCullingOutput cullingOutput, CullingBufferSet viewSet)
         {
-#if UNITY_6000_0_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || TUANJIE_1_8_OR_NEWER
             int totalCmdCount = _drawCommandCount;
             bool hasRanges = _cameraDrawRangeTemplate.IsCreated && _cameraDrawRangeCount > 0;
             int totalRangeCount = hasRanges ? _cameraDrawRangeCount : 1;
@@ -2489,7 +2493,7 @@ namespace Fraxinus.GPUBatcher
             BatchCullingOutput cullingOutput,
             CullingBufferSet shadowSet)
         {
-#if UNITY_6000_0_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || TUANJIE_1_8_OR_NEWER
             int totalCmdCount = _shadowDrawCommandCount;
 
             // determine cascade count for this light

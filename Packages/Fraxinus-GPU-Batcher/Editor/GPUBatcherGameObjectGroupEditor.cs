@@ -37,7 +37,7 @@ namespace Fraxinus.GPUBatcher.Editor
 
             if (!GPUBatcherRenderer.canSubmitDraws)
             {
-                EditorGUILayout.HelpBox("Regular renderers own these objects. GPU Batcher conversion requires Unity 6 and a compatible graphics device.", MessageType.Info);
+                EditorGUILayout.HelpBox("Regular renderers own these objects. GPU Batcher conversion requires native BRG indirect draws and a compatible graphics device.", MessageType.Info);
                 if (group.isConverted) DrawRevertButton(group);
                 return;
             }

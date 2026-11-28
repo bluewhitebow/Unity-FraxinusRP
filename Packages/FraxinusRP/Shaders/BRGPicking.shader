@@ -31,7 +31,8 @@ Shader "Hidden/Ultra Render Pipeline/BRGPicking"
             #pragma target 4.5
 
             #pragma editor_sync_compilation
-            #pragma multi_compile DOTS_INSTANCING_ON
+            #define FRAXINUS_DOTS_ONLY
+            #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/DOTS.hlsl"
 
             #pragma vertex Vert
             #pragma fragment Frag
@@ -89,7 +90,8 @@ Shader "Hidden/Ultra Render Pipeline/BRGPicking"
             #pragma target 4.5
             #pragma editor_sync_compilation
 
-            #pragma multi_compile DOTS_INSTANCING_ON
+            #define FRAXINUS_DOTS_ONLY
+            #include_with_pragmas "Packages/com.bluewhitebow.fraxinus-rp/ShaderLibrary/DOTS.hlsl"
 
             #pragma vertex Vert
             #pragma fragment Frag

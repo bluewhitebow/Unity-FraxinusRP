@@ -23,6 +23,9 @@ namespace Fraxinus.GPUBatcher
         private static readonly int s_idW2O = Shader.PropertyToID("unity_WorldToObject");
         private static readonly int s_idPrevM = Shader.PropertyToID("unity_MatrixPreviousM");
         private static readonly int s_idShCoeff = Shader.PropertyToID("unity_SHCoefficients");
+#if TUANJIE_1_8_OR_NEWER && !UNITY_6000_0_OR_NEWER
+        private static readonly int s_idTuanjiePackedVisibility = Shader.PropertyToID("_FraxinusTuanjiePackedVisibility");
+#endif
 
         private static readonly int[] s_windParamIds = new int[GPUBatcherSpeedTreeWindBridge.maxWindParamsCount];
         private static readonly int[] s_windHistoryParamIds = new int[GPUBatcherSpeedTreeWindBridge.maxWindParamsCount];
@@ -271,6 +274,9 @@ namespace Fraxinus.GPUBatcher
             uint byteAddressPrevM = totalSlots * 2 * k_sizeOfPackedMatrix;
             int speedTreeSlot = IsSpeedTreeProto(protoIndex) ? _protoSpeedTreeSlotIndex[protoIndex] : -1;
             int baseCount = lightProbesEnabled ? 4 : 3;
+#if TUANJIE_1_8_OR_NEWER && !UNITY_6000_0_OR_NEWER
+            int packedVisibilityIndex = baseCount++;
+#endif
             int speedTreeCount = speedTreeSlot >= 0 ? GPUBatcherSpeedTreeWindBridge.maxWindParamsCount * 2 : 0;
             var metadata = new NativeArray<MetadataValue>(baseCount + speedTreeCount, Allocator.Temp)
             {
@@ -280,6 +286,11 @@ namespace Fraxinus.GPUBatcher
             };
             if (lightProbesEnabled)
                 metadata[3] = new MetadataValue { NameID = s_idShCoeff, Value = 0x80000000 | (totalSlots * 3 * 12 * sizeof(float)) };
+#if TUANJIE_1_8_OR_NEWER && !UNITY_6000_0_OR_NEWER
+            // The shader reads this metadata value directly. It distinguishes our packed
+            // indirect visibility (including percentage LODs) from other BRG batches.
+            metadata[packedVisibilityIndex] = new MetadataValue { NameID = s_idTuanjiePackedVisibility, Value = 1 };
+#endif
             if (speedTreeSlot >= 0)
             {
                 int k = GPUBatcherSpeedTreeWindBridge.maxWindParamsCount;

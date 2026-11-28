@@ -242,6 +242,11 @@ namespace FraxinusEngine.Rendering.Ultra
 
         public static void InitializeShaderGlobalKeywords()
         {
+#if TUANJIE_1_8_OR_NEWER && !UNITY_6000_0_OR_NEWER
+            // The shader compiler reports Unity 2022.3 for both engines. Select
+            // Tuanjie's DOTS visibility layout before drawing any BRG batches.
+            Shader.EnableKeyword(ShaderKeywordStrings.ActiveTuanjieBRG);
+#endif
             // Init all keywords upfront
             ShaderGlobalKeywords.MainLightShadows = GlobalKeyword.Create(ShaderKeywordStrings.MainLightShadows);
             ShaderGlobalKeywords.MainLightShadowCascades = GlobalKeyword.Create(ShaderKeywordStrings.MainLightShadowCascades);
@@ -636,6 +641,17 @@ namespace FraxinusEngine.Rendering.Ultra
 
         /// <summary> Keyword used for opting out of lightmap texture arrays, when using BatchRendererGroup. </summary>
         public const string USE_LEGACY_LIGHTMAPS = "USE_LEGACY_LIGHTMAPS";
+
+        internal const string TuanjieBRG = "FRAXINUS_TUANJIE_BRG";
+        internal const string TuanjieBRG64K = "FRAXINUS_TUANJIE_BRG_64K";
+#if TUANJIE_1_8_OR_NEWER
+        // The indirect visibility UBO changed from 64 KiB to 16 KiB in Tuanjie 1.10.1.
+#if !TUANJIE_1_10_OR_NEWER || TUANJIE_1_10_0
+        internal const string ActiveTuanjieBRG = TuanjieBRG64K;
+#else
+        internal const string ActiveTuanjieBRG = TuanjieBRG;
+#endif
+#endif
 
         /// <summary> Keyword used for CopyDepth pass. </summary>
         public const string _OUTPUT_DEPTH = "_OUTPUT_DEPTH";

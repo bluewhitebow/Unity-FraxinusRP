@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- Limited GPU Batcher initialization, registration and indirect submission to Unity 6. Earlier engines use their scene renderers. Removed the custom 2022 backends and their native plugins.
+- Added native BRG indirect submission for Tuanjie 1.8.0+ alongside Unity 6. Stock Unity 2022.3 uses its scene renderers.
 
 ## Earlier port revisions
 

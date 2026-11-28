@@ -60,11 +60,11 @@ Renderer Graph 支持 Forward、Forward+、Stencil Deferred、Deferred+ 与 GPU 
 | [Fraxinus-RPCore](Packages/Fraxinus-RPCore/README.zh-CN.md) | `com.unity.render-pipelines.core` | `14.0.99` | RenderGraph、共享渲染工具、探针烘焙与数据管理。 |
 | [Fraxinus-ShaderGraph](Packages/Fraxinus-ShaderGraph/FraxinusChanges.md) | `com.unity.shadergraph` | `14.0.12` | 为 UltraRP Target 开放所需内部 API 的 Shader Graph 分支。 |
 | [Fraxinus-Light-Transport](Packages/Fraxinus-Light-Transport/README.zh-CN.md) | `com.fraxinus.rendering.light-transport` | `1.0.1` | Compute 射线查询、加速结构与采样。 |
-| [Fraxinus-GPU-Batcher](Packages/Fraxinus-GPU-Batcher/README.md) | `com.bluewhitebow.fraxinus-gpu-batcher` | `0.1.0` | 可选的 BRG 实例存储、注册、剔除与 LOD；Unity 6 支持原生相机及阴影间接绘制。 |
+| [Fraxinus-GPU-Batcher](Packages/Fraxinus-GPU-Batcher/README.md) | `com.bluewhitebow.fraxinus-gpu-batcher` | `0.1.0` | 可选的 BRG 实例存储、注册、剔除与 LOD；Unity 6 和团结引擎 1.8.0+ 支持原生相机及阴影间接绘制。 |
 
 五个包目录与 Duckov-Recovered 中的对应包保持同步。各 UPM 包保留自己的版本号。四个配套包及选装的 GPU Batcher 应来自同一份 checkout 或同一个 Git 提交；版本号相同不代表官方包与定制分支可以互换。依赖示例包含全部五个包，不需要 GPU Batcher 时可省略它的条目。
 
-**GPU Batcher 在受支持的 Unity 6 设备上注册、剔除并绘制实例。** 在 Unity 2022.3（包括定制编辑器和播放器）中，GameObject 和地形植被使用 Unity 自身的渲染器。对于已有的纯烘焙组，可用 Expand 恢复 GameObject。Unity 6 后端通过配套的 Core、FraxinusRP 和 Shader Graph 支持原生相机及阴影绘制、保守的 `CullingGroup` 遮挡和 SpeedTree 风捕获。升级步骤和版本要求见 [GPU Batcher 状态与配置](docs/Usage.zh-CN.md#可选-gpu-batcher)。
+**GPU Batcher 在设备支持时，可通过 Unity 6 或团结引擎 1.8.0+（2022.3.62t2 起）注册、剔除并绘制实例。** 在官方 Unity 2022.3 中，GameObject 和地形植被使用 Unity 自身的渲染器。对于已有的纯烘焙组，可用 Expand 恢复 GameObject。两个原生后端均通过配套的 Core、FraxinusRP 和 Shader Graph 支持原生相机及阴影绘制、保守的 `CullingGroup` 遮挡和 SpeedTree 风捕获。升级步骤和版本要求见 [GPU Batcher 状态与配置](docs/Usage.zh-CN.md#可选-gpu-batcher)。
 
 ## 开始使用
 

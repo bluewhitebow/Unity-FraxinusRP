@@ -1,6 +1,6 @@
 using System;
 using UnityEngine.Rendering;
-#if UNITY_6000_0_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || TUANJIE_1_8_OR_NEWER
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
@@ -11,7 +11,7 @@ namespace Fraxinus.GPUBatcher.Rendering
 {
     public static class BRGIndirectSubmission
     {
-#if UNITY_6000_0_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || TUANJIE_1_8_OR_NEWER
         internal static bool hasNativeApi => true;
         private static GraphicsDeviceType? s_checkedDevice;
         private static bool s_deviceSupported;
@@ -38,6 +38,28 @@ namespace Fraxinus.GPUBatcher.Rendering
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetDeviceSupport() => s_checkedDevice = null;
 
+        private static BatchDrawCommandFlags ToNativeFlags(IndirectDrawCommandFlags flags)
+        {
+#if UNITY_6000_0_OR_NEWER
+            return (BatchDrawCommandFlags)flags;
+#else
+            // Tuanjie combines the fade keyword and packed-value semantics. Its bit 5
+            // selects a lightmap keyword, whereas Unity 6 uses it for packed visibility.
+            var native = (BatchDrawCommandFlags)(flags & (IndirectDrawCommandFlags.FlipWinding |
+                IndirectDrawCommandFlags.HasMotion | IndirectDrawCommandFlags.IsLightMapped |
+                IndirectDrawCommandFlags.HasSortingPosition));
+            if ((flags & IndirectDrawCommandFlags.LODCrossFadeKeyword) != 0)
+                native |= BatchDrawCommandFlags.LODCrossFade;
+            if ((flags & IndirectDrawCommandFlags.UseLegacyLightmapsKeyword) != 0)
+#if TUANJIE_1_8_0 || TUANJIE_1_8_1
+                throw new NotSupportedException("The single-lightmap draw flag requires Tuanjie 1.8.2 or newer.");
+#else
+                native |= BatchDrawCommandFlags.UseLightmapSingleKeyword;
+#endif
+            return native;
+#endif
+        }
+
         /// <summary>Copies camera or shadow commands to BRG-owned memory when native indirect draws are available.</summary>
         public static unsafe bool TrySubmit(
             in BatchCullingOutput output,
@@ -59,7 +81,9 @@ namespace Fraxinus.GPUBatcher.Rendering
             }
             var target = (BatchCullingOutputDrawCommands*)output.drawCommands.GetUnsafePtr();
             if (target->drawCommands != null || target->indirectDrawCommands != null || target->drawRanges != null ||
+#if UNITY_6000_0_OR_NEWER
                 target->proceduralDrawCommands != null || target->proceduralIndirectDrawCommands != null ||
+#endif
                 target->visibleInstances != null || target->instanceSortingPositions != null ||
 #if UNITY_6000_3_OR_NEWER
                 target->drawCommandPickingEntityIds != null)
@@ -85,11 +109,15 @@ namespace Fraxinus.GPUBatcher.Rendering
                     ref readonly var source = ref commands[i];
                     nativeCommands[i] = new NativeCommand
                     {
-                        flags = (UnityEngine.Rendering.BatchDrawCommandFlags)(int)source.flags,
+                        flags = ToNativeFlags(source.flags),
                         batchID = source.batchID,
                         materialID = source.materialID,
                         splitVisibilityMask = source.splitVisibilityMask,
+#if UNITY_6000_0_OR_NEWER
                         lightmapIndex = source.lightmapIndex,
+#else
+                        lightmapIdx = source.lightmapIndex,
+#endif
                         sortingPosition = source.sortingPosition,
                         visibleOffset = source.visibleOffset,
                         meshID = source.meshID,

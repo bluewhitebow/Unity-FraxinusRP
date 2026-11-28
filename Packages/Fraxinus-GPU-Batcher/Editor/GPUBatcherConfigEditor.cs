@@ -44,7 +44,7 @@ namespace Fraxinus.GPUBatcher.Editor
         {
             if (!Rendering.BRGIndirectSubmission.hasNativeApi)
             {
-                EditorGUILayout.HelpBox("GPU Batcher rendering requires Unity 6.", MessageType.Info);
+                EditorGUILayout.HelpBox("This editor version does not provide the native BRG indirect draw API used by GPU Batcher.", MessageType.Info);
                 return;
             }
 

@@ -68,7 +68,7 @@ float HZBFarthestDepth(float4 depths)
 
 bool HZBIsVisibleAfterOcclusion(float occluderDepth, float queryClosestDepth)
 {
-    return queryClosestDepth > occluderDepth;
+    return queryClosestDepth >= occluderDepth;
 }
 
 
@@ -97,6 +97,37 @@ int ComputeHZBMipLevel(float radiusInPixels)
     float mipExp = 0;
     frexp(radiusInPixels, mipExp);
     return max((int)mipExp, 0);
+}
+
+// At this mip the larger projected half-extent is at most one texel. An
+// unaligned rectangle can therefore cover up to three texels on either axis.
+bool IsHZBRectVisible(float2 center, float2 halfExtent, float closestDepth)
+{
+    int mip = ComputeHZBMipLevel(max(halfExtent.x, halfExtent.y));
+    if (mip >= _HZBMipCount) return true;
+
+    int4 bounds = _OccluderMipBounds[mip];
+    int2 first = clamp((int2)floor(ldexp(center - halfExtent, -mip)), 0, bounds.zw - 1);
+    int2 last = clamp((int2)floor(ldexp(center + halfExtent, -mip)), 0, bounds.zw - 1);
+    int2 span = last - first;
+    if (all(span == 1))
+    {
+        float2 uv = float2(bounds.xy + first + 1) * _OccluderDepthPyramidSize.zw;
+        return HZBIsVisibleAfterOcclusion(HZBFarthestDepth(_HZBTexture.GatherRed(sampler_HZBTexture, uv)), closestDepth);
+    }
+
+    // Stay at the selected mip. Outside the rectangle even a single sky texel
+    // would keep a fully occluded object visible.
+    [unroll] for (int y = 0; y < 3; ++y)
+    {
+        [unroll] for (int x = 0; x < 3; ++x)
+        {
+            if (x <= span.x && y <= span.y &&
+                HZBIsVisibleAfterOcclusion(_HZBTexture.Load(int3(bounds.xy + first + int2(x, y), 0)), closestDepth))
+                return true;
+        }
+    }
+    return false;
 }
 
 
@@ -131,21 +162,8 @@ bool IsHZBVisible(float3 worldCenter, float worldRadius)
     float translationPixels = depth > 0.01 ? _HZBTranslationScale / depth : 0.0;
     radiusInPixels += _HZBPixelExpansion + translationPixels;
 
-    int mipLevel = ComputeHZBMipLevel(radiusInPixels);
-
-    if (mipLevel < _HZBMipCount && !isBehindCamera)
-    {
-        float2 centerCoordInChosenMip = ldexp(centerCoordInTopMip, -mipLevel);
-        int4 mipBounds = _OccluderMipBounds[mipLevel];
-
-        // clamp to keep GatherRed footprint within mip's atlas region
-        float2 gatherUv = (float2(mipBounds.xy) + clamp(centerCoordInChosenMip, 0.5, float2(mipBounds.zw) - 1.0)) * _OccluderDepthPyramidSize.zw;
-        float4 gatherDepths = _HZBTexture.GatherRed(sampler_HZBTexture, gatherUv);
-        float occluderDepth = HZBFarthestDepth(gatherDepths);
-        return HZBIsVisibleAfterOcclusion(occluderDepth, queryClosestDepth);
-    }
-
-    return true;
+    if (isBehindCamera) return true;
+    return IsHZBRectVisible(centerCoordInTopMip, radiusInPixels, queryClosestDepth);
 }
 
 
@@ -202,29 +220,13 @@ bool IsChunkHZBVisible(float3 aabbMin, float3 aabbMax)
 
     // compute rect size in top-mip pixels and select mip
     float2 rectSizePixels = (screenMax - screenMin) * _DepthSizeInOccluderPixels;
-    float maxExtent = max(rectSizePixels.x, rectSizePixels.y);
 
     // pixel expansion for temporal mismatch
     float centerDepth = abs(dot(centerRWS, _FacingDirWorldSpace.xyz));
     float chunkTranslationPixels = centerDepth > 0.01 ? _HZBTranslationScale / centerDepth : 0.0;
-    maxExtent += (_HZBPixelExpansion + chunkTranslationPixels) * 2.0; // diameter, not radius
-
-    int mipLevel = ComputeHZBMipLevel(maxExtent * 0.5);  // half-extent for GatherRed 2x2 coverage
-
-    if (mipLevel < _HZBMipCount)
-    {
-        float2 centerNDC = (screenMin + screenMax) * 0.5;
-        float2 centerCoordInTopMip = centerNDC * _DepthSizeInOccluderPixels;
-        float2 centerCoordInChosenMip = ldexp(centerCoordInTopMip, -mipLevel);
-        int4 mipBounds = _OccluderMipBounds[mipLevel];
-
-        float2 gatherUv = (float2(mipBounds.xy) + clamp(centerCoordInChosenMip, 0.5, float2(mipBounds.zw) - 1.0)) * _OccluderDepthPyramidSize.zw;
-        float4 gatherDepths = _HZBTexture.GatherRed(sampler_HZBTexture, gatherUv);
-        float occluderDepth = HZBFarthestDepth(gatherDepths);
-        return HZBIsVisibleAfterOcclusion(occluderDepth, closestDepth);
-    }
-
-    return true;
+    float2 halfExtent = rectSizePixels * 0.5 + _HZBPixelExpansion + chunkTranslationPixels;
+    float2 centerInTopMip = (screenMin + screenMax) * 0.5 * _DepthSizeInOccluderPixels;
+    return IsHZBRectVisible(centerInTopMip, halfExtent, closestDepth);
 }
 
 // shadow caster occlusion test for a capsule (caster sphere swept along the light direction)
@@ -311,15 +313,7 @@ bool IsShadowCapsuleHZBVisible(float3 p0, float3 p1, float radius)
         sMin = max(sMin, 0.0);
         sMax = min(sMax, _DepthSizeInOccluderPixels);
 
-        float ext = max(sMax.x - sMin.x, sMax.y - sMin.y);
-        int mip = ComputeHZBMipLevel(ext * 0.5);
-        if (mip >= _HZBMipCount) return true;
-
-        float2 coordInMip = ldexp((sMin + sMax) * 0.5, -mip);
-        int4 mipBounds = _OccluderMipBounds[mip];
-        float2 gatherUv = (float2(mipBounds.xy) + clamp(coordInMip, 0.5, float2(mipBounds.zw) - 1.0)) * _OccluderDepthPyramidSize.zw;
-        float4 gatherDepths = _HZBTexture.GatherRed(sampler_HZBTexture, gatherUv);
-        if (HZBIsVisibleAfterOcclusion(HZBFarthestDepth(gatherDepths), max(qA, qB)))
+        if (IsHZBRectVisible((sMin + sMax) * 0.5, (sMax - sMin) * 0.5, max(qA, qB)))
             return true;
 
         cA = cB;

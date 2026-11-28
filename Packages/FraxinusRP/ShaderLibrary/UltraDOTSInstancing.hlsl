@@ -19,7 +19,18 @@ UNITY_DOTS_INSTANCING_START(BuiltinPropertyMetadata)
     UNITY_DOTS_INSTANCED_PROP_OVERRIDE_SUPPORTED(float3x4, unity_MatrixPreviousMI)
     UNITY_DOTS_INSTANCED_PROP_OVERRIDE_SUPPORTED(SH,       unity_SHCoefficients)
     UNITY_DOTS_INSTANCED_PROP_OVERRIDE_SUPPORTED(uint2,    unity_EntityId)
+#if defined(FRAXINUS_TUANJIE_BRG)
+    UNITY_DOTS_INSTANCED_PROP_OVERRIDE_SUPPORTED(uint, _FraxinusTuanjiePackedVisibility)
+#endif
 UNITY_DOTS_INSTANCING_END(BuiltinPropertyMetadata)
+
+#if defined(FRAXINUS_TUANJIE_BRG)
+bool FraxinusUsesPackedVisibility()
+{
+    // This metadata word identifies the Fraxinus visibility format. It is not a data-buffer offset.
+    return UNITY_DOTS_INSTANCED_METADATA_NAME(uint, _FraxinusTuanjiePackedVisibility) != 0;
+}
+#endif
 
 #define unity_LODFade               LoadDOTSInstancedData_LODFade()
 #define unity_SpecCube0_HDR         UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_CUSTOM_DEFAULT(float4, unity_SpecCube0_HDR, unity_DOTS_SpecCube0_HDR)

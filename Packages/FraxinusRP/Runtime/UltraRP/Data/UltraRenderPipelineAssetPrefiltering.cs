@@ -38,6 +38,16 @@ namespace FraxinusEngine.Rendering.Ultra
             SelectAll                   // Selects Vertex, Pixel & OFF variant
         }
 
+        // DOTS visibility layout is an engine ABI, not a material option.
+#if !UNITY_6000_0_OR_NEWER
+#if TUANJIE_1_8_OR_NEWER
+        [ShaderKeywordFilter.SelectIf(true, keywordNames: ShaderKeywordStrings.ActiveTuanjieBRG)]
+#else
+        [ShaderKeywordFilter.RemoveIf(true, keywordNames: new[] { ShaderKeywordStrings.TuanjieBRG, ShaderKeywordStrings.TuanjieBRG64K })]
+#endif
+        private const bool k_filterTuanjieBRG = true;
+#endif
+
         // Platform specific filtering overrides
         [ShaderKeywordFilter.ApplyRulesIfGraphicsAPI(GraphicsDeviceType.OpenGLES3, GraphicsDeviceType.OpenGLCore)]
         [ShaderKeywordFilter.RemoveIf(true, keywordNames: ShaderKeywordStrings.WriteRenderingLayers)]
